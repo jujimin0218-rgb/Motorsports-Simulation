@@ -116,3 +116,40 @@ def builtin_car(request):
     from f1_race_engine.vehicle.io import load_builtin_vehicle
 
     return Vehicle(load_builtin_vehicle(request.param), MEDIUM_DOWNFORCE)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3: laps
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def coarse_build_config():
+    """Coarse sampling, for tests that compute many laps.
+
+    Lap time converges to within ~0.02% of the 1 m answer even here, so it is
+    the right trade for a test suite that has to stay fast enough to actually
+    be run (project rule 47).
+    """
+    from f1_race_engine.core.config import TrackBuildConfig
+
+    return TrackBuildConfig(
+        straight_segment_length=30.0, corner_segment_length=20.0,
+        min_segment_length=5.0, max_segment_length=30.0,
+        max_heading_change_per_segment_deg=8.0,
+        max_curvature_change_per_segment=0.01,
+    )
+
+
+@pytest.fixture(scope="session")
+def fast_track(proving_ground_definition, coarse_build_config) -> Track:
+    """The reference circuit, coarsely sampled."""
+    return build_track(proving_ground_definition, coarse_build_config)
+
+
+@pytest.fixture(scope="session")
+def fast_lap(fast_track, reference_spec):
+    from f1_race_engine.physics import compute_lap_time
+    from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle
+
+    return compute_lap_time(fast_track, Vehicle(reference_spec, MEDIUM_DOWNFORCE))

@@ -152,3 +152,29 @@ def test_vehicle_plots_are_reachable_from_the_package():
     from f1_race_engine import visualization
 
     assert callable(visualization.plot_gg_diagram)
+
+
+def test_lap_overview_renders(fast_lap, fast_track, tmp_path):
+    from f1_race_engine.visualization.lap_plots import save_lap_overview
+
+    save_lap_overview(fast_lap, fast_track, str(tmp_path / "lap.png"))
+    assert (tmp_path / "lap.png").stat().st_size > 10_000
+
+
+def test_individual_lap_plots_render(fast_lap, fast_track):
+    import matplotlib.pyplot as plt
+
+    from f1_race_engine.visualization import lap_plots
+
+    assert lap_plots.plot_speed_profile(fast_lap) is not None
+    plt.close("all")
+    assert lap_plots.plot_g_trace(fast_lap) is not None
+    plt.close("all")
+    assert lap_plots.plot_speed_map(fast_lap, fast_track) is not None
+    plt.close("all")
+
+
+def test_lap_plots_are_reachable_from_the_package():
+    from f1_race_engine import visualization
+
+    assert callable(visualization.plot_speed_profile)

@@ -8,6 +8,8 @@ Two independent renderers:
   for the circuit.
 * :mod:`~f1_race_engine.visualization.vehicle_plots` -- matplotlib diagnostics
   for the car: force balance, g-g envelope, performance envelope, cornering.
+* :mod:`~f1_race_engine.visualization.lap_plots` -- the speed profile, braking
+  and acceleration zones, the g trace, and the circuit coloured by speed.
 
 matplotlib is an optional extra; the engine core never imports it.
 """
@@ -19,7 +21,7 @@ from .svg import SECTOR_COLOURS, centerline_path, track_to_svg
 __all__ = ["SECTOR_COLOURS", "centerline_path", "track_to_svg"]
 
 
-_PLOT_MODULES = ("track_plots", "vehicle_plots")
+_PLOT_MODULES = ("track_plots", "vehicle_plots", "lap_plots")
 
 
 def __getattr__(name: str):

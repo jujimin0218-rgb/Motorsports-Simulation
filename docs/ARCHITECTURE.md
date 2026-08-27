@@ -174,6 +174,13 @@ straight lengths differ, not because anything in the engine knows their names.
 Measured across the reference car's wing range: +2.9 km/h through a 25 m
 corner, +82.4 km/h through a 120 m corner, and -45.8 km/h of top speed.
 
+Phase 3 turns that into the decisive test. Sweeping wing level on each shipped
+circuit, the optimum lands **at 0.0 on the power circuit, at 1.0 on the street
+circuit, and at 0.2 — a genuine interior optimum — on the balanced one**. And
+which of the three shipped cars is fastest flips between circuits: the
+power-biased car wins the power circuit by 6.8 s, the aero-biased car wins the
+street circuit. Nothing in `f1_race_engine/` branches on a circuit's name.
+
 ### Load sensitivity makes downforce non-linear
 
 ```
@@ -197,6 +204,51 @@ fast corner while its coefficient there is *lower* than in a slow one.
 * A heavy fuel load costs 1.5% of corner speed in a hairpin and 7% in a fast
   corner — because at low speed mass largely cancels out of `a = mu*g`, and at
   high speed it does not.
+
+---
+
+## 3b. The lap is where the two meet
+
+Project rule 15.  A lap time is never chosen; it is the integral of a speed
+profile, and the profile is the pointwise minimum of three limits:
+
+```
+Track -> curvature -> cornering limit
+                          |
+                +---------+---------+
+          backward pass        forward pass
+         (what braking          (what the engine
+          allows into it)        allows out of it)
+                +---------+---------+
+                          |
+                   final speed profile
+```
+
+Where the three curves intersect is the apex. Nobody had to say where it is.
+
+Three properties make this correct rather than merely plausible:
+
+* **Both directions are needed.** A slow corner constrains how fast you may
+  still be arriving *and* how fast you can have got to the next one; one sweep
+  propagates only one of those.
+* **The sweeps wrap.** A lap is a loop, so a braking zone can begin before the
+  start/finish line. Repeating until nothing changes is what makes the answer
+  independent of where the lap is cut.
+* **Combined grip is respected.** A car using 80% of its lateral limit has only
+  the remainder of the friction circle for braking or traction.
+
+That last one has to be enforced on **one consistent basis**. Phase 3 found a
+real bug here: the lateral model computed the friction circle on total load
+while the traction model computed it per axle, and because μ falls with load,
+two axles have more grip between them than one lump. A car at its cornering
+limit therefore still believed it had drive available, and the profile
+accelerated through apexes. Cornering is now charged as a fraction of the whole
+car's circle — the same basis the lateral model uses.
+
+**Resolution independence extends to the lap.** Segment count can vary by 22×
+and the lap time moves by 0.024%, because the energy update
+`v₁² = v₀² + 2·a·ds` is exact for constant acceleration and a midpoint
+corrector makes it second-order for the speed-dependent case.
 
 ---
 
@@ -253,6 +305,7 @@ lives in `core/validation.py`; each system owns its own suite of checks:
 
 * `track/validation.py` — 16 checks on circuit geometry
 * `physics/validation.py` — 14 checks on vehicle behaviour
+* `physics/lap_validation.py` — 11 checks on the profile and the lap
 
 Both kinds matter. **Directional** checks (speed up, downforce up; mass up,
 acceleration down) catch a sign error or a dropped force term. **Envelope**
@@ -319,14 +372,21 @@ f1_race_engine/
         grip.py             normal load: weight, downforce, banking, transfer
         longitudinal.py     the force balance, traction and braking limits
         lateral.py          cornering capability and the corner speed limit
+        speed_profile.py    cornering limit + forward/backward passes
+        braking.py          braking points and distances, read off the profile
+        acceleration.py     corner exits, traction- vs power-limited
+        lap_time.py         exact time integration, sectors, rule-41 metrics
+        setup_search.py     let the circuit choose the setup
         benchmark.py        measured performance envelope
-        validation.py       14 automatic sanity checks
+        validation.py       14 vehicle checks
+        lap_validation.py   11 lap checks, including rule 40 Test C
     environment/
         conditions.py       air density from real atmospheric physics
     visualization/
         svg.py              standalone SVG maps, no dependencies
         track_plots.py      matplotlib circuit diagnostics (optional extra)
         vehicle_plots.py    force balance, g-g envelope, cornering limit
+        lap_plots.py        speed profile, zones, g trace, speed map
     data/
         tracks/             three synthetic circuits
         vehicles/           three cars: reference, power-biased, aero-biased
@@ -339,7 +399,7 @@ Arriving in later phases, attached at the seams above:
     vehicle/   ers, gearbox, differential, cooling, fuel burn
     tyres/     temperature, degradation, wear, pressure
     driver/    pace, inputs, braking, cornering, consistency, racecraft
-    physics/   speed_profile, lap_time, suspension, slip angle
+    physics/   suspension, slip angle, yaw, weight transfer (dynamic)
     race/      session, qualifying, race, timing, pitstop, strategy, overtaking
     environment/ weather, wind, track_temperature, track_evolution
     events/    safety_car, vsc, red_flag, collision, mechanical_failure
@@ -395,8 +455,8 @@ A Unity or other 3D client consumes the same data over the same boundary.
 |---|---|---|
 | 1 | Core, units, config, RNG, track model, builder, validation, viz | **done** |
 | 2 | Vehicle: mass, engine, drag, downforce, brakes, basic tyre grip | **done** |
-| 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass | next |
-| 4 | Lap simulation → a realistic lap time |
+| 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass | **done** |
+| 4 | Lap simulation and the driver model | next |
 | 5 | Tyres, fuel, ERS |
 | 6 | Multi-car simulation |
 | 7 | Qualifying and race |

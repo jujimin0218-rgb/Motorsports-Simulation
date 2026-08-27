@@ -15,8 +15,14 @@ Aerodynamic forces live with the platform that produces them, in
 they are a property of the car's shape, and splitting the coefficients from the
 force they produce only adds a layer to step through.
 
-The speed profile, braking points and lap time -- which assemble these into a
-lap -- are Phase 3 and 4.
+* :mod:`~f1_race_engine.physics.speed_profile` -- the cornering, braking and
+  acceleration limits, and the forward/backward passes that combine them
+* :mod:`~f1_race_engine.physics.braking` / :mod:`~f1_race_engine.physics.acceleration`
+  -- braking points and corner-exit analysis read out of the profile
+* :mod:`~f1_race_engine.physics.lap_time` -- the limit lap
+
+The *driver* -- imperfection, consistency, mistakes -- is Phase 4, and attaches
+through :class:`~f1_race_engine.physics.speed_profile.PerformanceLimits`.
 """
 
 from __future__ import annotations
@@ -29,6 +35,9 @@ from .lateral import (
     max_lateral_acceleration,
     required_lateral_acceleration,
 )
+from .acceleration import AccelerationZone, acceleration_zones
+from .braking import BrakingZone, braking_zones
+from .lap_time import LapTimeResult, compute_lap_time, format_lap_result
 from .longitudinal import (
     LongitudinalForces,
     longitudinal_forces,
@@ -36,12 +45,29 @@ from .longitudinal import (
     max_deceleration,
     traction_limited_force,
 )
+from .speed_profile import (
+    PerformanceLimits,
+    SpeedProfile,
+    compute_speed_profile,
+    cornering_limits,
+)
 
 __all__ = [
+    "AccelerationZone",
     "AxleLoads",
+    "BrakingZone",
+    "LapTimeResult",
     "LateralCapability",
     "LongitudinalForces",
+    "PerformanceLimits",
+    "SpeedProfile",
+    "acceleration_zones",
+    "braking_zones",
+    "compute_lap_time",
+    "compute_speed_profile",
     "corner_speed_limit",
+    "cornering_limits",
+    "format_lap_result",
     "grip_limits",
     "lateral_capability",
     "longitudinal_forces",

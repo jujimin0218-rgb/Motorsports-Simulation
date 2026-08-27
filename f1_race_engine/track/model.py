@@ -86,6 +86,15 @@ class TrackState:
         return self.kind is not SegmentKind.STRAIGHT
 
     @property
+    def corner_radius(self) -> Metres:
+        """Unsigned radius, m.  ``inf`` on a straight.
+
+        Mirrors :attr:`~f1_race_engine.track.segment.TrackSegment.corner_radius`
+        so consumers can ask either a segment or a resolved state.
+        """
+        return abs(self.radius)
+
+    @property
     def is_wet(self) -> bool:
         return self.water_depth > 0.0
 

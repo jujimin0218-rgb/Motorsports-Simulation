@@ -103,6 +103,14 @@ def traction_limited_force(
     the driven axle, which raises the grip available, which allows more
     acceleration.  A handful of fixed-point passes converge quickly because the
     feedback gain ``mu * h_cg / wheelbase`` is well under one.
+
+    Cornering is charged as a **fraction of the whole car's friction circle**,
+    not as a force against the rear axle's own circle.  That consistency
+    matters: because the friction coefficient falls with load, two axles
+    evaluated separately have more grip between them than the same load
+    evaluated as one lump.  Mixing the two bases would leave a car sitting at
+    its cornering limit still believing it had drive available -- and the speed
+    profile would then accelerate through an apex.
     """
     config = vehicle.config
     tyres = tyre_state or TyreState()
@@ -127,14 +135,22 @@ def traction_limited_force(
             gravity=_gravity(config),
             enable_load_transfer=config.powertrain.longitudinal_load_transfer,
         )
-        limit = vehicle.tyre_model.grip_limit(
+        rear_limit = vehicle.tyre_model.grip_limit(
             compound, loads.rear, state=tyres, surface_grip=surface_grip
         )
-        # The rear tyres' share of any cornering force is spent first.
-        rear_share = 1.0 - balance
-        available = vehicle.tyre_model.available_longitudinal(
-            limit, abs(lateral_force_used) * rear_share
+        # How much of the car's total friction circle cornering is already
+        # spending.  Evaluated on the same lumped basis as the lateral model.
+        total_limit = vehicle.tyre_model.grip_limit(
+            compound, loads.total, state=tyres, surface_grip=surface_grip
         )
+        lateral_used = abs(lateral_force_used)
+        if total_limit.capacity > 0.0 and lateral_used > 0.0:
+            exponent = config.tyres.combined_grip_exponent
+            utilisation = min(lateral_used / total_limit.capacity, 1.0)
+            reserve = (1.0 - utilisation**exponent) ** (1.0 / exponent)
+            available = rear_limit.capacity * reserve
+        else:
+            available = rear_limit.capacity
         if available <= force and force > 0.0:
             force = available
             break

@@ -606,6 +606,56 @@ class EnvironmentConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class SpeedProfileConfig(ConfigNode):
+    """Numerics for the quasi-steady-state speed profile."""
+
+    max_passes: int = 8
+    """Maximum forward/backward sweeps around the lap.
+
+    A lap is a closed loop, so a braking zone can begin before the start/finish
+    line and constrain speeds behind it.  Sweeping repeatedly until nothing
+    changes is what makes the profile independent of where the lap is cut."""
+
+    convergence_tolerance: float = 1.0e-4
+    """Largest speed change, m/s, that still counts as converged."""
+
+    corrector_steps: int = 1
+    """Midpoint corrector passes on each energy update.
+
+    ``v1^2 = v0^2 + 2*a*ds`` is exact for constant acceleration, but ``a``
+    varies with speed.  Re-evaluating it at the midpoint speed makes each step
+    second-order accurate, which is what lets a straight be sampled coarsely
+    without biasing the lap time."""
+
+    corner_speed_tolerance: float = 1.0e-3
+    """Bisection tolerance, m/s, for the cornering limit."""
+
+    minimum_speed: float = 3.0
+    """Speed floor, m/s.  A corner that comes out slower than this is either
+    a data error or a pit lane; the floor keeps ``dt = ds / v`` finite."""
+
+    speed_ceiling: float = 150.0
+    """Upper bound, m/s, for the cornering-limit search."""
+
+    def validate(self) -> None:
+        if self.max_passes < 1:
+            raise ConfigError("speed_profile.max_passes must be at least 1")
+        if self.corrector_steps < 0:
+            raise ConfigError("speed_profile.corrector_steps must be non-negative")
+        require_positive(
+            "speed_profile.convergence_tolerance", self.convergence_tolerance
+        )
+        require_positive(
+            "speed_profile.corner_speed_tolerance", self.corner_speed_tolerance
+        )
+        require_positive("speed_profile.minimum_speed", self.minimum_speed)
+        require_ordered(
+            "speed_profile.minimum_speed", self.minimum_speed,
+            "speed_profile.speed_ceiling", self.speed_ceiling,
+        )
+
+
+@dataclass(frozen=True)
 class PhysicsValidationConfig(ConfigNode):
     """Bounds for the automatic physics sanity checks (project rule 39).
 
@@ -683,6 +733,7 @@ class SimulationConfig(ConfigNode):
     aero: AeroConfig = field(default_factory=AeroConfig)
     tyres: TyreConfig = field(default_factory=TyreConfig)
     powertrain: PowertrainConfig = field(default_factory=PowertrainConfig)
+    speed_profile: SpeedProfileConfig = field(default_factory=SpeedProfileConfig)
     physics_validation: PhysicsValidationConfig = field(
         default_factory=PhysicsValidationConfig
     )

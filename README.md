@@ -6,9 +6,9 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phase 2 (basic vehicle physics) complete.** Core infrastructure, the
-track model, and a car whose behaviour comes out of a real force balance. No
-lap time yet — that is Phases 3 and 4.
+**Status: Phase 3 (speed profile) complete.** Core infrastructure, the track
+model, a car whose behaviour comes out of a real force balance, and a lap time
+that is the integral of a speed profile. No driver yet — that is Phase 4.
 
 ## Quick start
 
@@ -23,11 +23,15 @@ python examples/04_resolution_independence.py   # the property the design rests 
 python examples/05_vehicle_benchmark.py         # car benchmark vs real F1 figures
 python examples/06_setup_trade_off.py           # why circuits want different cars
 python examples/07_visualise_vehicle.py         # force balance, g-g, cornering
+python examples/08_lap_time.py --validate      # lap time + automatic checks
+python examples/09_setup_per_circuit.py        # the circuit chooses the setup
+python examples/10_visualise_lap.py            # speed profile, zones, g trace
 ```
 
 ```python
 from f1_race_engine import (
-    Vehicle, benchmark_vehicle, load_builtin_vehicle, load_track, validate_vehicle,
+    Vehicle, benchmark_vehicle, compute_lap_time, load_builtin_vehicle,
+    load_track, validate_vehicle, wing_level_sweep,
 )
 
 track = load_track("synthetic_proving_ground")   # built and validated
@@ -37,6 +41,10 @@ print(state.radius, state.gradient, state.grip, state.sector)
 car = Vehicle(load_builtin_vehicle("reference_2024"))
 print(validate_vehicle(car).format())            # 14 automatic physics checks
 print(benchmark_vehicle(car).peak_lateral_g)     # 5.40 -- integrated, not set
+
+lap = compute_lap_time(track, car)
+print(lap.formatted, lap.sector_times)           # 1:08.632 -- nobody chose this
+print(wing_level_sweep(track, car).best)         # the circuit picks its setup
 ```
 
 ## What is here
@@ -47,7 +55,7 @@ print(benchmark_vehicle(car).peak_lateral_g)     # 5.40 -- integrated, not set
 | `f1_race_engine/track/` | Definitions → builder → segments → `distance → TrackState` |
 | `f1_race_engine/vehicle/` | Mass, aero, power unit, brakes, setup — separable systems |
 | `f1_race_engine/tyres/` | Compounds, load sensitivity, friction ellipse |
-| `f1_race_engine/physics/` | Normal loads, force balance, cornering, benchmark, validation |
+| `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
 | `f1_race_engine/environment/` | Air density from real atmospheric physics |
 | `f1_race_engine/visualization/` | SVG circuit maps (no dependencies), matplotlib diagnostics |
 | `f1_race_engine/data/` | Three circuits, three cars, five tyre compounds |
@@ -60,10 +68,11 @@ extra used only for debug plots.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — how it fits together and why
 - [`docs/PHASE1.md`](docs/PHASE1.md) — the track model, with benchmark output
 - [`docs/PHASE2.md`](docs/PHASE2.md) — the car, benchmarked against real F1 figures
+- [`docs/PHASE3.md`](docs/PHASE3.md) — the lap, and why circuits want different cars
 
 ## Roadmap
 
-Phases 1-2 done. Next: 3 speed profile · 4 lap simulation · 5 tyres/fuel/ERS ·
+Phases 1-3 done. Next: 4 lap simulation & driver · 5 tyres/fuel/ERS ·
 6 multi-car · 7 qualifying & race · 8 strategy & pit stops · 9 overtaking ·
 10 weather · 11 race events · 12 advanced physics.
 
