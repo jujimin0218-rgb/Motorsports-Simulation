@@ -1,0 +1,317 @@
+{
+  "name": "Synthetic Street Circuit",
+  "country": "Testing",
+  "defaults": {
+    "transition_factor": 0.55,
+    "min_transition_length": 4.0,
+    "max_transition_fraction": 0.45,
+    "track_width": 9.5,
+    "surface_type": "asphalt",
+    "surface_grip": 0.96,
+    "roughness": 0.6,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 501.28264405309346,
+      "name": "Start/finish straight"
+    },
+    {
+      "type": "corner",
+      "radius": 20,
+      "angle": 90,
+      "direction": "right",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 151.73652151945285,
+      "name": "Harbour link"
+    },
+    {
+      "type": "corner",
+      "radius": 28,
+      "angle": 95,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "straight",
+      "length": 100.01025001306284,
+      "name": "Seafront"
+    },
+    {
+      "type": "corner",
+      "radius": 45,
+      "angle": 75,
+      "direction": "left",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 35.0,
+      "name": "Casino link"
+    },
+    {
+      "type": "corner",
+      "radius": 18,
+      "angle": 85,
+      "direction": "right",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 105.52351512041673,
+      "name": "Hill climb"
+    },
+    {
+      "type": "corner",
+      "radius": 60,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 35.0,
+      "name": "Tunnel approach"
+    },
+    {
+      "type": "corner",
+      "radius": 90,
+      "angle": 55,
+      "direction": "left",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 35.0,
+      "name": "Tunnel exit"
+    },
+    {
+      "type": "corner",
+      "radius": 22,
+      "angle": 80,
+      "direction": "right",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 48.58190164414695,
+      "name": "Chicane link"
+    },
+    {
+      "type": "corner",
+      "radius": 32,
+      "angle": 90,
+      "direction": "left",
+      "name": "Turn 8",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 69.79250351426559,
+      "name": "Swimming pool"
+    },
+    {
+      "type": "corner",
+      "radius": 75,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 9",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 58.391051220137335,
+      "name": "Pool exit"
+    },
+    {
+      "type": "corner",
+      "radius": 19,
+      "angle": 85,
+      "direction": "right",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 35.0,
+      "name": "Rascasse approach"
+    },
+    {
+      "type": "corner",
+      "radius": 38,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "straight",
+      "length": 172.899529191591,
+      "name": "Old town"
+    },
+    {
+      "type": "corner",
+      "radius": 50,
+      "angle": 70,
+      "direction": "left",
+      "name": "Turn 12",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 123.57830311256131,
+      "name": "Hairpin link"
+    },
+    {
+      "type": "corner",
+      "radius": 26,
+      "angle": 80,
+      "direction": "right",
+      "name": "Turn 13",
+      "corner_id": 13
+    },
+    {
+      "type": "straight",
+      "length": 102.45506400567015,
+      "name": "Waterfront"
+    },
+    {
+      "type": "corner",
+      "radius": 42,
+      "angle": 55,
+      "direction": "left",
+      "name": "Turn 14",
+      "corner_id": 14
+    },
+    {
+      "type": "straight",
+      "length": 311.9171815178486,
+      "name": "Final sweep"
+    },
+    {
+      "type": "corner",
+      "radius": 65,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 15",
+      "corner_id": 15
+    },
+    {
+      "type": "straight",
+      "length": 254.129353018214,
+      "name": "Pit approach"
+    },
+    {
+      "type": "corner",
+      "radius": 30,
+      "angle": 100,
+      "direction": "left",
+      "name": "Turn 16",
+      "corner_id": 16
+    },
+    {
+      "type": "straight",
+      "length": 82.72488209261181,
+      "name": "Pit exit straight"
+    }
+  ],
+  "elevation": {
+    "control_points": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        600.0,
+        20.0
+      ],
+      [
+        1400.0,
+        34.0
+      ],
+      [
+        2200.0,
+        14.0
+      ],
+      [
+        2900.0,
+        -3.0
+      ],
+      [
+        3350.0,
+        0.0
+      ]
+    ],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        11.0
+      ],
+      [
+        400.0,
+        9.5
+      ],
+      [
+        2600.0,
+        8.5
+      ],
+      [
+        3100.0,
+        9.5
+      ],
+      [
+        3350.0,
+        11.0
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 0,
+        "name": "Start/finish straight",
+        "detection_distance": 3230.0,
+        "activation_start": 50.0,
+        "activation_end": 330.0,
+        "length": 280.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1105.5,
+      2244.5
+    ]
+  },
+  "metadata": {
+    "purpose": "Grip- and traction-limited reference circuit",
+    "geometry_confidence": "synthetic",
+    "character": "short, tight, narrow, low average speed, heavy elevation change",
+    "notes": "Not a real circuit. Sits at the mechanical-grip end of the character range, opposite the power circuit."
+  }
+}
