@@ -493,6 +493,167 @@ class TrackConditionsConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class AeroConfig(ConfigNode):
+    """Aerodynamic model parameters.
+
+    The *car's* aero numbers -- lift and drag area -- live in its spec, because
+    they describe that car.  What lives here is how the model treats them.
+    """
+
+    drs_drag_reduction: float = 0.13
+    """Fraction of drag area removed when DRS is open.
+
+    Regulated, so it is a property of the formula rather than of one team's
+    car.  The aero model applies it; deciding *whether* DRS may be open is a
+    race-core decision in Phase 9."""
+
+    drs_downforce_loss: float = 0.10
+    """Fraction of rear downforce lost when DRS is open.  Opening the flap
+    costs grip as well as saving drag -- which is why DRS is a straight-line
+    tool and not a corner one."""
+
+    ground_effect_reference_speed: float = 40.0
+    """Speed, m/s, below which the floor is treated as fully stalled in the
+    simplified low-speed correction.  Phase 12 replaces this with a ride-height
+    and porpoising model."""
+
+    low_speed_downforce_floor: float = 0.0
+    """Fraction of peak downforce still available as speed approaches zero.
+    Zero is the honest simplification: downforce scales with v^2."""
+
+    def validate(self) -> None:
+        require_range("aero.drs_drag_reduction", self.drs_drag_reduction, 0.0, 0.9)
+        require_range("aero.drs_downforce_loss", self.drs_downforce_loss, 0.0, 1.0)
+        require_positive(
+            "aero.ground_effect_reference_speed", self.ground_effect_reference_speed
+        )
+        require_range(
+            "aero.low_speed_downforce_floor", self.low_speed_downforce_floor, 0.0, 1.0
+        )
+
+
+@dataclass(frozen=True)
+class TyreConfig(ConfigNode):
+    """Tyre model parameters.
+
+    Compound-specific numbers (peak friction, load sensitivity, wear rate) are
+    data and live in the compound files.  These are the shape of the model.
+    """
+
+    combined_grip_exponent: float = 2.0
+    """Exponent of the friction ellipse: ``(Fx/F)^n + (Fy/F)^n = 1``.
+    2.0 is the classic ellipse; racing tyres measure slightly above it."""
+
+    min_normal_load: float = 100.0
+    """Load floor, N, used when evaluating load sensitivity.  The power law
+    diverges at zero load, and an unloaded tyre carries no force anyway."""
+
+    def validate(self) -> None:
+        require_range("tyres.combined_grip_exponent", self.combined_grip_exponent, 1.0, 4.0)
+        require_positive("tyres.min_normal_load", self.min_normal_load)
+
+
+@dataclass(frozen=True)
+class PowertrainConfig(ConfigNode):
+    """Powertrain and traction model parameters."""
+
+    drivetrain_efficiency: float = 0.95
+    """Fraction of crank power that reaches the road."""
+
+    min_tractive_speed: float = 1.0
+    """Speed floor, m/s, when converting power to force (``F = P / v``).
+    Below it the torque limit governs anyway, and the division would blow up."""
+
+    longitudinal_load_transfer: bool = True
+    """Whether to shift vertical load between the axles under acceleration and
+    braking.
+
+    Quasi-static only: ``dN = m * a * h_cg / wheelbase``.  It is enabled because
+    a rear-drive car's traction is decided by rear axle load, and ignoring the
+    transfer understates standing-start acceleration by around 15%.  The full
+    dynamic treatment -- suspension, damping, lateral transfer, pitch -- is
+    Phase 12."""
+
+    traction_solver_iterations: int = 8
+    """Load transfer makes traction implicit (grip depends on load depends on
+    acceleration depends on grip).  This many fixed-point passes settle it."""
+
+    def validate(self) -> None:
+        require_range(
+            "powertrain.drivetrain_efficiency", self.drivetrain_efficiency, 0.5, 1.0
+        )
+        require_positive("powertrain.min_tractive_speed", self.min_tractive_speed)
+        if self.traction_solver_iterations < 1:
+            raise ConfigError(
+                "powertrain.traction_solver_iterations must be at least 1"
+            )
+
+
+@dataclass(frozen=True)
+class EnvironmentConfig(ConfigNode):
+    """Default ambient conditions for a session."""
+
+    air_temperature: float = 25.0
+    track_temperature: float = 35.0
+    pressure: float = 101_325.0
+    relative_humidity: float = 0.4
+
+    def validate(self) -> None:
+        require_range("environment.air_temperature", self.air_temperature, -60.0, 70.0)
+        require_range("environment.track_temperature", self.track_temperature, -60.0, 90.0)
+        require_positive("environment.pressure", self.pressure)
+        require_range("environment.relative_humidity", self.relative_humidity, 0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class PhysicsValidationConfig(ConfigNode):
+    """Bounds for the automatic physics sanity checks (project rule 39).
+
+    These are plausibility envelopes for a modern Formula 1 car, not targets.
+    A model that leaves them has gone wrong in a way that is cheaper to catch
+    here than three phases later.
+    """
+
+    min_top_speed: float = 75.0
+    max_top_speed: float = 110.0
+    """Top speed envelope, m/s (270-396 km/h)."""
+
+    min_peak_lateral_g: float = 3.5
+    max_peak_lateral_g: float = 7.0
+    """Peak sustained lateral acceleration envelope, g."""
+
+    min_peak_braking_g: float = 3.5
+    max_peak_braking_g: float = 7.0
+
+    min_standing_acceleration_g: float = 0.7
+    max_standing_acceleration_g: float = 1.8
+    """Longitudinal acceleration from rest, g -- traction limited."""
+
+    max_low_speed_lateral_g: float = 3.0
+    """A car with no downforce yet must not be pulling high-speed numbers."""
+
+    def validate(self) -> None:
+        require_ordered(
+            "physics_validation.min_top_speed", self.min_top_speed,
+            "physics_validation.max_top_speed", self.max_top_speed,
+        )
+        require_ordered(
+            "physics_validation.min_peak_lateral_g", self.min_peak_lateral_g,
+            "physics_validation.max_peak_lateral_g", self.max_peak_lateral_g,
+        )
+        require_ordered(
+            "physics_validation.min_peak_braking_g", self.min_peak_braking_g,
+            "physics_validation.max_peak_braking_g", self.max_peak_braking_g,
+        )
+        require_ordered(
+            "physics_validation.min_standing_acceleration_g",
+            self.min_standing_acceleration_g,
+            "physics_validation.max_standing_acceleration_g",
+            self.max_standing_acceleration_g,
+        )
+
+
+@dataclass(frozen=True)
 class RandomnessConfig(ConfigNode):
     """Seeding for the central RNG (project rule 36)."""
 
@@ -518,6 +679,13 @@ class SimulationConfig(ConfigNode):
     track_build: TrackBuildConfig = field(default_factory=TrackBuildConfig)
     track_validation: TrackValidationConfig = field(default_factory=TrackValidationConfig)
     track_conditions: TrackConditionsConfig = field(default_factory=TrackConditionsConfig)
+    environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
+    aero: AeroConfig = field(default_factory=AeroConfig)
+    tyres: TyreConfig = field(default_factory=TyreConfig)
+    powertrain: PowertrainConfig = field(default_factory=PowertrainConfig)
+    physics_validation: PhysicsValidationConfig = field(
+        default_factory=PhysicsValidationConfig
+    )
 
 
 # ---------------------------------------------------------------------------

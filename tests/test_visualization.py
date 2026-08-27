@@ -124,3 +124,31 @@ def test_plots_are_reachable_from_the_package(proving_ground):
     assert callable(visualization.plot_map)
     with pytest.raises(AttributeError):
         visualization.definitely_not_a_plot
+
+
+def test_vehicle_overview_renders(car, tmp_path):
+    from f1_race_engine.visualization.vehicle_plots import save_vehicle_overview
+
+    save_vehicle_overview(car, str(tmp_path / "vehicle.png"))
+    assert (tmp_path / "vehicle.png").stat().st_size > 10_000
+
+
+def test_individual_vehicle_plots_render(car):
+    import matplotlib.pyplot as plt
+
+    from f1_race_engine.visualization import vehicle_plots
+
+    for plot in (
+        vehicle_plots.plot_force_balance,
+        vehicle_plots.plot_gg_diagram,
+        vehicle_plots.plot_performance_envelope,
+        vehicle_plots.plot_cornering,
+    ):
+        assert plot(car) is not None
+        plt.close("all")
+
+
+def test_vehicle_plots_are_reachable_from_the_package():
+    from f1_race_engine import visualization
+
+    assert callable(visualization.plot_gg_diagram)

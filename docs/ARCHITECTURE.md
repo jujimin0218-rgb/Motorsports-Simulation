@@ -146,6 +146,60 @@ maps at the exact distance.
 
 ---
 
+## 3a. The vehicle stands on the same principle
+
+A car is not one overall rating (project rule 11). It is a set of systems, and
+its behaviour is whatever the force balance produces:
+
+```
+F_net = F_drive - F_drag - F_rolling - F_brake - m*g*sin(theta)
+a     = F_net / m
+```
+
+Two couplings do most of the work, and both are deliberate.
+
+### Induced drag makes wing a real choice
+
+```
+CdA = CdA_0 + k * ClA^2
+```
+
+Drag has a term proportional to the *square* of the downforce being generated,
+so the tenth wing level costs far more than the first. There is no setting that
+is best everywhere: a low wing is fast down a long straight and hopeless
+through a medium-speed corner. **This is the mechanism that satisfies rule
+2.3.** Monza and Monaco want different cars because their corner radii and
+straight lengths differ, not because anything in the engine knows their names.
+
+Measured across the reference car's wing range: +2.9 km/h through a 25 m
+corner, +82.4 km/h through a 120 m corner, and -45.8 km/h of top speed.
+
+### Load sensitivity makes downforce non-linear
+
+```
+mu = mu_peak * (N / N_ref)^-k
+```
+
+A tyre loses friction *coefficient* as it is pressed harder, though it still
+gains force. Without this, cornering ability would rise linearly with downforce
+and fast corners would come out absurd. It is also why an F1 car pulls 5 g in a
+fast corner while its coefficient there is *lower* than in a slow one.
+
+### Consequences that follow rather than being written down
+
+* Traction is an axle question: a rear-drive car launches on its rear tyres, so
+  the limit uses rear axle load including load transfer.
+* Braking is grip limited, because the brake system is specified above any grip
+  limit — an F1 car can lock its wheels at any speed.
+* The corner speed limit is **implicit** (grip depends on speed depends on
+  grip) and is solved by bisection, not by inverting a simplified formula that
+  would be wrong exactly where it matters.
+* A heavy fuel load costs 1.5% of corner speed in a hairpin and 7% in a fast
+  corner — because at low speed mass largely cancels out of `a = mu*g`, and at
+  high speed it does not.
+
+---
+
 ## 4. Determinism
 
 `RngHub` is the single owner of randomness. It hands out **named, hierarchical
@@ -192,6 +246,23 @@ Adding a subsystem in a later phase = one new dataclass + one field on
 
 ---
 
+## 5a. Validation is per-system, not per-phase
+
+Rule 39 asks for automatic validation of every system. The reporting machinery
+lives in `core/validation.py`; each system owns its own suite of checks:
+
+* `track/validation.py` — 16 checks on circuit geometry
+* `physics/validation.py` — 14 checks on vehicle behaviour
+
+Both kinds matter. **Directional** checks (speed up, downforce up; mass up,
+acceleration down) catch a sign error or a dropped force term. **Envelope**
+checks catch a model that is perfectly self-consistent and still produces a car
+cornering at 12 g — only comparison against reality finds that one.
+
+Adding a check is appending a function to a list.
+
+---
+
 ## 6. Units
 
 Internal physics is **SI throughout**: metres, seconds, m/s, kg, newtons,
@@ -230,19 +301,45 @@ f1_race_engine/
         layout_solver.py    design-time circuit closure solver
         io.py               JSON load/save
         report.py           benchmark report
+    vehicle/
+        model.py            VehicleSpec (what was built) + Vehicle (+ setup)
+        mass.py             chassis, driver, fuel, distribution, load transfer
+        aero.py             downforce and drag, coupled by induced drag
+        power_unit.py       torque-limited and power-limited tractive force
+        brakes.py           system capability (above the grip limit, by design)
+        setup.py            wing level, brake bias, fuel load
+        state.py            physics state: distance, speed, fuel, tyres
+        io.py               JSON load/save
+    tyres/
+        compound.py         peak friction, load sensitivity, wear rate
+        model.py            grip limits and the friction ellipse
+        state.py            fitted set, age, wear (neutral until Phase 5)
+        io.py               JSON load/save
+    physics/
+        grip.py             normal load: weight, downforce, banking, transfer
+        longitudinal.py     the force balance, traction and braking limits
+        lateral.py          cornering capability and the corner speed limit
+        benchmark.py        measured performance envelope
+        validation.py       14 automatic sanity checks
+    environment/
+        conditions.py       air density from real atmospheric physics
     visualization/
         svg.py              standalone SVG maps, no dependencies
-        track_plots.py      matplotlib diagnostics (optional extra)
-    data/tracks/            three synthetic circuits
+        track_plots.py      matplotlib circuit diagnostics (optional extra)
+        vehicle_plots.py    force balance, g-g envelope, cornering limit
+    data/
+        tracks/             three synthetic circuits
+        vehicles/           three cars: reference, power-biased, aero-biased
+        tyres/              five compounds
 ```
 
 Arriving in later phases, attached at the seams above:
 
 ```
-    vehicle/   aero, power_unit, ers, gearbox, brakes, fuel, cooling, setup
-    tyres/     compound, temperature, degradation, wear, pressure
+    vehicle/   ers, gearbox, differential, cooling, fuel burn
+    tyres/     temperature, degradation, wear, pressure
     driver/    pace, inputs, braking, cornering, consistency, racecraft
-    physics/   longitudinal, lateral, grip, speed_profile, lap_time
+    physics/   speed_profile, lap_time, suspension, slip angle
     race/      session, qualifying, race, timing, pitstop, strategy, overtaking
     environment/ weather, wind, track_temperature, track_evolution
     events/    safety_car, vsc, red_flag, collision, mechanical_failure
@@ -297,8 +394,8 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | Phase | Content | State |
 |---|---|---|
 | 1 | Core, units, config, RNG, track model, builder, validation, viz | **done** |
-| 2 | Vehicle: mass, engine, drag, downforce, brakes, basic tyre grip | next |
-| 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass |
+| 2 | Vehicle: mass, engine, drag, downforce, brakes, basic tyre grip | **done** |
+| 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass | next |
 | 4 | Lap simulation → a realistic lap time |
 | 5 | Tyres, fuel, ERS |
 | 6 | Multi-car simulation |

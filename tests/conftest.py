@@ -69,3 +69,50 @@ def square_track(square_definition: TrackDefinition) -> Track:
                         "synthetic_street_circuit"])
 def builtin_track(request) -> Track:
     return build_track(load_builtin_definition(request.param))
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: vehicles, tyres and conditions
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def ambient():
+    from f1_race_engine.environment import AmbientConditions
+
+    return AmbientConditions()
+
+
+@pytest.fixture(scope="session")
+def air_density(ambient) -> float:
+    return ambient.air_density
+
+
+@pytest.fixture(scope="session")
+def compounds():
+    from f1_race_engine.tyres.io import load_builtin_compounds
+
+    return load_builtin_compounds()
+
+
+@pytest.fixture(scope="session")
+def reference_spec():
+    from f1_race_engine.vehicle.io import load_builtin_vehicle
+
+    return load_builtin_vehicle("reference_2024")
+
+
+@pytest.fixture
+def car(reference_spec):
+    """The reference car in medium-downforce trim."""
+    from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle
+
+    return Vehicle(reference_spec, MEDIUM_DOWNFORCE)
+
+
+@pytest.fixture(params=["reference_2024", "power_biased", "aero_biased"])
+def builtin_car(request):
+    from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle
+    from f1_race_engine.vehicle.io import load_builtin_vehicle
+
+    return Vehicle(load_builtin_vehicle(request.param), MEDIUM_DOWNFORCE)

@@ -18,12 +18,13 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from ..core.config import TrackValidationConfig
 from ..core.errors import TrackValidationError
 from ..core.units import rad_to_deg
+from ..core.validation import Severity, ValidationIssue
+from ..core.validation import ValidationReport as BaseValidationReport
 from .model import Track
 
 __all__ = [
@@ -35,118 +36,17 @@ __all__ = [
 ]
 
 
-class Severity(str, Enum):
-    """How bad a finding is."""
-
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-
-
-@dataclass(frozen=True, slots=True)
-class ValidationIssue:
-    """One finding about a track."""
-
-    check: str
-    severity: Severity
-    message: str
-    distance: float | None = None
-    segment_index: int | None = None
-
-    def __str__(self) -> str:
-        where = ""
-        if self.distance is not None:
-            where = f" @ {self.distance:.1f} m"
-            if self.segment_index is not None:
-                where += f" (segment {self.segment_index})"
-        return f"[{self.severity.value.upper():7}] {self.check}{where}: {self.message}"
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "check": self.check,
-            "severity": self.severity.value,
-            "message": self.message,
-            "distance": self.distance,
-            "segment_index": self.segment_index,
-        }
-
-
 @dataclass(frozen=True)
-class ValidationReport:
-    """The result of validating one track."""
+class ValidationReport(BaseValidationReport):
+    """Validation findings for one track."""
 
-    track_name: str
-    issues: tuple[ValidationIssue, ...] = ()
-
-    # -- queries -------------------------------------------------------------
-
-    def of_severity(self, severity: Severity) -> tuple[ValidationIssue, ...]:
-        return tuple(issue for issue in self.issues if issue.severity is severity)
+    kind: ClassVar[str] = "Track validation"
+    error_type: ClassVar[type[Exception]] = TrackValidationError
 
     @property
-    def errors(self) -> tuple[ValidationIssue, ...]:
-        return self.of_severity(Severity.ERROR)
-
-    @property
-    def warnings(self) -> tuple[ValidationIssue, ...]:
-        return self.of_severity(Severity.WARNING)
-
-    @property
-    def infos(self) -> tuple[ValidationIssue, ...]:
-        return self.of_severity(Severity.INFO)
-
-    @property
-    def ok(self) -> bool:
-        """True when nothing was reported as an error."""
-        return not self.errors
-
-    @property
-    def clean(self) -> bool:
-        """True when there are no errors *and* no warnings."""
-        return not self.errors and not self.warnings
-
-    # -- output --------------------------------------------------------------
-
-    def raise_for_errors(self) -> ValidationReport:
-        """Raise :class:`TrackValidationError` if any error was reported."""
-        if self.errors:
-            detail = "\n".join(f"  {issue}" for issue in self.errors)
-            raise TrackValidationError(
-                f"track {self.track_name!r} failed validation:\n{detail}", self
-            )
-        return self
-
-    def format(self, *, min_severity: Severity = Severity.INFO) -> str:
-        order = {Severity.INFO: 0, Severity.WARNING: 1, Severity.ERROR: 2}
-        threshold = order[min_severity]
-        shown = [i for i in self.issues if order[i.severity] >= threshold]
-        header = (
-            f"Track validation: {self.track_name} -- "
-            f"{len(self.errors)} error(s), {len(self.warnings)} warning(s), "
-            f"{len(self.infos)} note(s)"
-        )
-        if not shown:
-            return header + "\n  (nothing to report)"
-        return header + "\n" + "\n".join(f"  {issue}" for issue in shown)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "track": self.track_name,
-            "ok": self.ok,
-            "clean": self.clean,
-            "error_count": len(self.errors),
-            "warning_count": len(self.warnings),
-            "issues": [issue.to_dict() for issue in self.issues],
-        }
-
-    def __len__(self) -> int:
-        return len(self.issues)
-
-    def __repr__(self) -> str:  # pragma: no cover - debugging aid
-        return (
-            f"ValidationReport({self.track_name!r}, errors={len(self.errors)}, "
-            f"warnings={len(self.warnings)})"
-        )
+    def track_name(self) -> str:
+        """The track these findings belong to."""
+        return self.subject
 
 
 Check = Callable[[Track, TrackValidationConfig], list[ValidationIssue]]
@@ -752,4 +652,4 @@ def validate_track(
     issues: list[ValidationIssue] = []
     for check in checks if checks is not None else TRACK_CHECKS:
         issues.extend(check(track, cfg))
-    return ValidationReport(track_name=track.name, issues=tuple(issues))
+    return ValidationReport(subject=track.name, issues=tuple(issues))

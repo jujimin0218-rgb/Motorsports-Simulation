@@ -20,6 +20,18 @@ class UnitError(F1EngineError):
     """Raised when a unit conversion receives an impossible value."""
 
 
+class ValidationError(F1EngineError):
+    """Base class for validation failures across every system.
+
+    Carries the report so a caller can inspect the findings rather than parse
+    the message.
+    """
+
+    def __init__(self, message: str, report: object | None = None) -> None:
+        super().__init__(message)
+        self.report = report
+
+
 class TrackError(F1EngineError):
     """Base class for track-related failures."""
 
@@ -32,9 +44,9 @@ class TrackDataError(TrackError):
     """Raised when track data on disk is malformed."""
 
 
-class TrackValidationError(TrackError):
+class TrackValidationError(ValidationError, TrackError):
     """Raised when a built track fails validation checks."""
 
-    def __init__(self, message: str, report: object | None = None) -> None:
-        super().__init__(message)
-        self.report = report
+
+class PhysicsValidationError(ValidationError):
+    """Raised when a vehicle or physics model fails its sanity checks."""

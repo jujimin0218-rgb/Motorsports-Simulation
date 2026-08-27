@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "f1-race-engine"
-version = "0.1.0"
+version = "0.2.0"
 description = "Physics-based F1 race simulation engine"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,7 +19,7 @@ dev = ["pytest>=7.4", "matplotlib>=3.7"]
 include = ["f1_race_engine*"]
 
 [tool.setuptools.package-data]
-"f1_race_engine.data" = ["tracks/*.json"]
+"f1_race_engine.data" = ["tracks/*.json", "vehicles/*.json", "tyres/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
