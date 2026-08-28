@@ -141,6 +141,7 @@ class TyreState(MutableState):
         dt: float,
         air_temperature: float,
         track_temperature: float,
+        water_depth: float = 0.0,
         tyre_management: float = 0.85,
         thermal_config: TyreThermalConfig | None = None,
         wear_config: TyreWearConfig | None = None,
@@ -162,6 +163,7 @@ class TyreState(MutableState):
             track_temperature=track_temperature,
             dt=dt,
             hysteresis=self.compound.wear_rate**thermal.hysteresis_exponent,
+            water_depth=water_depth,
             config=thermal,
         )
         self.surface_temperature = step.surface_temperature

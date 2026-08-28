@@ -91,6 +91,8 @@ def lateral_capability(
     curvature: float = 0.0,
     longitudinal_force_used: float = 0.0,
     drs_open: bool = False,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
 ) -> LateralCapability:
     """Maximum lateral acceleration available at ``speed``.
 
@@ -103,7 +105,7 @@ def lateral_capability(
     tyres = tyre_state or TyreState()
 
     downforce = vehicle.aero.downforce(
-        speed, air_density, vehicle.wing_level, drs_open=drs_open
+        max(speed + headwind, 0.0), air_density, vehicle.wing_level, drs_open=drs_open
     )
 
     # Banking helps when it leans the same way the corner turns.
@@ -128,7 +130,8 @@ def lateral_capability(
             enable_load_transfer=False,
         )
         limit = vehicle.tyre_model.grip_limit(
-            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip
+            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
         )
         available_force = vehicle.tyre_model.available_lateral(
             limit, abs(longitudinal_force_used)
@@ -173,6 +176,8 @@ def corner_speed_limit(
     gradient: float = 0.0,
     longitudinal_force_used: float = 0.0,
     drs_open: bool = False,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
     max_speed: float = _ABSOLUTE_SPEED_CEILING,
     tolerance: float = 1e-4,
     max_iterations: int = 60,
@@ -207,6 +212,8 @@ def corner_speed_limit(
             curvature=curvature,
             longitudinal_force_used=longitudinal_force_used,
             drs_open=drs_open,
+            water_depth=water_depth,
+            headwind=headwind,
         )
         return required_lateral_acceleration(speed, curvature) - capability.lateral_acceleration
 

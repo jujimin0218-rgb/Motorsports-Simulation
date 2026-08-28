@@ -24,10 +24,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..core.config import TyreConfig
+from ..core.config import TyreConfig, WetConfig
 from ..core.interpolation import clamp
 from .compound import TyreCompound
 from .state import TyreState
+from .wet import wet_grip_factor
 
 __all__ = ["TyreModel", "GripLimit"]
 
@@ -75,14 +76,23 @@ def _remaining(capacity: float, used: float, exponent: float) -> float:
 class TyreModel:
     """Turns a compound, a load and a surface into an available friction force."""
 
-    __slots__ = ("_config",)
+    __slots__ = ("_config", "_wet")
 
-    def __init__(self, config: TyreConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: TyreConfig | None = None,
+        wet_config: WetConfig | None = None,
+    ) -> None:
         self._config = config or TyreConfig()
+        self._wet = wet_config or WetConfig()
 
     @property
     def config(self) -> TyreConfig:
         return self._config
+
+    @property
+    def wet_config(self) -> WetConfig:
+        return self._wet
 
     def friction_coefficient(
         self,
@@ -91,18 +101,23 @@ class TyreModel:
         *,
         state: TyreState | None = None,
         surface_grip: float = 1.0,
+        water_depth: float = 0.0,
+        speed: float = 0.0,
     ) -> float:
         """Effective friction coefficient.
 
-        Three independent factors: the compound under this load, the tyre's own
-        condition, and the surface it is running on.  Each is owned by a
-        different part of the engine, and each can change without the others
-        knowing.
+        Four independent factors: the compound under this load, the tyre's own
+        condition, the surface it is running on, and -- when there is standing
+        water -- how much of it this tread can get out of the way at this speed.
+        Each is owned by a different part of the engine, and each can change
+        without the others knowing.
         """
         load = max(normal_load, self._config.min_normal_load)
         coefficient = compound.friction_coefficient(load)
         if state is not None:
             coefficient *= state.grip_multiplier()
+        if water_depth > 0.0:
+            coefficient *= wet_grip_factor(compound, water_depth, speed, self._wet)
         return coefficient * surface_grip
 
     def grip_limit(
@@ -112,11 +127,14 @@ class TyreModel:
         *,
         state: TyreState | None = None,
         surface_grip: float = 1.0,
+        water_depth: float = 0.0,
+        speed: float = 0.0,
     ) -> GripLimit:
         """The friction circle available at this load."""
         load = max(normal_load, 0.0)
         coefficient = self.friction_coefficient(
-            compound, load, state=state, surface_grip=surface_grip
+            compound, load, state=state, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
         )
         return GripLimit(
             normal_load=load,

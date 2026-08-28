@@ -68,12 +68,29 @@ def commitment_for(
     *,
     qualifying: bool = False,
     bias: float = 0.0,
+    wetness: float = 0.0,
+    effort: float = 1.0,
 ) -> Commitment:
     """Map a driver's abilities to grip utilisation.
 
     ``bias`` is an additive offset used by the consistency model to nudge a
     single lap or a single corner; ``qualifying`` lets a driver's one-lap
     ability lift their commitment when it is a flying lap that counts.
+
+    ``effort`` is how hard the driver is choosing to push, 1.0 being flat out.
+    It scales the grip they use, so backing off costs lap time through the
+    physics -- which is what makes an out-lap slow, what makes lift-and-coast
+    save fuel, and what makes managing a tyre cost time.  It is never applied
+    to a result.
+
+    ``wetness`` blends the driver's wet-weather ability in as the track gets
+    wetter (rule 30).  It is not a bonus: on a wet track the question stops
+    being "how much of the car's grip can you use" and becomes "can you find
+    where the grip is", and a specialist finds more of it.  A driver whose wet
+    skill matches their dry ability is unaffected either way, and the physics
+    still decides what any given commitment is worth -- which is why the same
+    wet-weather ability is worth far more at a circuit with slow corners than
+    at one without.
     """
     cfg = config or DriverConfig()
     deficit = cfg.max_commitment_deficit
@@ -88,16 +105,24 @@ def commitment_for(
         total_bias += (attributes.qualifying - 0.85) * deficit * 0.5
 
     pace = attributes.pace
+    wet = clamp(wetness, 0.0, 1.0)
+    push = clamp(effort, 0.0, 1.0)
+
+    def ability(dry: float) -> float:
+        blended = _blend(dry, pace)
+        if wet <= 0.0:
+            return blended
+        return blended * (1.0 - wet) + attributes.wet_skill * wet
+
+    def used(dry: float) -> float:
+        return max(
+            _utilisation(ability(dry), deficit, total_bias, floor) * push, floor * push
+        )
+
     return Commitment(
-        cornering=_utilisation(
-            _blend(attributes.cornering, pace), deficit, total_bias, floor
-        ),
-        braking=_utilisation(
-            _blend(attributes.braking, pace), deficit, total_bias, floor
-        ),
-        traction=_utilisation(
-            _blend(attributes.throttle_control, pace), deficit, total_bias, floor
-        ),
+        cornering=used(attributes.cornering),
+        braking=used(attributes.braking),
+        traction=used(attributes.throttle_control),
     )
 
 

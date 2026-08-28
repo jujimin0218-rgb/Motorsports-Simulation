@@ -437,8 +437,16 @@ f1_race_engine/
         entry.py            a car, its driver, and what it is carrying
         timing.py           positions and gaps from distance and time (rule 28)
         session.py          a field of cars over a race distance
+        grid.py             grid slots as distances, reactions, launches (rule 27)
+        qualifying.py       knockout segments, runs, elimination
+        pitlane.py          a stop priced as two journeys (rule 32)
+        strategy.py         compound choice and in-race decisions (rule 31)
+        planning.py         measure the tyres, measure the stop, add up
+        weekend.py          practice, qualifying and a race under one sky
     environment/
         conditions.py       air density from real atmospheric physics
+        weather.py          temperature, wind and showers as processes (rule 30)
+        evolution.py        rubber, marbles, standing water, the drying line
     visualization/
         svg.py              standalone SVG maps, no dependencies
         track_plots.py      matplotlib circuit diagnostics (optional extra)
@@ -455,10 +463,9 @@ Arriving in later phases, attached at the seams above:
 ```
     vehicle/   gearbox, differential, cooling
     tyres/     pressure, per-corner state (Phase 12)
-    driver/    racecraft (Phase 9), wet skill (Phase 10)
+    driver/    racecraft in traffic (Phase 9)
     physics/   suspension, slip angle, yaw, weight transfer (dynamic)
-    race/      qualifying, grid and start, pitstop, strategy, overtaking
-    environment/ weather, wind, track_temperature, track_evolution
+    race/      overtaking, defence, dirty air, traffic
     events/    safety_car, vsc, red_flag, collision, mechanical_failure
 ```
 
@@ -516,10 +523,10 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | 4 | Lap simulation and the driver model | **done** |
 | 5 | Tyres, fuel, ERS | **done** |
 | 6 | Multi-car simulation | **done** |
-| 7 | Qualifying and race | next |
-| 8 | Strategy and pit stops |
-| 9 | Overtaking and defence |
-| 10 | Weather and environment |
+| 7 | Qualifying and race | **done** |
+| 8 | Strategy and pit stops | **done** |
+| 9 | Overtaking and defence | next |
+| 10 | Weather and environment | **done** |
 | 11 | Race events: SC, VSC, red flag, collisions, failures |
 | 12 | Advanced physics: suspension, weight transfer, slip angle, differential |
 
@@ -540,3 +547,49 @@ plausible. Real circuits arrive alongside the telemetry calibration path
 What ships instead is three honestly-labelled synthetic circuits spanning the
 character space, and `layout_solver.py`, the tool that makes authoring the real
 ones tractable.
+
+---
+
+## 11. How the weekend systems fit together
+
+Phases 7, 8 and 10 were built together because none of them is separable, and
+the wiring between them is deliberately thin: **one weather model and one track
+surface, shared by every session on a weekend.** Everything else was already
+true and simply reads them.
+
+```
+Forecast ──► WeatherModel ──► WeatherState ──► AmbientConditions ──► aero, tyre thermal
+                  │                                   │
+                  │                                   └──► driver commitment (wet skill)
+                  ▼
+           TrackEvolution ──► TrackConditions ──► TrackState.water_depth ──► tyre wet grip
+                  ▲                     │                                          │
+                  │                     └──► TrackState.grip (wet asphalt, rubber) │
+        car-laps run                                                               ▼
+                                                            compound_for_conditions
+                                                                       │
+                                              qualifying tyre choice ◄─┴─► RaceStrategy
+```
+
+The direction of that graph matters. Nothing flows backwards: the strategist
+reads the track, the track reads the weather, and the weather reads nothing at
+all. No system is allowed to know what any other system is going to do, which
+is what keeps "it started raining so everybody pitted" an observation rather
+than an instruction.
+
+### The one place seconds are added
+
+Rule 2 forbids adding time to results, and the engine obeys it everywhere
+except one: a driver's **reaction to the start lights**, in `race/grid.py`.
+That is not an exception to the rule so much as the rule's limiting case — a
+reaction time literally is seconds elapsing before anything happens. Everything
+else that costs time, including a pit stop, is a distance covered at a speed.
+
+### Where each rule landed
+
+| Rule | Where it lives |
+|---|---|
+| 27 qualifying and the grid | `race/qualifying.py`, `race/grid.py` |
+| 30 weather and track evolution | `environment/weather.py`, `environment/evolution.py`, `tyres/wet.py` |
+| 31 strategy is computed | `race/strategy.py`, `race/planning.py` |
+| 32 pit loss is not a constant | `race/pitlane.py` |

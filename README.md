@@ -6,14 +6,15 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phase 6 (multi-car racing) complete.** Core infrastructure, the track
-model, a car whose behaviour comes out of a real force balance, a lap time that
-is the integral of a speed profile, a driver who steps that car around the
-circuit and leaves telemetry behind, consumables that change underneath all of
-it — tyres that heat and wear from the work they do, fuel burned from the
-engine's work, an energy store that has to recover what it deploys — and a whole
-field sharing one circuit and one clock, with positions and gaps computed from
-real distance and time. The cars do not fight each other yet — Phase 9.
+**Status: Phases 1–8 and 10 complete.** Core infrastructure, the track model, a
+car whose behaviour comes out of a real force balance, a lap time that is the
+integral of a speed profile, a driver who steps that car around the circuit,
+consumables that change underneath all of it, a field sharing one circuit and
+one clock — and a whole race weekend on top: weather that moves on its own, a
+track surface that rubbers in and floods and dries a racing line, a knockout
+qualifying session that sets a grid, a standing start over real distances, and a
+strategist that prices its own pit stops and changes its mind when it rains. The
+cars do not fight each other yet — Phase 9.
 
 ## Quick start
 
@@ -36,13 +37,16 @@ python examples/12_driver_telemetry.py        # telemetry CSV + overlay plot
 python examples/13_stint_consumables.py      # tyres, fuel and energy over a stint
 python examples/14_compound_choice.py        # where a softer tyre stops paying
 python examples/15_race.py                   # a race, mid-race screens to flag
+python examples/16_wet_weather.py            # a shower, and the drying line
+python examples/17_race_weekend.py           # practice, qualifying, race
 ```
 
 ```python
 from f1_race_engine import (
-    RaceEntry, RaceSession, Vehicle, benchmark_vehicle, compute_lap_time,
-    load_builtin_driver, load_builtin_vehicle, load_driver_lineup, load_track,
-    simulate_lap, validate_vehicle, wing_level_sweep,
+    Forecast, RaceEntry, RaceStrategy, Vehicle, Weekend, benchmark_vehicle,
+    compute_lap_time, load_builtin_compounds, load_builtin_driver,
+    load_builtin_vehicle, load_driver_lineup, load_track, simulate_lap,
+    validate_vehicle, wing_level_sweep,
 )
 
 track = load_track("synthetic_proving_ground")   # built and validated
@@ -61,10 +65,17 @@ driver = load_builtin_driver("02_qualifier")
 run = simulate_lap(track, car, driver, qualifying=True)
 print(run.formatted, run.telemetry.full_throttle_fraction)
 
-entries = [RaceEntry(car_number=i + 1, driver=d, vehicle=Vehicle(load_builtin_vehicle("reference_2024")))
+entries = [RaceEntry(car_number=i + 1, driver=d, vehicle=Vehicle(load_builtin_vehicle("reference_2024")),
+                     compounds=tuple(load_builtin_compounds().compounds), strategy=RaceStrategy())
            for i, d in enumerate(load_driver_lineup())]
-print(RaceSession(track, entries, laps=10).run().format())   # gaps from distance and time
+weekend = Weekend(track, entries, laps=10, forecast=Forecast(rain_probability=0.4),
+                  practice_laps=2)
+print(weekend.run().format())        # practice, qualifying, a race, one sky over all of it
 ```
+
+A weekend is thousands of simulated laps, so it takes minutes rather than
+seconds. `examples/17_race_weekend.py` takes `--laps` and `--practice` if you
+want to trade fidelity for time.
 
 ## What is here
 
@@ -77,8 +88,8 @@ print(RaceSession(track, entries, laps=10).run().format())   # gaps from distanc
 | `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
 | `f1_race_engine/driver/` | Ten separate abilities, each connected to the car |
 | `f1_race_engine/simulation/` | The lap stepping loop and telemetry |
-| `f1_race_engine/race/` | Entries, timing from distance and time, sessions |
-| `f1_race_engine/environment/` | Air density from real atmospheric physics |
+| `f1_race_engine/race/` | Entries, timing, qualifying, the grid, pit stops, strategy |
+| `f1_race_engine/environment/` | Air density, weather as a process, track evolution |
 | `f1_race_engine/visualization/` | SVG circuit maps (no dependencies), matplotlib diagnostics |
 | `f1_race_engine/data/` | Three circuits, three cars, five compounds, six drivers |
 
@@ -94,11 +105,14 @@ extra used only for debug plots.
 - [`docs/PHASE4.md`](docs/PHASE4.md) — the driver, and what each ability is worth
 - [`docs/PHASE5.md`](docs/PHASE5.md) — tyres, fuel and energy, and where a compound crosses over
 - [`docs/PHASE6.md`](docs/PHASE6.md) — a field of cars, and what a gap actually is
+- [`docs/PHASE7.md`](docs/PHASE7.md) — qualifying, the grid, and getting off it
+- [`docs/PHASE8.md`](docs/PHASE8.md) — what a stop costs, and how a plan is computed
+- [`docs/PHASE10.md`](docs/PHASE10.md) — weather that moves, and two kinds of wet
 
 ## Roadmap
 
-Phases 1-6 done. Next: 7 qualifying & race · 8 strategy & pit stops ·
-9 overtaking · 10 weather · 11 race events · 12 advanced physics.
+Phases 1-8 and 10 done. Next: 9 overtaking & defence · 11 race events ·
+12 advanced physics.
 
 A web layer (FastAPI + React) and a season-management game sit **on top** of the
 engine; the engine itself stays UI-free and JSON-serialisable.

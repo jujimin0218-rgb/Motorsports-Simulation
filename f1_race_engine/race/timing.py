@@ -53,6 +53,7 @@ class LapRecord:
     fuel_mass: float = 0.0
     energy_remaining: float = 0.0
     mistakes: int = 0
+    pitted: bool = False
 
     @property
     def formatted(self) -> str:
@@ -72,6 +73,7 @@ class LapRecord:
             "fuel_mass": self.fuel_mass,
             "energy_remaining": self.energy_remaining,
             "mistakes": self.mistakes,
+            "pitted": self.pitted,
         }
 
 

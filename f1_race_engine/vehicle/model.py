@@ -102,7 +102,7 @@ class Vehicle:
         self.aero = AeroModel(spec.aero, self._config.aero)
         self.power_unit = PowerUnit(spec.power_unit, self._config.powertrain)
         self.brakes = BrakeSystem(spec.brakes)
-        self.tyre_model = TyreModel(self._config.tyres)
+        self.tyre_model = TyreModel(self._config.tyres, self._config.wet)
 
     # -- identity ------------------------------------------------------------
 

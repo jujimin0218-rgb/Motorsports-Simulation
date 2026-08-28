@@ -35,7 +35,12 @@ from ..core.units import (
     celsius_to_kelvin,
 )
 
-__all__ = ["AmbientConditions", "air_density", "saturation_vapour_pressure"]
+__all__ = [
+    "AmbientConditions",
+    "air_density",
+    "headwind_component",
+    "saturation_vapour_pressure",
+]
 
 #: Specific gas constant for dry air, J/(kg*K).
 DRY_AIR_GAS_CONSTANT: float = 287.058
@@ -160,3 +165,24 @@ class AmbientConditions:
             f"track={self.track_temperature:.1f}C, "
             f"rho={self.air_density:.4f} kg/m^3)"
         )
+
+
+def headwind_component(
+    wind_speed: float, wind_direction: float, heading: float
+) -> float:
+    """Wind opposing a car heading in direction ``heading``, m/s.
+
+    ``wind_direction`` is the direction the wind blows *towards*, in the same
+    plan-view frame as the track's headings, so a car driving straight into it
+    sees the full wind speed and a car running with it sees minus that.
+
+    Only the aerodynamic forces care: the wind changes the air the car is
+    driving through, not how fast the road is going past.  Because drag grows
+    with the square of airspeed, a lap into a headwind down one straight and
+    out of it down the next is *slower* than the same lap in still air -- the
+    two do not cancel, which is exactly why wind direction shows up in real
+    session data.
+    """
+    if wind_speed <= 0.0:
+        return 0.0
+    return -wind_speed * math.cos(wind_direction - heading)

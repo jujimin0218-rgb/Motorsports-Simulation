@@ -52,6 +52,7 @@ def update_temperatures(
     track_temperature: float,
     dt: float,
     hysteresis: float = 1.0,
+    water_depth: float = 0.0,
     config: TyreThermalConfig | None = None,
 ) -> ThermalStep:
     """Advance the tread and carcass temperatures by ``dt`` seconds.
@@ -59,6 +60,10 @@ def update_temperatures(
     ``friction_force`` is the total friction the tyres are actually generating,
     longitudinal and lateral combined -- a car cruising in a straight line barely
     heats its tyres, and one on the limit through a long corner heats them hard.
+
+    ``water_depth`` puts the tread in contact with standing water, which is a
+    far better heat sink than air or asphalt -- the reason a wet tyre lives in
+    a much lower window, and the reason it cooks itself once the line dries.
 
     ``hysteresis`` scales the share of that work which stays in the rubber.
     Softer compounds lose more energy internally, so they heat faster; the
@@ -80,7 +85,12 @@ def update_temperatures(
     convection = (cfg.convection_base + cfg.convection_speed * max(speed, 0.0)) * (
         surface_temperature - air_temperature
     )
-    conduction = cfg.track_conduction * (surface_temperature - track_temperature)
+    conductance = cfg.track_conduction
+    if water_depth > 0.0:
+        # Water pulls heat out of the tread far faster than asphalt does, and
+        # the deeper the film the more of it is in contact.
+        conductance += cfg.water_conduction * min(water_depth / 0.002, 1.0)
+    conduction = conductance * (surface_temperature - track_temperature)
     internal = cfg.internal_conduction * (surface_temperature - carcass_temperature)
 
     surface_rate = (heat_in - convection - conduction - internal) / cfg.surface_heat_capacity

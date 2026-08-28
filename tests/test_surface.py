@@ -50,7 +50,10 @@ def test_conditions_are_neutral_when_green(proving_ground):
         )
 
 
-def test_rubber_raises_grip_and_marbles_lower_it(proving_ground):
+def test_rubber_raises_grip_on_the_line_and_marbles_lower_it_off_it(proving_ground):
+    """Rubber goes down where the cars run; marbles collect beside it.  So a
+    session makes the racing line quicker and everywhere else slower, and a car
+    only pays for the marbles when it leaves the line."""
     config = TrackConditionsConfig()
     conditions = TrackConditions(proving_ground.segments, config)
     conditions[0].rubber = 1.0
@@ -58,18 +61,30 @@ def test_rubber_raises_grip_and_marbles_lower_it(proving_ground):
 
     conditions[0].rubber = 0.0
     conditions[0].marbles = 1.0
-    assert conditions.grip_multiplier(0) == pytest.approx(1.0 - config.marble_grip_penalty)
+    assert conditions.grip_multiplier(0) == pytest.approx(1.0)
+    assert conditions.grip_multiplier(0, off_line=True) == pytest.approx(
+        1.0 - config.marble_grip_penalty
+    )
+    assert conditions.effective_grip(0, off_line=True) < conditions.effective_grip(0)
 
 
-def test_water_reduces_grip_non_linearly_and_never_to_zero(proving_ground):
+def test_a_wet_surface_costs_grip_and_then_stops_getting_worse(proving_ground):
+    """The surface term is the asphalt, not the tyre: wet asphalt has a lower
+    friction coefficient than dry asphalt however deep the water is, and a
+    damp track already has nearly all of that penalty.  What deeper water does
+    is lift a tyre off the road, which depends on the tread and is answered in
+    :mod:`f1_race_engine.tyres.wet` instead."""
     config = TrackConditionsConfig()
     conditions = TrackConditions(proving_ground.segments, config)
+    conditions[0].water_depth = 0.00005
+    damp = conditions.grip_multiplier(0)
     conditions[0].water_depth = 0.002
-    shallow = conditions.grip_multiplier(0)
+    wet = conditions.grip_multiplier(0)
     conditions[0].water_depth = 0.02
-    deep = conditions.grip_multiplier(0)
-    assert 0.0 < deep < shallow < 1.0
-    assert deep >= config.min_grip_multiplier
+    flooded = conditions.grip_multiplier(0)
+    assert wet < damp < 1.0
+    assert flooded == pytest.approx(wet)
+    assert wet == pytest.approx(1.0 - config.wet_surface_penalty)
     assert conditions.is_wet(0) and conditions.any_wet
 
 

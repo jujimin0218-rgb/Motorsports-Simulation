@@ -39,7 +39,7 @@ from ..driver.inputs import control_input
 from ..driver.mistakes import DriverMistake, sample_mistakes
 from ..driver.model import Driver
 from ..driver.pace import Commitment, commitment_for
-from ..environment.conditions import AmbientConditions
+from ..environment.conditions import AmbientConditions, headwind_component
 from ..physics.longitudinal import longitudinal_forces
 from ..physics.speed_profile import SpeedProfile, compute_speed_profile, cornering_limits
 from ..track.model import Track
@@ -185,6 +185,44 @@ class LapSimulator:
         ) or 1.0
         self._accelerating_time: float | None = None
 
+    def set_conditions(
+        self,
+        *,
+        ambient: AmbientConditions | None = None,
+        conditions: TrackConditions | None = None,
+    ) -> None:
+        """Tell the simulator the world has moved on.
+
+        A session owns the weather and the state of the track surface; the
+        simulator only reads them.  Calling this between laps is how a race
+        that runs into a shower, or onto a track that has rubbered in, reaches
+        the physics -- there is no other path, and in particular no lap-time
+        adjustment anywhere.
+        """
+        if ambient is not None:
+            self.ambient = ambient
+        if conditions is not None:
+            self._conditions = conditions
+        # The deployment policy is built from a reference profile; conditions
+        # that change the car's pace change how long it spends accelerating.
+        self._accelerating_time = None
+
+    def wetness(self) -> float:
+        """How wet the circuit is, 0 to 1.
+
+        The share of the lap that has standing water on it.  A damp corner on
+        an otherwise dry lap is not a wet race, and this is the number that
+        decides how much of a driver's wet-weather ability is being asked for.
+        """
+        if self._conditions is None:
+            return 0.0
+        count = len(self._conditions)
+        if count == 0:
+            return 0.0
+        return sum(
+            1 for i in range(count) if self._conditions.is_wet(i)
+        ) / count
+
     def accelerating_time(
         self, mass: float | None = None, tyre_state: TyreState | None = None
     ) -> float:
@@ -260,6 +298,7 @@ class LapSimulator:
         tyre_state: TyreState | None = None,
         ers_state: ErsState | None = None,
         qualifying: bool = False,
+        effort: float = 1.0,
         record_telemetry: bool = True,
         telemetry_stride: int = 1,
         start_speed: float | None = None,
@@ -268,6 +307,10 @@ class LapSimulator:
 
         ``start_speed`` defaults to a flying lap -- the car crosses the line at
         whatever speed the profile says it can carry there.
+
+        ``effort`` is how hard the driver is pushing, 1.0 being flat out.  An
+        out-lap, a cool-down lap and a stint being managed to the end all use
+        it, and all of them cost time the same way: less grip used, slower lap.
         """
         vehicle, track = self.vehicle, self.track
         if fuel_mass is None:
@@ -305,6 +348,8 @@ class LapSimulator:
             self.config.driver,
             qualifying=qualifying,
             bias=variation.lap_bias,
+            wetness=self.wetness(),
+            effort=effort,
         )
         deploy = self.sustainable_ers_power(energy, car_mass, tyres)
         profile = self._build_profile(
@@ -433,6 +478,8 @@ class LapSimulator:
         management = self.driver.attributes.tyre_management
         air_temperature = self.ambient.air_temperature
         track_temperature = self.ambient.track_temperature
+        wind_speed = self.ambient.wind_speed
+        wind_direction = self.ambient.wind_direction
 
         # The lap is planned on the tyre the driver went out on, so it is
         # driven on that tyre too.  The live state goes on heating and wearing
@@ -489,7 +536,8 @@ class LapSimulator:
 
             lateral_acceleration = reference * reference * abs(curvature)
             lateral_force = mass * lateral_acceleration
-            surface_grip = track.state_at(segment.mid_distance, self._conditions).grip
+            state_here = track.state_at(segment.mid_distance, self._conditions)
+            surface_grip = state_here.grip
 
             common = {
                 "mass": mass,
@@ -498,6 +546,10 @@ class LapSimulator:
                 "tyre_state": planned,
                 "lateral_acceleration": lateral_acceleration,
                 "lateral_force_used": lateral_force,
+                "water_depth": state_here.water_depth,
+                "headwind": headwind_component(
+                    wind_speed, wind_direction, state_here.heading
+                ),
             }
             # What the car does with no pedal: drag, rolling resistance and the
             # slope.  The driver only supplies the difference from there.
@@ -606,6 +658,7 @@ class LapSimulator:
                 dt=dt,
                 air_temperature=air_temperature,
                 track_temperature=track_temperature,
+                water_depth=state_here.water_depth,
                 tyre_management=management,
                 thermal_config=thermal_config,
                 wear_config=wear_config,

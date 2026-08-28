@@ -4,19 +4,21 @@ A physics-based Formula 1 simulator.  Lap times are the *result* of simulating
 a car driving a real distance-based track model -- never a random draw and
 never a per-track correction (project rules 2.1 to 2.4).
 
-Current status: **Phase 6 (multi-car racing)** -- core infrastructure, the track
-model, a car that obeys a real force balance, a lap time that is the integral of
-a speed profile, a driver who steps that car around the circuit and leaves
-telemetry behind, consumables that change underneath all of it, and a field of
-cars sharing one circuit and one clock with positions and gaps computed from
-real distance and time.  The cars do not yet interact -- overtaking and dirty
-air are Phase 9.  See ``docs/ARCHITECTURE.md`` for the full plan and
-``docs/PHASE6.md`` for what this phase delivers.
+Current status: **Phases 7, 8 and 10 (weekends, strategy and weather)** -- core
+infrastructure, the track model, a car that obeys a real force balance, a lap
+time that is the integral of a speed profile, a driver who steps that car around
+the circuit, consumables that change underneath all of it, a field sharing one
+circuit and one clock, and now a whole race weekend: weather that moves on its
+own, a track surface that rubbers in and floods and dries, a knockout qualifying
+session that sets a grid, a standing start over real distances, and a strategist
+that prices its own pit stops and changes its mind when it rains.  The cars
+still do not interact -- overtaking and dirty air are Phase 9.  See
+``docs/ARCHITECTURE.md`` for the full plan.
 """
 
 from __future__ import annotations
 
-__version__ = "0.6.0"
+__version__ = "0.10.0"
 
 from .core import (
     EventBus,
@@ -28,7 +30,13 @@ from .core import (
 )
 from .driver import Driver, DriverAttributes, DriverInput
 from .driver.io import builtin_driver_names, load_builtin_driver, load_driver_lineup
-from .environment import AmbientConditions
+from .environment import (
+    AmbientConditions,
+    Forecast,
+    TrackEvolution,
+    WeatherModel,
+    WeatherState,
+)
 from .physics import (
     LapTimeResult,
     PerformanceLimits,
@@ -50,10 +58,21 @@ from .race import (
     Classification,
     Gap,
     LapRecord,
+    PitLane,
+    PitStop,
+    QualifyingResult,
+    QualifyingSession,
     RaceEntry,
     RaceResult,
     RaceSession,
+    RaceStrategy,
+    StrategyPlan,
     TimingTower,
+    Weekend,
+    WeekendResult,
+    compound_for_conditions,
+    pit_loss,
+    plan_race,
 )
 from .simulation import LapResult, LapSimulator, Telemetry, simulate_lap
 from .track import (
@@ -84,6 +103,7 @@ __all__ = [
     "ErsProperties",
     "ErsState",
     "EventBus",
+    "Forecast",
     "FuelProperties",
     "Gap",
     "LapRecord",
@@ -91,14 +111,21 @@ __all__ = [
     "LapSimulator",
     "LapTimeResult",
     "PerformanceLimits",
+    "PitLane",
+    "PitStop",
+    "QualifyingResult",
+    "QualifyingSession",
     "RaceEntry",
     "RaceResult",
     "RaceSession",
+    "RaceStrategy",
     "RngHub",
     "SpeedProfile",
+    "StrategyPlan",
     "Telemetry",
     "SimulationConfig",
     "TimingTower",
+    "TrackEvolution",
     "Track",
     "TrackBuilder",
     "TrackDefinition",
@@ -110,17 +137,24 @@ __all__ = [
     "VehicleSetup",
     "VehicleSpec",
     "VehicleState",
+    "WeatherModel",
+    "WeatherState",
+    "Weekend",
+    "WeekendResult",
     "__version__",
     "benchmark_vehicle",
     "build_track",
     "builtin_driver_names",
     "compute_lap_time",
+    "compound_for_conditions",
     "compute_speed_profile",
     "builtin_compound_sets",
     "builtin_track_names",
     "builtin_vehicle_names",
     "corner_speed_limit",
     "default_config",
+    "pit_loss",
+    "plan_race",
     "format_benchmark",
     "format_lap_result",
     "load_builtin_compounds",

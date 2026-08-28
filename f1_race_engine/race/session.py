@@ -28,10 +28,14 @@ from ..core.events import Event, EventBus
 from ..core.rng import RngHub
 from ..core.units import Seconds, format_lap_time
 from ..environment.conditions import AmbientConditions
+from ..environment.evolution import TrackEvolution
+from ..environment.weather import WeatherModel
 from ..simulation.lap import LapResult, LapSimulator
 from ..track.model import Track
 from ..track.surface import TrackConditions
-from .entry import RaceEntry
+from .entry import PitStop, RaceEntry
+from .grid import Launch, launch_from_rest, reaction_time, starting_grid
+from .pitlane import PitLane, pit_loss
 from .timing import Gap, LapRecord, TimingTower
 
 __all__ = ["Classification", "LapCompleted", "RaceResult", "RaceSession"]
@@ -70,6 +74,7 @@ class Classification:
     tyre_wear: float
     fuel_remaining: float
     mistakes: int
+    pit_stops: int = 0
 
     @property
     def formatted_time(self) -> str:
@@ -93,6 +98,7 @@ class Classification:
             "tyre_wear": self.tyre_wear,
             "fuel_remaining": self.fuel_remaining,
             "mistakes": self.mistakes,
+            "pit_stops": self.pit_stops,
         }
 
 
@@ -164,7 +170,8 @@ class RaceSession:
 
     __slots__ = (
         "track", "entries", "laps", "ambient", "conditions", "config",
-        "rng", "events", "timing", "_simulators", "_sector_lengths",
+        "rng", "events", "timing", "weather", "evolution", "pit_lane",
+        "standing_start", "launches", "_simulators", "_sector_lengths",
     )
 
     def __init__(
@@ -178,6 +185,10 @@ class RaceSession:
         conditions: TrackConditions | None = None,
         config: SimulationConfig | None = None,
         events: EventBus | None = None,
+        weather: WeatherModel | None = None,
+        evolution: TrackEvolution | None = None,
+        pit_lane: PitLane | None = None,
+        standing_start: bool = False,
     ) -> None:
         self.entries = tuple(entries)
         if not self.entries:
@@ -195,6 +206,15 @@ class RaceSession:
         self.conditions = conditions
         self.rng = rng or RngHub(self.config.randomness.seed)
         self.events = events
+        self.weather = weather
+        self.evolution = evolution
+        self.pit_lane = pit_lane or PitLane.for_track(track.length)
+        if evolution is not None and conditions is None:
+            self.conditions = evolution.conditions
+        if weather is not None:
+            self.ambient = weather.state.ambient
+        self.standing_start = standing_start
+        self.launches: dict[int, Launch] = {}
         self.timing = TimingTower(track.length)
         self._sector_lengths = _sector_lengths(track)
 
@@ -221,25 +241,40 @@ class RaceSession:
         elapsed = {entry.car_number: 0.0 for entry in self.entries}
         for entry in self.entries:
             self.timing.start(entry.car_number)
+        if self.standing_start:
+            self.launches = self._launch_field()
+            for car, launch in self.launches.items():
+                elapsed[car] = launch.total
 
         for lap in range(1, self.laps + 1):
+            lap_times: list[float] = []
             for entry in self.entries:
-                result = self._simulators[entry.car_number].simulate(
+                simulator = self._simulators[entry.car_number]
+                launch = self.launches.get(entry.car_number) if lap == 1 else None
+                result = simulator.simulate(
                     lap=lap,
                     fuel_mass=entry.fuel_mass,
                     tyre_state=entry.tyres,
                     ers_state=entry.energy,
                     qualifying=qualifying,
                     record_telemetry=False,
+                    start_speed=launch.exit_speed if launch is not None else None,
                 )
                 entry.fuel_mass = max(entry.fuel_mass - result.fuel_used, 0.0)
-                elapsed[entry.car_number] += result.lap_time
+                lap_time = result.lap_time
+
+                stop = self._pit_stop(entry, result, lap)
+                if stop is not None:
+                    lap_time += stop.loss
+
+                lap_times.append(lap_time)
+                elapsed[entry.car_number] += lap_time
 
                 self.timing.record(
                     LapRecord(
                         car_number=entry.car_number,
                         lap=lap,
-                        lap_time=result.lap_time,
+                        lap_time=lap_time,
                         elapsed=elapsed[entry.car_number],
                         distance=lap * self.track.length,
                         sector_times=result.sector_times,
@@ -248,6 +283,7 @@ class RaceSession:
                         fuel_mass=entry.fuel_mass,
                         energy_remaining=entry.energy.energy_remaining,
                         mistakes=len(result.mistakes),
+                        pitted=stop is not None,
                     ),
                     sector_lengths=self._sector_lengths,
                 )
@@ -259,12 +295,150 @@ class RaceSession:
                             time=elapsed[entry.car_number],
                             car_number=entry.car_number,
                             lap=lap,
-                            lap_time=result.lap_time,
+                            lap_time=lap_time,
                             position=0,
                         )
                     )
 
+            self._advance_world(lap_times)
+
         return self._classify()
+
+    # -- getting off the line ------------------------------------------------
+
+    def _launch_field(self) -> dict[int, Launch]:
+        """Every car's start: a reaction, then a real acceleration from rest.
+
+        The grid slot is a distance behind the line, so a car starting tenth
+        has further to go than the car on pole and pays for it in seconds --
+        which is the whole of the grid penalty in this engine.  The launch
+        itself is the car's own acceleration model integrated from zero, so a
+        car with more traction gets away better and a wet grid punishes
+        everybody.
+        """
+        grid = starting_grid(max(len(self.entries), 1))
+        slots = {slot.position: slot for slot in grid}
+        water = self._mean_water_depth()
+        # The grid is on the road like everything else, so it has the road's
+        # grip: green, rubbered in, or wet.
+        start_line = self.track.state_at(0.0, self.conditions)
+        launches: dict[int, Launch] = {}
+        for index, entry in enumerate(
+            sorted(
+                self.entries,
+                key=lambda e: (e.grid_position is None, e.grid_position or 0),
+            ),
+            start=1,
+        ):
+            slot = slots.get(entry.grid_position or index, grid[-1])
+            limits = self._simulators[entry.car_number]
+            reaction = reaction_time(
+                entry.driver, limits.rng, lap=0, config=self.config
+            )
+            launches[entry.car_number] = launch_from_rest(
+                entry.vehicle,
+                slot.distance_back,
+                ambient=self.ambient,
+                mass=entry.vehicle.mass.total_mass(entry.fuel_mass),
+                tyre_state=entry.tyres,
+                surface_grip=start_line.grip,
+                water_depth=max(water, start_line.water_depth),
+                reaction=reaction,
+            )
+        return launches
+
+    # -- the world moves while they race -------------------------------------
+
+    def _advance_world(self, lap_times: Sequence[float]) -> None:
+        """Move the weather and the track surface on by one lap of running.
+
+        Applied once per lap of the field rather than once per car, so every
+        car in a lap meets the same track and the entry list's order still
+        cannot change anybody's result.  Which car is on a slightly greener
+        track than which other car is a question about cars sharing a circuit,
+        and that is Phase 9's.
+        """
+        if not lap_times:
+            return
+        duration = sum(lap_times) / len(lap_times)
+
+        state = None
+        if self.weather is not None:
+            state = self.weather.advance(duration)
+            self.ambient = state.ambient
+        if self.evolution is not None:
+            if state is not None:
+                self.evolution.apply_weather(state, duration)
+            self.evolution.run_laps(float(len(lap_times)))
+        if state is None and self.evolution is None:
+            return
+        for simulator in self._simulators.values():
+            simulator.set_conditions(
+                ambient=self.ambient if state is not None else None,
+                conditions=self.conditions,
+            )
+
+    # -- stopping ------------------------------------------------------------
+
+    def _pit_stop(
+        self, entry: RaceEntry, result: LapResult, lap: int
+    ) -> PitStop | None:
+        """Ask this car's strategist whether to come in, and charge it if so."""
+        strategy = entry.strategy
+        if strategy is None:
+            return None
+        strategy.lap_completed()
+        if not strategy.compounds:
+            strategy.compounds = entry.compounds
+        if not strategy.compounds:
+            return None
+
+        water = self._mean_water_depth()
+        wanted = strategy.decide(
+            lap=lap,
+            laps_remaining=self.laps - lap,
+            tyres=entry.tyres,
+            water_depth=water,
+            speed=result.average_speed,
+        )
+        if wanted is None:
+            return None
+
+        loss = pit_loss(
+            entry.vehicle,
+            self.pit_lane,
+            result.profile,
+            ambient=self.ambient,
+            mass=entry.vehicle.mass.total_mass(entry.fuel_mass),
+            tyre_state=entry.tyres,
+            water_depth=water,
+        )
+        reason = (
+            "conditions"
+            if wanted.is_wet_weather != entry.tyres.is_wet_weather
+            else ("worn" if entry.tyres.wear >= strategy.wear_limit else "plan")
+        )
+        stop = PitStop(
+            lap=lap,
+            from_compound=entry.tyres.compound.code,
+            to_compound=wanted.code,
+            loss=loss.total,
+            reason=reason,
+        )
+        entry.pit_stops.append(stop)
+        entry.fit(wanted)
+        strategy.record_stop(wanted)
+        return stop
+
+    def _mean_water_depth(self) -> float:
+        if self.evolution is not None:
+            return self.evolution.mean_water_depth
+        if self.conditions is None:
+            return 0.0
+        count = len(self.conditions)
+        if count == 0:
+            return 0.0
+        return sum(self.conditions[i].water_depth for i in range(count)) / count
 
     # -- classifying it ------------------------------------------------------
 
@@ -329,6 +503,7 @@ class RaceSession:
                     tyre_wear=flag.tyre_wear,
                     fuel_remaining=flag.fuel_mass,
                     mistakes=sum(r.mistakes for r in run),
+                    pit_stops=sum(1 for r in run if r.pitted),
                 )
             )
 

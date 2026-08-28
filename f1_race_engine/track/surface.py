@@ -235,27 +235,47 @@ class TrackConditions:
 
     # -- the model ------------------------------------------------------------
 
-    def grip_multiplier(self, index: int) -> float:
+    def grip_multiplier(self, index: int, *, off_line: bool = False) -> float:
         """Condition-derived grip multiplier for segment ``index``.
 
         Three independent effects, each neutral at zero:
 
         * rubbering in raises grip towards ``rubber_grip_gain``;
-        * marbles reduce it;
-        * standing water reduces it sharply, and non-linearly with depth.
+        * marbles reduce it, but only ``off_line`` -- marbles collect *beside*
+          the racing line, which is exactly why leaving it is expensive and why
+          a car on it gains grip through a session rather than losing it;
+        * a wet surface reduces it, saturating once the road is properly wet.
+
+        The wet term is the *asphalt*, not the tyre.  Wet asphalt has a lower
+        friction coefficient than dry asphalt whatever is running on it, and a
+        damp track has nearly all of that penalty already.  What deeper water
+        does is lift a tyre off the road, which depends entirely on the tread
+        and is answered in :mod:`f1_race_engine.tyres.wet`.
         """
         condition = self._conditions[index]
         cfg = self._config
         multiplier = 1.0 + cfg.rubber_grip_gain * clamp(condition.rubber, 0.0, 1.0)
-        multiplier *= 1.0 - cfg.marble_grip_penalty * clamp(condition.marbles, 0.0, 1.0)
+        if off_line:
+            multiplier *= 1.0 - cfg.marble_grip_penalty * clamp(
+                condition.marbles, 0.0, 1.0
+            )
         if condition.water_depth > 0.0:
-            depth_ratio = condition.water_depth / cfg.reference_water_depth
-            multiplier *= 1.0 / (1.0 + cfg.wet_grip_sensitivity * depth_ratio)
+            wetness = min(condition.water_depth / cfg.reference_water_depth, 1.0)
+            multiplier *= 1.0 - cfg.wet_surface_penalty * wetness
         return max(multiplier, cfg.min_grip_multiplier)
 
-    def effective_grip(self, index: int) -> float:
+    def effective_grip(self, index: int, *, off_line: bool = False) -> float:
         """Static segment grip combined with the current condition."""
-        return self._segments[index].surface_grip * self.grip_multiplier(index)
+        return self._segments[index].surface_grip * self.grip_multiplier(
+            index, off_line=off_line
+        )
+
+    def segment_gradient(self, index: int) -> float:
+        """The gradient of the segment this condition belongs to.
+
+        Exposed so the evolution model can drain water down the camber without
+        having to be handed the track as well as the conditions."""
+        return self._segments[index].gradient
 
     def is_wet(self, index: int) -> bool:
         return self._conditions[index].water_depth > 0.0

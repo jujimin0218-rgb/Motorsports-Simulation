@@ -18,13 +18,37 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.errors import EntryError
+from ..core.units import Seconds
 from ..driver.model import Driver
 from ..tyres.compound import TyreCompound
 from ..tyres.state import TyreState
 from ..vehicle.ers import ErsState
 from ..vehicle.model import Vehicle
+from .strategy import RaceStrategy
 
-__all__ = ["RaceEntry"]
+__all__ = ["PitStop", "RaceEntry"]
+
+
+@dataclass(frozen=True, slots=True)
+class PitStop:
+    """One visit to the pit box."""
+
+    lap: int
+    from_compound: str
+    to_compound: str
+    loss: Seconds
+    """Time lost against staying on the circuit, in seconds."""
+
+    reason: str = "plan"
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "lap": self.lap,
+            "from_compound": self.from_compound,
+            "to_compound": self.to_compound,
+            "loss": self.loss,
+            "reason": self.reason,
+        }
 
 
 @dataclass
@@ -44,8 +68,16 @@ class RaceEntry:
     """Fuel on board, kg.  ``None`` takes the car's own setup fuel load."""
 
     grid_position: int | None = None
-    """Where the car started.  Phase 7 fills this in from qualifying; Phase 6
-    only carries it so a session can be reported in a sensible order."""
+    """Where the car started, filled in by qualifying."""
+
+    strategy: RaceStrategy | None = None
+    """How this car intends to cover the distance, and when it changes its
+    mind.  ``None`` runs the whole race on one set."""
+
+    compounds: tuple[TyreCompound, ...] = ()
+    """The sets available to this car.  The strategist chooses from these."""
+
+    pit_stops: list[PitStop] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if self.car_number <= 0:
@@ -68,8 +100,10 @@ class RaceEntry:
     # -- what it is carrying -------------------------------------------------
 
     def fit(self, compound: TyreCompound, *, temperature: float | None = None) -> None:
-        """Bolt on a fresh set.  Phase 8 calls this from the pit box."""
+        """Bolt on a fresh set."""
         self.tyres.fit(compound, temperature=temperature)
+        if self.strategy is not None:
+            self.strategy.start_stint(compound)
 
     @property
     def compound(self) -> str:
@@ -86,6 +120,7 @@ class RaceEntry:
             "fuel_mass": self.fuel_mass,
             "tyres": self.tyres.snapshot(),
             "energy": self.energy.snapshot(),
+            "pit_stops": [stop.to_dict() for stop in self.pit_stops],
         }
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

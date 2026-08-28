@@ -96,6 +96,8 @@ def traction_limited_force(
     lateral_acceleration: float = 0.0,
     lateral_force_used: float = 0.0,
     drs_open: bool = False,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
     ceiling: float | None = None,
 ) -> Newtons:
     """Maximum drive force the rear tyres can transmit, N.
@@ -124,8 +126,9 @@ def traction_limited_force(
     config = vehicle.config
     tyres = tyre_state or TyreState()
     compound = tyres.compound
+    air_speed = max(speed + headwind, 0.0)
     downforce = vehicle.aero.downforce(
-        speed, air_density, vehicle.wing_level, drs_open=drs_open
+        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
     balance = vehicle.spec.aero.aero_balance_front
 
@@ -146,12 +149,14 @@ def traction_limited_force(
             enable_load_transfer=config.powertrain.longitudinal_load_transfer,
         )
         rear_limit = vehicle.tyre_model.grip_limit(
-            compound, loads.rear, state=tyres, surface_grip=surface_grip
+            compound, loads.rear, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
         )
         # How much of the car's total friction circle cornering is already
         # spending.  Evaluated on the same lumped basis as the lateral model.
         total_limit = vehicle.tyre_model.grip_limit(
-            compound, loads.total, state=tyres, surface_grip=surface_grip
+            compound, loads.total, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
         )
         lateral_used = abs(lateral_force_used)
         if total_limit.capacity > 0.0 and lateral_used > 0.0:
@@ -187,6 +192,8 @@ def longitudinal_forces(
     lateral_force_used: float = 0.0,
     drs_open: bool = False,
     ers_power: float = 0.0,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
 ) -> LongitudinalForces:
     """Resolve the full longitudinal force balance.
 
@@ -194,6 +201,15 @@ def longitudinal_forces(
     engine makes.  It is still subject to the traction limit -- deploying into a
     slow corner exit only spins the wheels, which is why the energy is worth
     more on a straight.
+
+    ``water_depth`` is the standing water the tyres have to clear; what that
+    costs depends on the tread, and the tyre model answers it.
+
+    ``headwind`` is the wind component opposing the car, m/s.  Only the *aero*
+    forces see it -- a headwind changes the air the car is driving through, not
+    how fast the road is going past -- which is why a lap into a headwind and
+    back out of it is slower than the same lap in still air rather than being a
+    wash.
 
     ``throttle`` and ``brake`` are demands in ``[0, 1]``; both limits are
     applied, so asking for more than the tyres can deliver simply yields the
@@ -206,10 +222,13 @@ def longitudinal_forces(
     throttle = clamp(throttle, 0.0, 1.0)
     brake = clamp(brake, 0.0, 1.0)
 
+    air_speed = max(speed + headwind, 0.0)
     downforce = vehicle.aero.downforce(
-        speed, air_density, vehicle.wing_level, drs_open=drs_open
+        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
-    drag = vehicle.aero.drag(speed, air_density, vehicle.wing_level, drs_open=drs_open)
+    drag = vehicle.aero.drag(
+        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
+    )
 
     pitch = slope_angle(gradient)
     gradient_force = -car_mass * gravity * math.sin(pitch)
@@ -232,6 +251,8 @@ def longitudinal_forces(
             lateral_acceleration=lateral_acceleration,
             lateral_force_used=lateral_force_used,
             drs_open=drs_open,
+            water_depth=water_depth,
+            headwind=headwind,
             ceiling=powertrain,
         )
         drive = min(powertrain, traction)
@@ -259,7 +280,8 @@ def longitudinal_forces(
     brake_force = 0.0
     if brake > 0.0:
         grip = vehicle.tyre_model.grip_limit(
-            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip
+            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
         )
         grip_limit = vehicle.tyre_model.available_longitudinal(
             grip, abs(lateral_force_used)

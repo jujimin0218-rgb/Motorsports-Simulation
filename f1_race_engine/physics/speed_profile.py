@@ -50,7 +50,7 @@ from ..core.config import SimulationConfig, SpeedProfileConfig
 from ..core.errors import ConfigError
 from ..core.interpolation import clamp
 from ..core.units import Metres, MetresPerSecond
-from ..environment.conditions import AmbientConditions
+from ..environment.conditions import AmbientConditions, headwind_component
 from ..track.model import Track
 from ..track.surface import TrackConditions
 from ..tyres.state import TyreState
@@ -205,6 +205,43 @@ class SpeedProfile:
         end = self.speed[(index + 1) % len(self.speed)] ** 2
         return math.sqrt(max(start + (end - start) * fraction, 0.0))
 
+    def time_between(self, start: Metres, end: Metres) -> float:
+        """Time to cover the track from ``start`` to ``end``, s.
+
+        Integrated the same way a lap time is -- ``dt = 2*ds / (v0 + v1)`` over
+        each segment -- so the pieces of a lap add up to the lap.  Used to
+        answer "how long would this car have taken over the road the pit lane
+        replaces", which is the only honest way to price a pit stop.
+        """
+        if end <= start:
+            return 0.0
+        lap = self.lap_length
+        if lap > 0.0 and end > lap:
+            # A journey that runs past the line continues on the next lap.
+            return self.time_between(start, lap) + self.time_between(0.0, end - lap)
+        total = 0.0
+        count = len(self.speed)
+        for index in range(count):
+            begin = self.distance[index]
+            finish = begin + self.length[index]
+            lower = max(begin, start)
+            upper = min(finish, end)
+            if upper <= lower:
+                continue
+            entry = self.speed[index]
+            exit_speed = self.speed[(index + 1) % count]
+            span = self.length[index]
+            squared = entry * entry
+            delta = exit_speed * exit_speed - squared
+            a = (lower - begin) / span
+            b = (upper - begin) / span
+            v0 = math.sqrt(max(squared + delta * a, 0.0))
+            v1 = math.sqrt(max(squared + delta * b, 0.0))
+            if v0 + v1 <= 0.0:
+                continue
+            total += 2.0 * (upper - lower) / (v0 + v1)
+        return total
+
     def lateral_acceleration(self, index: int) -> float:
         """Lateral acceleration at node ``index``, m/s^2."""
         return self.speed[index] ** 2 * abs(self.curvature[index])
@@ -293,6 +330,8 @@ def cornering_limits(
             round(state.banking * 1e6),
             round(state.gradient * 1e6),
             round(state.grip * 1e6),
+            round(state.water_depth * 1e6),
+            round(state.heading * 1e4) if conditions_.wind_speed > 0.0 else 0,
         )
         cached = cache.get(key)
         if cached is None:
@@ -305,6 +344,10 @@ def cornering_limits(
                 surface_grip=state.grip * limits_.cornering,
                 banking=state.banking,
                 gradient=state.gradient,
+                water_depth=state.water_depth,
+                headwind=headwind_component(
+                    conditions_.wind_speed, conditions_.wind_direction, state.heading
+                ),
                 max_speed=cfg.speed_ceiling,
                 tolerance=cfg.corner_speed_tolerance,
             )
@@ -332,6 +375,8 @@ def _capability(
     limits: PerformanceLimits,
     braking: bool,
     ers_power: float = 0.0,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
 ) -> float:
     """Longitudinal acceleration available at ``speed``, m/s^2.
 
@@ -356,6 +401,8 @@ def _capability(
         lateral_acceleration=lateral_acceleration,
         lateral_force_used=lateral_force,
         ers_power=0.0 if braking else ers_power,
+        water_depth=water_depth,
+        headwind=headwind,
     )
     return -forces.acceleration if braking else forces.acceleration
 
@@ -472,6 +519,10 @@ def compute_speed_profile(
             "gradient": state.gradient,
             "limits": limits_,
             "ers_power": ers_power,
+            "water_depth": state.water_depth,
+            "headwind": headwind_component(
+                conditions_.wind_speed, conditions_.wind_direction, state.heading
+            ),
         }
 
     converged = False

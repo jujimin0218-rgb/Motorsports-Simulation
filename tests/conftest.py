@@ -148,6 +148,31 @@ def fast_track(proving_ground_definition, coarse_build_config) -> Track:
 
 
 @pytest.fixture(scope="session")
+def session_build_config():
+    """Coarser still, for tests that run whole race weekends.
+
+    A session-level test is checking structure -- who is on the grid, who
+    stopped, what the weather did -- and resolution independence means those
+    answers do not need a finely sampled circuit.  Lap times off by a tenth are
+    fine here and the suite stays runnable (project rule 47).
+    """
+    from f1_race_engine.core.config import TrackBuildConfig
+
+    return TrackBuildConfig(
+        straight_segment_length=70.0, corner_segment_length=45.0,
+        min_segment_length=15.0, max_segment_length=70.0,
+        max_heading_change_per_segment_deg=18.0,
+        max_curvature_change_per_segment=0.03,
+    )
+
+
+@pytest.fixture(scope="session")
+def session_track(proving_ground_definition, session_build_config) -> Track:
+    """The reference circuit at session-test resolution."""
+    return build_track(proving_ground_definition, session_build_config)
+
+
+@pytest.fixture(scope="session")
 def fast_lap(fast_track, reference_spec):
     from f1_race_engine.physics import compute_lap_time
     from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle

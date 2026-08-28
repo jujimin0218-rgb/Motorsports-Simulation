@@ -465,11 +465,24 @@ class TrackConditionsConfig(ConfigNode):
     marble_grip_penalty: float = 0.25
     """Grip lost on a fully marbled surface (-25%)."""
 
-    wet_grip_sensitivity: float = 0.55
-    """Strength of the wet-grip reduction at the reference water depth."""
+    wet_surface_penalty: float = 0.18
+    """Grip a *wet road* costs, once it is properly wet (-18%).
 
-    reference_water_depth: float = 0.002
-    """Water depth, m, at which ``wet_grip_sensitivity`` applies (2 mm)."""
+    This is the asphalt, not the tyre: a wet surface has a lower friction
+    coefficient than a dry one even with no standing water on it, and that
+    applies to every tyre equally.  What standing water does on top of it is a
+    question about tread pattern, and lives in ``wet`` and
+    :mod:`f1_race_engine.tyres.wet`."""
+
+    reference_water_depth: float = 0.0002
+    """Depth, m, beyond which the surface is simply wet and gets no wetter.
+
+    Two tenths of a millimetre.  A damp track has most of the penalty already;
+    the danger in deeper water is aquaplaning, which is the tyre's problem."""
+
+    rubber_wash_rate: float = 0.35
+    """Share of the rubber laid into the racing line that a fully wet track
+    washes away per minute of rain."""
 
     min_grip_multiplier: float = 0.25
     """Floor on the combined multiplier, so grip can never reach zero."""
@@ -479,17 +492,165 @@ class TrackConditionsConfig(ConfigNode):
             "track_conditions.rubber_grip_gain", self.rubber_grip_gain
         )
         require_range(
-            "track_conditions.marble_grip_penalty", self.marble_grip_penalty, 0.0, 1.0
-        )
-        require_non_negative(
-            "track_conditions.wet_grip_sensitivity", self.wet_grip_sensitivity
+            "track_conditions.wet_surface_penalty", self.wet_surface_penalty, 0.0, 1.0
         )
         require_positive(
             "track_conditions.reference_water_depth", self.reference_water_depth
         )
+        require_non_negative(
+            "track_conditions.rubber_wash_rate", self.rubber_wash_rate
+        )
+        require_range(
+            "track_conditions.marble_grip_penalty", self.marble_grip_penalty, 0.0, 1.0
+        )
         require_range(
             "track_conditions.min_grip_multiplier", self.min_grip_multiplier, 0.0, 1.0
         )
+
+
+@dataclass(frozen=True)
+class WeatherConfig(ConfigNode):
+    """How the weather moves (project rule 30).
+
+    Everything here is a *rate* or a *time constant*, never a schedule.  A
+    session's weather is drawn from these by the seeded RNG, so the same seed
+    gives the same rain at the same moment and a different seed gives a
+    different afternoon.
+    """
+
+    step: float = 30.0
+    """Seconds of session time per weather update.  Weather moves on a scale of
+    minutes, so resolving it finer costs time and buys nothing."""
+
+    temperature_relaxation: float = 1_800.0
+    """Time constant, s, for air temperature returning to the forecast mean."""
+
+    temperature_volatility: float = 0.35
+    """Standard deviation, K, of the air temperature's random walk per step."""
+
+    track_relaxation: float = 900.0
+    """Time constant, s, for the track surface chasing its target temperature.
+
+    Asphalt has thermal mass: it lags the air by a quarter of an hour, which is
+    why a cloud passing over cools the track long after it has gone."""
+
+    solar_gain: float = 16.0
+    """Kelvin the track runs above air temperature in full sun."""
+
+    rain_track_cooling: float = 14.0
+    """Kelvin the track loses in heavy rain, on top of losing the sun."""
+
+    rain_air_cooling: float = 4.0
+    """Kelvin the air loses in heavy rain.  Rain pulls the temperature the air
+    is relaxing towards downwards rather than pushing the air itself, so a
+    long shower cools the session by a bounded amount and it comes back."""
+
+    shower_onset_per_hour: float = 0.0
+    """Baseline rate, per hour, at which a shower starts.  The forecast's rain
+    probability scales this; it is here so a dry-forecast session can still be
+    given a chance of a surprise."""
+
+    mean_shower_duration: float = 900.0
+    """Average length of a shower, s.  Ending is a Poisson process, so showers
+    have no fixed length -- some pass in three minutes and some settle in."""
+
+    intensity_relaxation: float = 120.0
+    """Time constant, s, for rain intensity moving towards its target.  Rain
+    arrives and clears over a couple of minutes rather than instantly."""
+
+    wind_relaxation: float = 600.0
+    wind_volatility: float = 0.4
+    """Standard deviation, m/s, of the wind speed's random walk per step."""
+
+    wind_direction_volatility: float = 0.04
+    """Standard deviation, radians, of the wind direction's drift per step."""
+
+    def validate(self) -> None:
+        require_positive("weather.step", self.step)
+        require_positive("weather.temperature_relaxation", self.temperature_relaxation)
+        require_non_negative(
+            "weather.temperature_volatility", self.temperature_volatility
+        )
+        require_positive("weather.track_relaxation", self.track_relaxation)
+        require_non_negative("weather.solar_gain", self.solar_gain)
+        require_non_negative("weather.rain_track_cooling", self.rain_track_cooling)
+        require_non_negative("weather.rain_air_cooling", self.rain_air_cooling)
+        require_non_negative(
+            "weather.shower_onset_per_hour", self.shower_onset_per_hour
+        )
+        require_positive("weather.mean_shower_duration", self.mean_shower_duration)
+        require_positive("weather.intensity_relaxation", self.intensity_relaxation)
+        require_positive("weather.wind_relaxation", self.wind_relaxation)
+        require_non_negative("weather.wind_volatility", self.wind_volatility)
+        require_non_negative(
+            "weather.wind_direction_volatility", self.wind_direction_volatility
+        )
+
+
+@dataclass(frozen=True)
+class TrackEvolutionConfig(ConfigNode):
+    """How a track surface changes while a session runs (rule 30).
+
+    Rubber, marbles and standing water all evolve from what is happening on
+    track -- cars running, rain falling -- rather than from the clock.
+    """
+
+    rubber_per_car_lap: float = 0.006
+    """Share of the remaining rubber deficit laid into the racing line by one
+    car completing one lap.  Saturating, so the first runs do most of the work
+    and a track is nearly in after a couple of hundred car-laps."""
+
+    marbles_per_car_lap: float = 0.004
+    """Marbles swept off the line by one car completing one lap.  They collect
+    *beside* the racing line, so they cost nothing until a car leaves it."""
+
+    rain_accumulation: float = 1.4e-5
+    """Water depth gained, m/s, at full rain intensity -- about 50 mm an hour,
+    which is torrential."""
+
+    drainage_rate: float = 0.002
+    """Share of the standing water that drains away per second on a level
+    surface.  Proportional to depth, because deeper water flows away faster,
+    which is what gives a circuit an equilibrium depth in steady rain rather
+    than an ever-rising flood."""
+
+    gradient_drainage: float = 0.05
+    """Extra drainage, per second per unit of gradient.  A sloping section
+    sheds water and the bottom of a dip holds it, which is why the wet patch on
+    a circuit is always in the same place and nobody had to mark it."""
+
+    dry_threshold: float = 1.0e-5
+    """Depth, m, below which a segment counts as dry.
+
+    A hundredth of a millimetre is a damp patch, not standing water, and
+    without a threshold a segment that has drained stays nominally wet forever
+    because floating-point numbers do not reach zero."""
+
+    drying_per_car_lap: float = 0.004
+    """Share of the standing water thrown off the racing line by one car
+    completing one lap.
+
+    This is what makes a drying line: the cars dry the track themselves, and
+    only where they run."""
+
+    def validate(self) -> None:
+        require_non_negative(
+            "track_evolution.rubber_per_car_lap", self.rubber_per_car_lap
+        )
+        require_non_negative(
+            "track_evolution.marbles_per_car_lap", self.marbles_per_car_lap
+        )
+        require_non_negative(
+            "track_evolution.rain_accumulation", self.rain_accumulation
+        )
+        require_non_negative("track_evolution.drainage_rate", self.drainage_rate)
+        require_non_negative(
+            "track_evolution.gradient_drainage", self.gradient_drainage
+        )
+        require_non_negative(
+            "track_evolution.drying_per_car_lap", self.drying_per_car_lap
+        )
+        require_non_negative("track_evolution.dry_threshold", self.dry_threshold)
 
 
 @dataclass(frozen=True)
@@ -717,6 +878,13 @@ class TyreThermalConfig(ConfigNode):
     track_conduction: float = 260.0
     """Conduction between tread and track surface, W/K."""
 
+    water_conduction: float = 2_400.0
+    """Extra conduction into standing water, W/K.
+
+    Water carries heat away an order of magnitude better than air does, which
+    is why a wet tyre stays in its (much lower) window and why a wet-weather
+    tyre on a drying line destroys itself in a couple of laps."""
+
     internal_conduction: float = 900.0
     """Conduction between tread and carcass, W/K."""
 
@@ -735,6 +903,7 @@ class TyreThermalConfig(ConfigNode):
         require_non_negative("tyre_thermal.convection_base", self.convection_base)
         require_non_negative("tyre_thermal.convection_speed", self.convection_speed)
         require_non_negative("tyre_thermal.track_conduction", self.track_conduction)
+        require_non_negative("tyre_thermal.water_conduction", self.water_conduction)
         require_positive("tyre_thermal.internal_conduction", self.internal_conduction)
         require_range("tyre_thermal.grip_falloff", self.grip_falloff, 0.0, 1.0)
         require_range("tyre_thermal.min_thermal_grip", self.min_thermal_grip, 0.1, 1.0)
@@ -784,6 +953,39 @@ class TyreWearConfig(ConfigNode):
         require_positive("tyre_wear.grip_loss_exponent", self.grip_loss_exponent)
         require_non_negative("tyre_wear.thermal_damage_rate", self.thermal_damage_rate)
         require_range("tyre_wear.max_thermal_damage", self.max_thermal_damage, 0.0, 0.9)
+
+
+@dataclass(frozen=True)
+class WetConfig(ConfigNode):
+    """How standing water and tread pattern decide grip (rule 30).
+
+    The surface penalty for a wet road lives in ``track_conditions``; this is
+    only the part that depends on which tyre is fitted.
+    """
+
+    reference_clearance_speed: float = 40.0
+    """Speed, m/s, at which a compound clears its rated water depth."""
+
+    clearance_exponent: float = 1.0
+    """How fast clearance falls with speed.  One means the tread evacuates a
+    fixed volume per unit time, so the depth it can cope with is inversely
+    proportional to how quickly the road goes past."""
+
+    aquaplaning_depth: float = 0.0005
+    """Unevacuated depth, m, that halves grip.  Half a millimetre of water
+    under the contact patch is already most of the way to floating."""
+
+    min_wet_grip: float = 0.12
+    """Floor, so a car that aquaplanes is out of control rather than out of
+    physics."""
+
+    def validate(self) -> None:
+        require_positive(
+            "wet.reference_clearance_speed", self.reference_clearance_speed
+        )
+        require_positive("wet.clearance_exponent", self.clearance_exponent)
+        require_positive("wet.aquaplaning_depth", self.aquaplaning_depth)
+        require_range("wet.min_wet_grip", self.min_wet_grip, 0.0, 1.0)
 
 
 @dataclass(frozen=True)
@@ -889,7 +1091,20 @@ class DriverConfig(ConfigNode):
     min_commitment: float = 0.5
     """Floor on commitment, so no combination of noise can stop the car."""
 
+    reaction_floor: float = 0.18
+    """Fastest a human reacts to the start lights, s.  Below this is a jump
+    start, not a good one."""
+
+    reaction_range: float = 0.35
+    """Extra reaction time, s, a driver with no racecraft at all takes."""
+
+    reaction_sigma: float = 0.06
+    """Scatter, s, on a reaction before the driver's consistency narrows it."""
+
     def validate(self) -> None:
+        require_positive("driver.reaction_floor", self.reaction_floor)
+        require_non_negative("driver.reaction_range", self.reaction_range)
+        require_non_negative("driver.reaction_sigma", self.reaction_sigma)
         require_range(
             "driver.max_commitment_deficit", self.max_commitment_deficit, 0.0, 0.5
         )
@@ -977,6 +1192,10 @@ class SimulationConfig(ConfigNode):
     track_validation: TrackValidationConfig = field(default_factory=TrackValidationConfig)
     track_conditions: TrackConditionsConfig = field(default_factory=TrackConditionsConfig)
     environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
+    weather: WeatherConfig = field(default_factory=WeatherConfig)
+    track_evolution: TrackEvolutionConfig = field(
+        default_factory=TrackEvolutionConfig
+    )
     aero: AeroConfig = field(default_factory=AeroConfig)
     tyres: TyreConfig = field(default_factory=TyreConfig)
     powertrain: PowertrainConfig = field(default_factory=PowertrainConfig)
@@ -984,6 +1203,7 @@ class SimulationConfig(ConfigNode):
     driver: DriverConfig = field(default_factory=DriverConfig)
     tyre_thermal: TyreThermalConfig = field(default_factory=TyreThermalConfig)
     tyre_wear: TyreWearConfig = field(default_factory=TyreWearConfig)
+    wet: WetConfig = field(default_factory=WetConfig)
     fuel: FuelConfig = field(default_factory=FuelConfig)
     ers: ErsConfig = field(default_factory=ErsConfig)
     physics_validation: PhysicsValidationConfig = field(
