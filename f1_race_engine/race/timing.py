@@ -25,6 +25,7 @@ That definition gives the behaviour real timing has and a simpler one does not:
 from __future__ import annotations
 
 import bisect
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -162,21 +163,77 @@ class TimingTower:
             self.start(car)
         self._records[car].append(record)
 
-        times, distances = self._times[car], self._distances[car]
-        start_time = times[-1]
-        start_distance = distances[-1]
-        if record.sector_times and sector_lengths and len(sector_lengths) == len(
-            record.sector_times
+        # Where this lap began, taken from the lap itself rather than from the
+        # tail of the samples.  A session that races feeds the whole trace in
+        # as the lap is driven, so by now the last sample is the *end* of this
+        # lap: measuring the sectors forward from there would put them beyond
+        # the finish line and leave the samples out of order, which quietly
+        # corrupts every gap and every position read afterwards.
+        start_time = record.elapsed - record.lap_time
+        start_distance = record.distance - sum(sector_lengths) if sector_lengths else None
+        if (
+            start_distance is not None
+            and record.sector_times
+            and len(sector_lengths) == len(record.sector_times)
         ):
             elapsed = start_time
             covered = start_distance
             for duration, length in zip(record.sector_times[:-1], sector_lengths[:-1]):
                 elapsed += duration
                 covered += length
-                times.append(elapsed)
-                distances.append(covered)
-        times.append(record.elapsed)
-        distances.append(record.distance)
+                self._append(car, elapsed, covered)
+        self._append(car, record.elapsed, record.distance, authoritative=True)
+
+    def _append(
+        self,
+        car_number: int,
+        elapsed: float,
+        distance: float,
+        *,
+        authoritative: bool = False,
+    ) -> None:
+        """Add one sample, if it is genuinely later and further on than the last.
+
+        Everything that reads the trace back does so by bisection -- by time in
+        one direction and by distance in the other -- so both lists have to
+        stay sorted.  Samples arrive from two directions, the lap as it is
+        driven and the lap once it is over, and the ones that would go
+        backwards are the ones the other has already covered.
+
+        The line is the exception.  A lap's own last sample lands within a
+        rounding error of the line, close enough to look like a duplicate and
+        drop the crossing itself -- and then the car has no recorded time for
+        the distance it has just completed, and its gap at the flag is
+        unanswerable.  So the crossing displaces whatever the lap left there.
+        """
+        times = self._times[car_number]
+        distances = self._distances[car_number]
+        if authoritative:
+            while len(times) > 1 and (
+                times[-1] >= elapsed or distances[-1] >= distance
+            ):
+                times.pop()
+                distances.pop()
+        if elapsed <= times[-1] or distance <= distances[-1]:
+            return
+        times.append(elapsed)
+        distances.append(distance)
+
+    def record_trace(
+        self, car_number: int, times: Sequence[float], distances: Sequence[float]
+    ) -> None:
+        """Add fine-grained progress samples for one car.
+
+        A lap recorded only at its sector boundaries is enough to time a race
+        but nowhere near enough to race one: telling whether a car is half a
+        second behind another needs to know where both of them were, and that
+        changes every few metres.  So a session that has cars interacting feeds
+        the whole trace in, and the same two queries answer everything.
+        """
+        if car_number not in self._times:
+            self.start(car_number)
+        for elapsed, distance in zip(times, distances):
+            self._append(car_number, elapsed, distance)
 
     # -- asking questions of it ----------------------------------------------
 
@@ -195,18 +252,42 @@ class TimingTower:
         records = self._records.get(car_number, ())
         return sum(1 for record in records if record.elapsed <= time)
 
-    def distance_at(self, car_number: int, time: Seconds) -> float:
-        """How far this car had gone at session time ``time``, m."""
+    def distance_at(
+        self, car_number: int, time: Seconds, *, extrapolate: bool = False
+    ) -> float:
+        """How far this car had gone at session time ``time``, m.
+
+        ``extrapolate`` continues past the last recorded sample at the speed
+        the car was doing.  Racing needs it -- a car whose trace has not caught
+        up yet is still driving, and treating it as parked in the middle of the
+        circuit invents traffic that is not there.  Timing does not: a car that
+        has taken the flag has stopped.
+        """
         times = self._times[car_number]
         distances = self._distances[car_number]
         if time <= times[0]:
             return distances[0]
         if time >= times[-1]:
-            return distances[-1]
+            if not extrapolate:
+                return distances[-1]
+            return distances[-1] + self.speed_at(car_number, times[-1]) * (
+                time - times[-1]
+            )
         index = bisect.bisect_right(times, time)
         return _interpolate(
             time, times[index - 1], times[index], distances[index - 1], distances[index]
         )
+
+    def recorded_until(self, car_number: int) -> Seconds:
+        """The last session time this car's progress is actually known for.
+
+        Past it, :meth:`distance_at` is guessing.  Racing tolerates a guess for
+        the air -- a car half a second stale is still roughly where it was --
+        but deciding a position change on one invents overtakes that did not
+        happen, so whoever is doing that has to be able to ask.
+        """
+        times = self._times.get(car_number)
+        return times[-1] if times else 0.0
 
     def time_at(self, car_number: int, distance: float) -> float | None:
         """When this car reached ``distance``, or ``None`` if it never did.
@@ -226,6 +307,22 @@ class TimingTower:
         return _interpolate(
             distance, distances[index - 1], distances[index], times[index - 1], times[index]
         )
+
+    def speed_at(self, car_number: int, time: Seconds) -> float:
+        """How fast this car was going at session time ``time``, m/s.
+
+        The slope of its own progress table, which is what a speed is.
+        """
+        times = self._times[car_number]
+        distances = self._distances[car_number]
+        if len(times) < 2:
+            return 0.0
+        index = bisect.bisect_right(times, time)
+        index = min(max(index, 1), len(times) - 1)
+        span = times[index] - times[index - 1]
+        if span <= 0.0:
+            return 0.0
+        return (distances[index] - distances[index - 1]) / span
 
     def gap(self, car_number: int, ahead: int, time: Seconds) -> Gap:
         """How far ``car_number`` is behind ``ahead`` at session time ``time``.

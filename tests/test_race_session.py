@@ -87,10 +87,18 @@ def test_a_race_is_reproducible(fast_track, make_entry, lineup):
 
 def test_adding_a_car_does_not_change_anyone_else(fast_track, make_entry, lineup):
     """The single easiest way to make a race simulator irreproducible is to let
-    randomness leak between competitors.  Every entry gets its own hub."""
+    randomness leak between competitors.  Every entry gets its own hub.
+
+    With the racing switched off, which is the Phase 6 question: from Phase 9 on
+    a bigger field really does change everybody's race, because they are in each
+    other's way.  That is traffic, and it is the point -- see
+    ``tests/test_overtaking.py``.  Randomness leaking between cars would look
+    exactly the same from outside, so it has to be asked where it cannot.
+    """
     def race(count):
         entries = [make_entry(i + 1, d) for i, d in enumerate(lineup[:count])]
-        return {row.car_number: row.total_time for row in _run(fast_track, entries).classification}
+        result = _run(fast_track, entries, racing=False)
+        return {row.car_number: row.total_time for row in result.classification}
 
     small, large = race(2), race(5)
     for car in small:

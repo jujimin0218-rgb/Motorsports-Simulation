@@ -305,9 +305,16 @@ def cornering_limits(
     tyre_state: TyreState | None = None,
     conditions: TrackConditions | None = None,
     limits: PerformanceLimits | None = None,
+    downforce_factors: Sequence[float] | None = None,
     config: SpeedProfileConfig | None = None,
 ) -> list[MetresPerSecond]:
     """Speed the tyres allow at each node, ignoring how the car got there.
+
+    ``downforce_factors`` is what the air at each segment has been done to --
+    by the wake of a car in front, which is the only thing that does it.  A
+    corner taken in dirty air is slower, and it is slower in proportion to how
+    much of the load at that speed was downforce, which is why following costs
+    a lot through a fast corner and almost nothing through a slow one.
 
     Results are memoised on the track state that actually matters -- curvature,
     banking, gradient and grip -- because a constant-radius arc repeats the same
@@ -323,8 +330,9 @@ def cornering_limits(
     cache: dict[tuple[int, int, int, int], float] = {}
     result: list[float] = []
 
-    for segment in track.segments:
+    for index, segment in enumerate(track.segments):
         state = track.state_at(segment.distance, conditions)
+        downforce = 1.0 if downforce_factors is None else downforce_factors[index]
         key = (
             round(state.curvature * 1e9),
             round(state.banking * 1e6),
@@ -332,6 +340,7 @@ def cornering_limits(
             round(state.grip * 1e6),
             round(state.water_depth * 1e6),
             round(state.heading * 1e4) if conditions_.wind_speed > 0.0 else 0,
+            round(downforce * 1e3),
         )
         cached = cache.get(key)
         if cached is None:
@@ -348,6 +357,7 @@ def cornering_limits(
                 headwind=headwind_component(
                     conditions_.wind_speed, conditions_.wind_direction, state.heading
                 ),
+                downforce_factor=downforce,
                 max_speed=cfg.speed_ceiling,
                 tolerance=cfg.corner_speed_tolerance,
             )
@@ -377,6 +387,9 @@ def _capability(
     ers_power: float = 0.0,
     water_depth: float = 0.0,
     headwind: float = 0.0,
+    downforce_factor: float = 1.0,
+    drag_factor: float = 1.0,
+    drs_open: bool = False,
 ) -> float:
     """Longitudinal acceleration available at ``speed``, m/s^2.
 
@@ -403,6 +416,9 @@ def _capability(
         ers_power=0.0 if braking else ers_power,
         water_depth=water_depth,
         headwind=headwind,
+        downforce_factor=downforce_factor,
+        drag_factor=drag_factor,
+        drs_open=drs_open,
     )
     return -forces.acceleration if braking else forces.acceleration
 
@@ -454,6 +470,9 @@ def compute_speed_profile(
     limits: PerformanceLimits | None = None,
     corner_limit_override: Sequence[float] | None = None,
     ers_power: float = 0.0,
+    downforce_factors: Sequence[float] | None = None,
+    drag_factors: Sequence[float] | None = None,
+    drs_zones: Sequence[bool] | None = None,
     config: SimulationConfig | SpeedProfileConfig | None = None,
 ) -> SpeedProfile:
     """Compute the speed profile for ``vehicle`` around ``track``.
@@ -488,6 +507,7 @@ def compute_speed_profile(
             tyre_state=tyres,
             conditions=conditions,
             limits=limits_,
+            downforce_factors=downforce_factors,
             config=cfg,
         )
     else:
@@ -523,6 +543,11 @@ def compute_speed_profile(
             "headwind": headwind_component(
                 conditions_.wind_speed, conditions_.wind_direction, state.heading
             ),
+            "downforce_factor": (
+                1.0 if downforce_factors is None else downforce_factors[index]
+            ),
+            "drag_factor": 1.0 if drag_factors is None else drag_factors[index],
+            "drs_open": False if drs_zones is None else drs_zones[index],
         }
 
     converged = False

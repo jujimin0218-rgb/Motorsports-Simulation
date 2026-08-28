@@ -251,3 +251,11 @@ def make_entry(reference_spec):
 def small_field(make_entry, lineup):
     """Four cars, four different drivers, otherwise identical."""
     return [make_entry(index + 1, driver) for index, driver in enumerate(lineup[:4])]
+
+
+@pytest.fixture(scope="session")
+def street_track(session_build_config) -> Track:
+    """A circuit with nowhere to overtake, at session-test resolution."""
+    return build_track(
+        load_builtin_definition("synthetic_street_circuit"), session_build_config
+    )

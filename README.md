@@ -6,15 +6,14 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phases 1–8 and 10 complete.** Core infrastructure, the track model, a
-car whose behaviour comes out of a real force balance, a lap time that is the
+**Status: Phases 1–10 complete.** Core infrastructure, the track model, a car
+whose behaviour comes out of a real force balance, a lap time that is the
 integral of a speed profile, a driver who steps that car around the circuit,
-consumables that change underneath all of it, a field sharing one circuit and
-one clock — and a whole race weekend on top: weather that moves on its own, a
-track surface that rubbers in and floods and dries a racing line, a knockout
-qualifying session that sets a grid, a standing start over real distances, and a
-strategist that prices its own pit stops and changes its mind when it rains. The
-cars do not fight each other yet — Phase 9.
+consumables that change underneath all of it, a whole race weekend — weather
+that moves on its own, a track surface that rubbers in and floods and dries a
+racing line, knockout qualifying, a standing start over real distances, a
+strategist that prices its own pit stops — and a field that can finally see each
+other: dirty air, the tow, DRS, being held up, and getting past.
 
 ## Quick start
 
@@ -39,6 +38,7 @@ python examples/14_compound_choice.py        # where a softer tyre stops paying
 python examples/15_race.py                   # a race, mid-race screens to flag
 python examples/16_wet_weather.py            # a shower, and the drying line
 python examples/17_race_weekend.py           # practice, qualifying, race
+python examples/18_racing.py                 # two cars fighting, and its cost
 ```
 
 ```python
@@ -88,7 +88,7 @@ want to trade fidelity for time.
 | `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
 | `f1_race_engine/driver/` | Ten separate abilities, each connected to the car |
 | `f1_race_engine/simulation/` | The lap stepping loop and telemetry |
-| `f1_race_engine/race/` | Entries, timing, qualifying, the grid, pit stops, strategy |
+| `f1_race_engine/race/` | Entries, timing, qualifying, the grid, pit stops, strategy, racing |
 | `f1_race_engine/environment/` | Air density, weather as a process, track evolution |
 | `f1_race_engine/visualization/` | SVG circuit maps (no dependencies), matplotlib diagnostics |
 | `f1_race_engine/data/` | Three circuits, three cars, five compounds, six drivers |
@@ -107,12 +107,13 @@ extra used only for debug plots.
 - [`docs/PHASE6.md`](docs/PHASE6.md) — a field of cars, and what a gap actually is
 - [`docs/PHASE7.md`](docs/PHASE7.md) — qualifying, the grid, and getting off it
 - [`docs/PHASE8.md`](docs/PHASE8.md) — what a stop costs, and how a plan is computed
+- [`docs/PHASE9.md`](docs/PHASE9.md) — dirty air, the tow, and what a fight costs
 - [`docs/PHASE10.md`](docs/PHASE10.md) — weather that moves, and two kinds of wet
 
 ## Roadmap
 
-Phases 1-8 and 10 done. Next: 9 overtaking & defence · 11 race events ·
-12 advanced physics.
+Phases 1-10 done. Next: 11 race events (safety cars, retirements, penalties) ·
+12 advanced physics (suspension, slip angle, weight transfer).
 
 A web layer (FastAPI + React) and a season-management game sit **on top** of the
 engine; the engine itself stays UI-free and JSON-serialisable.

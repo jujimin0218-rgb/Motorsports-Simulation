@@ -58,3 +58,7 @@ class RaceError(F1EngineError):
 
 class EntryError(RaceError):
     """Raised when a session's entry list is malformed."""
+
+
+class SimulationError(F1EngineError):
+    """Raised when a simulation is asked for something it cannot give."""

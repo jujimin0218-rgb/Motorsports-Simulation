@@ -93,6 +93,7 @@ def lateral_capability(
     drs_open: bool = False,
     water_depth: float = 0.0,
     headwind: float = 0.0,
+    downforce_factor: float = 1.0,
 ) -> LateralCapability:
     """Maximum lateral acceleration available at ``speed``.
 
@@ -104,7 +105,7 @@ def lateral_capability(
     car_mass = vehicle.total_mass() if mass is None else mass
     tyres = tyre_state or TyreState()
 
-    downforce = vehicle.aero.downforce(
+    downforce = downforce_factor * vehicle.aero.downforce(
         max(speed + headwind, 0.0), air_density, vehicle.wing_level, drs_open=drs_open
     )
 
@@ -178,6 +179,7 @@ def corner_speed_limit(
     drs_open: bool = False,
     water_depth: float = 0.0,
     headwind: float = 0.0,
+    downforce_factor: float = 1.0,
     max_speed: float = _ABSOLUTE_SPEED_CEILING,
     tolerance: float = 1e-4,
     max_iterations: int = 60,
@@ -214,6 +216,7 @@ def corner_speed_limit(
             drs_open=drs_open,
             water_depth=water_depth,
             headwind=headwind,
+            downforce_factor=downforce_factor,
         )
         return required_lateral_acceleration(speed, curvature) - capability.lateral_acceleration
 

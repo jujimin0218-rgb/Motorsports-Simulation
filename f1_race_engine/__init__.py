@@ -4,21 +4,19 @@ A physics-based Formula 1 simulator.  Lap times are the *result* of simulating
 a car driving a real distance-based track model -- never a random draw and
 never a per-track correction (project rules 2.1 to 2.4).
 
-Current status: **Phases 7, 8 and 10 (weekends, strategy and weather)** -- core
-infrastructure, the track model, a car that obeys a real force balance, a lap
-time that is the integral of a speed profile, a driver who steps that car around
-the circuit, consumables that change underneath all of it, a field sharing one
-circuit and one clock, and now a whole race weekend: weather that moves on its
-own, a track surface that rubbers in and floods and dries, a knockout qualifying
-session that sets a grid, a standing start over real distances, and a strategist
-that prices its own pit stops and changes its mind when it rains.  The cars
-still do not interact -- overtaking and dirty air are Phase 9.  See
-``docs/ARCHITECTURE.md`` for the full plan.
+Current status: **Phase 9 (overtaking and defence)** -- everything from the
+track model up: a car that obeys a real force balance, a lap time that is the
+integral of a speed profile, a driver who steps that car around the circuit,
+consumables that change underneath all of it, a whole race weekend with weather
+that moves on its own and a strategist that prices its own pit stops -- and now
+a field that can see each other, with dirty air, the tow, DRS, traffic that
+costs time and overtakes that come out of the gap closing rather than out of a
+dice roll.  See ``docs/ARCHITECTURE.md`` for the full plan.
 """
 
 from __future__ import annotations
 
-__version__ = "0.10.0"
+__version__ = "0.10.1"
 
 from .core import (
     EventBus,

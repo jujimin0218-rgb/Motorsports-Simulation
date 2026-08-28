@@ -431,7 +431,8 @@ f1_race_engine/
         consistency.py      per-lap and per-corner variation
         mistakes.py         errors that cost time through the driving
     simulation/
-        lap.py              the rule-26 stepping loop
+        lap.py              the rule-26 stepping loop, pausable for a field
+        traffic.py          what a lap asks about the cars in front of it
         telemetry.py        real-trace channels, CSV export
     race/
         entry.py            a car, its driver, and what it is carrying
@@ -443,6 +444,8 @@ f1_race_engine/
         strategy.py         compound choice and in-race decisions (rule 31)
         planning.py         measure the tyres, measure the stop, add up
         weekend.py          practice, qualifying and a race under one sky
+        wake.py             dirty air and the tow, from one hole in the air
+        traffic.py          who is in front, and whether it can be fixed (rule 29)
     environment/
         conditions.py       air density from real atmospheric physics
         weather.py          temperature, wind and showers as processes (rule 30)
@@ -465,7 +468,6 @@ Arriving in later phases, attached at the seams above:
     tyres/     pressure, per-corner state (Phase 12)
     driver/    racecraft in traffic (Phase 9)
     physics/   suspension, slip angle, yaw, weight transfer (dynamic)
-    race/      overtaking, defence, dirty air, traffic
     events/    safety_car, vsc, red_flag, collision, mechanical_failure
 ```
 
@@ -525,9 +527,9 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | 6 | Multi-car simulation | **done** |
 | 7 | Qualifying and race | **done** |
 | 8 | Strategy and pit stops | **done** |
-| 9 | Overtaking and defence | next |
+| 9 | Overtaking and defence | **done** |
 | 10 | Weather and environment | **done** |
-| 11 | Race events: SC, VSC, red flag, collisions, failures |
+| 11 | Race events: SC, VSC, red flag, collisions, failures | next |
 | 12 | Advanced physics: suspension, weight transfer, slip angle, differential |
 
 Each phase ends by running the code, running the tests, checking physics
@@ -590,6 +592,7 @@ else that costs time, including a pit stop, is a distance covered at a speed.
 | Rule | Where it lives |
 |---|---|
 | 27 qualifying and the grid | `race/qualifying.py`, `race/grid.py` |
+| 29 overtaking and defence | `race/wake.py`, `race/traffic.py` |
 | 30 weather and track evolution | `environment/weather.py`, `environment/evolution.py`, `tyres/wet.py` |
 | 31 strategy is computed | `race/strategy.py`, `race/planning.py` |
 | 32 pit loss is not a constant | `race/pitlane.py` |

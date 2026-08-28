@@ -28,10 +28,13 @@ from __future__ import annotations
 
 import copy
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
+from collections.abc import Callable, Generator
 from typing import Any
 
 from ..core.config import SimulationConfig
+from ..core.errors import SimulationError
 from ..core.rng import RngHub
 from ..core.units import Seconds, format_lap_time, ms_to_kph
 from ..driver.consistency import LapVariation, sample_lap_variation
@@ -55,8 +58,9 @@ from ..vehicle.fuel import fuel_burned
 from ..vehicle.model import Vehicle
 from ..vehicle.state import VehicleState
 from .telemetry import Telemetry, TelemetrySample
+from .traffic import CLEAR, TrafficModel, TrafficState
 
-__all__ = ["LapResult", "LapSimulator", "simulate_lap"]
+__all__ = ["LapDrive", "LapResult", "LapSimulator", "simulate_lap"]
 
 
 @dataclass(frozen=True)
@@ -90,6 +94,24 @@ class LapResult:
 
     tyre_grip: float = 1.0
     """The tyres' grip multiplier at the end of the lap."""
+
+    traffic_fraction: float = 0.0
+    """Share of the lap spent in another car's wake."""
+
+    drs_fraction: float = 0.0
+    """Share of the lap spent with the flap open."""
+
+    time_lost_to_traffic: Seconds = 0.0
+    """How much slower the lap was than the same lap in clean air would have
+    been.  Measured against the car's own speed profile, which is the plan it
+    was prevented from carrying out -- not against anybody else's lap."""
+
+    overtaken: tuple[int, ...] = ()
+    """Cars passed on this lap."""
+
+    trace: tuple[tuple[Seconds, float], ...] = field(default=(), repr=False)
+    """(elapsed, distance) at every segment, both measured from the start of
+    this lap.  Whoever is racing this car places them in the race."""
 
     mistakes: tuple[DriverMistake, ...] = ()
     variation: LapVariation | None = field(default=None, repr=False)
@@ -130,6 +152,10 @@ class LapResult:
             "tyre_wear": self.tyre_wear,
             "tyre_temperature": self.tyre_temperature,
             "tyre_grip": self.tyre_grip,
+            "traffic_fraction": self.traffic_fraction,
+            "drs_fraction": self.drs_fraction,
+            "time_lost_to_traffic": self.time_lost_to_traffic,
+            "overtaken": list(self.overtaken),
             "mistakes": [mistake.to_dict() for mistake in self.mistakes],
         }
         if include_telemetry and self.telemetry is not None:
@@ -141,6 +167,59 @@ class LapResult:
             f"LapResult({self.driver_name!r} lap {self.lap}, {self.formatted}"
             f"{', mistake' if self.had_mistake else ''})"
         )
+
+
+class LapDrive:
+    """A lap in progress.
+
+    Wraps the driving loop so a caller can advance it a piece at a time and
+    look at the clock in between.  A session with a field of cars steps every
+    one of these forward together, which is the only way "who is in front"
+    stays true while they are racing.
+    """
+
+    __slots__ = ("_steps", "_elapsed", "_result")
+
+    def __init__(self, steps: Generator[Seconds, None, LapResult]) -> None:
+        self._steps = steps
+        self._elapsed = 0.0
+        self._result: LapResult | None = None
+
+    @property
+    def elapsed(self) -> Seconds:
+        """Time into the lap at the last pause."""
+        return self._elapsed
+
+    @property
+    def finished(self) -> bool:
+        return self._result is not None
+
+    @property
+    def result(self) -> LapResult:
+        if self._result is None:
+            raise SimulationError("the lap is not finished")
+        return self._result
+
+    def advance(self) -> bool:
+        """Drive to the next pause.  False once the lap is over."""
+        if self._result is not None:
+            return False
+        try:
+            self._elapsed = next(self._steps)
+        except StopIteration as done:
+            self._result = done.value
+            return False
+        return True
+
+    def run(self) -> LapResult:
+        """Drive the rest of it."""
+        while self.advance():
+            pass
+        return self.result
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        state = "finished" if self.finished else f"at {self._elapsed:.2f} s"
+        return f"LapDrive({state})"
 
 
 class LapSimulator:
@@ -299,10 +378,14 @@ class LapSimulator:
         ers_state: ErsState | None = None,
         qualifying: bool = False,
         effort: float = 1.0,
+        traffic: TrafficModel | None = None,
+        stride: int = 0,
+        run: bool = True,
+        on_step: Callable[[Seconds, float], None] | None = None,
         record_telemetry: bool = True,
         telemetry_stride: int = 1,
         start_speed: float | None = None,
-    ) -> LapResult:
+    ) -> LapResult | LapDrive:
         """Simulate one lap.
 
         ``start_speed`` defaults to a flying lap -- the car crosses the line at
@@ -311,8 +394,18 @@ class LapSimulator:
         ``effort`` is how hard the driver is pushing, 1.0 being flat out.  An
         out-lap, a cool-down lap and a stint being managed to the end all use
         it, and all of them cost time the same way: less grip used, slower lap.
+
+        ``traffic`` is the road ahead.  Without it the lap is driven in clean
+        air, which is what every phase before Phase 9 did; with it the car sees
+        the wake of whoever is in front, may open DRS when it has earned the
+        right to, and cannot drive through anybody.
+
+        ``run`` set to False returns a :class:`LapDrive` instead of a result --
+        a lap in progress, which the caller advances a piece at a time.  That is
+        what a session with more than one car in it needs, because everybody has
+        to move forward together for "who is in front" to mean anything.
         """
-        vehicle, track = self.vehicle, self.track
+        vehicle = self.vehicle
         if fuel_mass is None:
             fuel_mass = (
                 vehicle.setup.fuel_load if mass is None
@@ -355,11 +448,37 @@ class LapSimulator:
         profile = self._build_profile(
             commitment, variation, mistakes, car_mass, tyres, deploy
         )
-        return self._drive(
-            profile, commitment, variation, mistakes, lap,
-            car_mass, fuel_mass, tyres, energy, deploy, air_density,
-            record_telemetry, telemetry_stride, start_speed,
+        wake: Sequence[TrafficState] | None = None
+        if traffic is not None:
+            # A driver following another car knows the downforce will not be
+            # there and brakes earlier for it.  So the plan is re-made in the
+            # air the car is actually going to be driving in, using the clean
+            # profile only to work out when it will arrive where.  Capping the
+            # speed at the apex instead does not work: by then it is too late
+            # to slow down, and the car comes out of the corner *faster* for
+            # having had less grip.
+            #
+            # Only when there is somebody to follow, though.  A car in clean
+            # air for the whole lap has nothing to re-plan around, and most
+            # cars most of the time are in clean air.
+            wake = self._wake_along(profile, traffic, start_speed)
+            if any(state.wake.in_traffic or state.drs_allowed for state in wake):
+                profile = self._build_profile(
+                    commitment, variation, mistakes, car_mass, tyres, deploy,
+                    wake=wake,
+                )
+        drive = LapDrive(
+            self._drive(
+                profile, commitment, variation, mistakes, lap,
+                car_mass, fuel_mass, tyres, energy, deploy, air_density,
+                traffic, record_telemetry, telemetry_stride, start_speed,
+                stride if traffic is not None else 0, on_step, wake,
+            )
         )
+        if not run:
+            return drive
+        drive.run()
+        return drive.result
 
     # -- stage 1: the driver's own speed profile -----------------------------
 
@@ -371,8 +490,19 @@ class LapSimulator:
         car_mass: float,
         tyres: TyreState,
         ers_power: float,
+        wake: Sequence[TrafficState] | None = None,
     ) -> SpeedProfile:
         limits = commitment.as_limits()
+        # The air the car will be driving through.  Handing it to the profile
+        # rather than correcting for it afterwards is the whole point: the plan
+        # and the lap have to agree, or a car with less grip fails to brake
+        # enough and comes out of the corner faster for it.
+        downforce = None if wake is None else [s.wake.downforce_factor for s in wake]
+        drag = None if wake is None else [s.wake.drag_factor for s in wake]
+        drs = None if wake is None else [
+            s.drs_allowed and segment.has_drs
+            for s, segment in zip(wake, self.track.segments)
+        ]
         base = cornering_limits(
             self.track,
             self.vehicle,
@@ -381,16 +511,18 @@ class LapSimulator:
             tyre_state=tyres,
             conditions=self._conditions,
             limits=limits,
+            downforce_factors=downforce,
             config=self.config.speed_profile,
         )
 
         penalties = {mistake.corner_id: mistake.speed_penalty for mistake in mistakes}
-        needs_override = bool(penalties) or bool(variation.corner_bias)
+        needs_override = bool(penalties) or bool(variation.corner_bias) or wake is not None
         if not needs_override:
             return compute_speed_profile(
                 self.track, self.vehicle, self.ambient,
                 mass=car_mass, tyre_state=tyres, conditions=self._conditions,
                 limits=limits, corner_limit_override=base, ers_power=ers_power,
+                downforce_factors=downforce, drag_factors=drag, drs_zones=drs,
                 config=self.config.speed_profile,
             )
 
@@ -410,14 +542,44 @@ class LapSimulator:
             penalty = penalties.get(corner_id)
             if penalty:
                 factor *= 1.0 - penalty
-            adjusted[index] = base[index] * factor
+            adjusted[index] *= factor
 
         return compute_speed_profile(
             self.track, self.vehicle, self.ambient,
             mass=car_mass, tyre_state=tyres, conditions=self._conditions,
             limits=limits, corner_limit_override=adjusted, ers_power=ers_power,
+            downforce_factors=downforce, drag_factors=drag, drs_zones=drs,
             config=self.config.speed_profile,
         )
+
+    def _wake_along(
+        self,
+        profile: SpeedProfile,
+        traffic: TrafficModel,
+        start_speed: float | None,
+    ) -> list[TrafficState]:
+        """The air this car will meet at each segment, and where it may use DRS.
+
+        Estimated by walking its own clean-air profile: where it would be, and
+        when, if nobody were in the way.  Traffic changes that by a second or
+        two over a lap, which moves the wake by less than the wake model can
+        tell apart -- and it is the only estimate available before the lap is
+        driven.
+        """
+        states: list[TrafficState] = []
+        elapsed = 0.0
+        count = len(profile.speed)
+        for index, segment in enumerate(self.track.segments):
+            entry = profile.speed[index] if start_speed is None or index else start_speed
+            exit_speed = profile.speed[(index + 1) % count]
+            speed = max(0.5 * (entry + exit_speed), 1.0)
+            states.append(
+                traffic.preview(
+                    distance=segment.distance, elapsed=elapsed, speed=speed
+                )
+            )
+            elapsed += segment.length / speed
+        return states
 
     # -- stage 2: drive it ---------------------------------------------------
 
@@ -457,10 +619,24 @@ class LapSimulator:
         energy: ErsState,
         deploy: float,
         air_density: float,
+        traffic: TrafficModel | None,
         record_telemetry: bool,
         telemetry_stride: int,
         start_speed: float | None,
-    ) -> LapResult:
+        stride: int,
+        on_step: Callable[[Seconds, float], None] | None,
+        planned_wake: Sequence[TrafficState] | None = None,
+    ) -> Generator[Seconds, None, LapResult]:
+        """Drive the lap, pausing every ``stride`` segments.
+
+        A generator rather than a plain loop, because a field of cars racing
+        each other cannot be simulated one whole lap at a time: a car that is
+        overtaken has to find out about it before it finishes the lap, or it
+        drives the rest of the lap as though nothing happened and arrives at
+        the line still in front.  Pausing lets the session step everybody
+        forward together and keeps who-is-where honest to within a fraction of
+        a lap.  Nothing about the physics changes; the loop is the same loop.
+        """
         track, vehicle = self.track, self.vehicle
         segments = track.segments
         count = len(segments)
@@ -513,6 +689,13 @@ class LapSimulator:
         deployed_before = energy.deployed_total
         recovered_before = energy.recovered_total
 
+        trace_times: list[float] = []
+        trace_distances: list[float] = []
+        traffic_time = 0.0
+        drs_time = 0.0
+        clean_air_time = 0.0
+        overtaken: list[int] = []
+
         for index in range(count):
             segment = segments[index]
             step = segment.length
@@ -534,10 +717,55 @@ class LapSimulator:
             # how the step is integrated.
             span = step / reference
 
-            lateral_acceleration = reference * reference * abs(curvature)
-            lateral_force = mass * lateral_acceleration
+            # What the road ahead is like.  The traffic model answers with the
+            # air, the flap and the speed the car in front allows; everything
+            # after this is the same force balance as always.
+            road = CLEAR
+            if traffic is not None:
+                # The distance and the clock have to agree: this car is at the
+                # start of the segment at ``state.time``, and its own trace was
+                # recorded the same way.  Handing over the segment's midpoint
+                # instead puts every car half a segment further up the road than
+                # it is -- which makes two cars each believe they have just
+                # overtaken the other.
+                road = traffic.at(
+                    distance=segment.distance,
+                    elapsed=state.time,
+                    speed=max(speed, floor),
+                )
+                if road.passed is not None:
+                    overtaken.append(road.passed)
+
             state_here = track.state_at(segment.mid_distance, self._conditions)
             surface_grip = state_here.grip
+            if road.off_line and self._conditions is not None:
+                # Committing to a move means leaving the racing line, and the
+                # marbles are off the racing line.
+                surface_grip = self._conditions.effective_grip(
+                    segment.index if hasattr(segment, "index") else index,
+                    off_line=True,
+                )
+
+            # The air the lap was *planned* in is the air it is driven in.
+            #
+            # This is Phase 5's frozen grip again, and it bites the same way.
+            # ``target`` comes from the profile, which was built in the air the
+            # traffic model predicted.  Taking the aerodynamics from the live
+            # query instead lets a car keep a plan made in clean air while
+            # banking a tow it did not plan for -- and a lap in dirty air comes
+            # out *faster* than a lap in clean air, which is the one thing the
+            # wake must never do.  So the plan and the execution use the same
+            # numbers, and what the traffic model says here decides only what
+            # this car is not allowed to do: how fast the car in front will let
+            # it go, and whether it is off the racing line.
+            air = planned_wake[index] if planned_wake is not None else road
+            drs_open = segment.has_drs and air.drs_allowed
+            if road.speed_limit < target:
+                target = road.speed_limit
+            reference = max(0.5 * (speed + target), floor)
+
+            lateral_acceleration = reference * reference * abs(curvature)
+            lateral_force = mass * lateral_acceleration
 
             common = {
                 "mass": mass,
@@ -550,6 +778,9 @@ class LapSimulator:
                 "headwind": headwind_component(
                     wind_speed, wind_direction, state_here.heading
                 ),
+                "downforce_factor": air.wake.downforce_factor,
+                "drag_factor": air.wake.drag_factor,
+                "drs_open": drs_open,
             }
             # What the car does with no pedal: drag, rolling resistance and the
             # slope.  The driver only supplies the difference from there.
@@ -664,6 +895,19 @@ class LapSimulator:
                 wear_config=wear_config,
             )
 
+            trace_times.append(state.time + dt)
+            trace_distances.append(segment.distance + step)
+            if on_step is not None:
+                # Whoever is racing this car needs to know where it is *now*,
+                # not once the lap is over.
+                on_step(state.time + dt, segment.distance + step)
+            if air.wake.in_traffic:
+                traffic_time += dt
+            else:
+                clean_air_time += dt
+            if drs_open:
+                drs_time += dt
+
             self._accumulate_sectors(
                 sector_times, boundaries, segment.distance, step,
                 speed, next_speed, track,
@@ -683,7 +927,7 @@ class LapSimulator:
                         sector=segment.sector,
                         corner_id=segment.corner_id,
                         gear=command.gear,
-                        drs=segment.has_drs,
+                        drs=drs_open,
                         tyre_wear=tyres.wear,
                         fuel_mass=remaining_fuel,
                         duration=dt,
@@ -704,8 +948,14 @@ class LapSimulator:
             max_lateral = max(max_lateral, lateral_acceleration)
             max_braking = max(max_braking, -acceleration)
 
+            if stride > 0 and index % stride == stride - 1 and index < count - 1:
+                yield state.time
+
         tyres.age_laps += 1.0
         lap_time = state.time
+        # What the lap would have been with nobody in the way: the car's own
+        # plan, which is exactly what traffic prevented it from carrying out.
+        clean_lap = profile.time_between(0.0, track.length)
         return LapResult(
             driver_name=self.driver.name,
             vehicle_name=self.vehicle.name,
@@ -725,6 +975,11 @@ class LapSimulator:
             tyre_wear=tyres.wear,
             tyre_temperature=tyres.surface_temperature,
             tyre_grip=tyres.grip,
+            traffic_fraction=traffic_time / lap_time if lap_time > 0.0 else 0.0,
+            drs_fraction=drs_time / lap_time if lap_time > 0.0 else 0.0,
+            time_lost_to_traffic=max(lap_time - clean_lap, 0.0) if traffic else 0.0,
+            overtaken=tuple(overtaken),
+            trace=tuple(zip(trace_times, trace_distances)),
             mistakes=mistakes,
             variation=variation,
             telemetry=telemetry,

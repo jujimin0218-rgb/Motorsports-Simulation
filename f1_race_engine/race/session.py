@@ -37,6 +37,7 @@ from .entry import PitStop, RaceEntry
 from .grid import Launch, launch_from_rest, reaction_time, starting_grid
 from .pitlane import PitLane, pit_loss
 from .timing import Gap, LapRecord, TimingTower
+from .traffic import OvertakeAttempt, Traffic
 
 __all__ = ["Classification", "LapCompleted", "RaceResult", "RaceSession"]
 
@@ -75,6 +76,8 @@ class Classification:
     fuel_remaining: float
     mistakes: int
     pit_stops: int = 0
+    overtakes: int = 0
+    """Cars this one got past."""
 
     @property
     def formatted_time(self) -> str:
@@ -99,6 +102,7 @@ class Classification:
             "fuel_remaining": self.fuel_remaining,
             "mistakes": self.mistakes,
             "pit_stops": self.pit_stops,
+            "overtakes": self.overtakes,
         }
 
 
@@ -112,6 +116,7 @@ class RaceResult:
     timing: TimingTower = field(repr=False)
     entries: tuple[RaceEntry, ...] = field(default=(), repr=False)
     fastest_lap: LapRecord | None = None
+    overtakes: tuple[OvertakeAttempt, ...] = field(default=(), repr=False)
 
     @property
     def winner(self) -> Classification | None:
@@ -131,6 +136,7 @@ class RaceResult:
         }
         if self.fastest_lap is not None:
             payload["fastest_lap"] = self.fastest_lap.to_dict()
+        payload["overtakes"] = [move.to_dict() for move in self.overtakes]
         if include_laps:
             payload["lap_records"] = {
                 str(car): [record.to_dict() for record in self.timing.records(car)]
@@ -171,7 +177,8 @@ class RaceSession:
     __slots__ = (
         "track", "entries", "laps", "ambient", "conditions", "config",
         "rng", "events", "timing", "weather", "evolution", "pit_lane",
-        "standing_start", "launches", "_simulators", "_sector_lengths",
+        "standing_start", "launches", "racing", "overtakes",
+        "_simulators", "_sector_lengths", "_ahead_of", "_just_passed",
     )
 
     def __init__(
@@ -185,6 +192,7 @@ class RaceSession:
         conditions: TrackConditions | None = None,
         config: SimulationConfig | None = None,
         events: EventBus | None = None,
+        racing: bool = True,
         weather: WeatherModel | None = None,
         evolution: TrackEvolution | None = None,
         pit_lane: PitLane | None = None,
@@ -214,6 +222,18 @@ class RaceSession:
         if weather is not None:
             self.ambient = weather.state.ambient
         self.standing_start = standing_start
+        self.racing = racing
+        """Whether the cars can see each other.  Off, this is Phase 6's race:
+        every car in clean air, which is a useful thing to be able to compare
+        against and a much faster thing to run."""
+
+        self.overtakes: list[OvertakeAttempt] = []
+        self._ahead_of: dict[int, set[int]] = {
+            entry.car_number: set() for entry in self.entries
+        }
+        self._just_passed: dict[int, set[int]] = {
+            entry.car_number: set() for entry in self.entries
+        }
         self.launches: dict[int, Launch] = {}
         self.timing = TimingTower(track.length)
         self._sector_lengths = _sector_lengths(track)
@@ -248,20 +268,56 @@ class RaceSession:
 
         for lap in range(1, self.laps + 1):
             lap_times: list[float] = []
-            for entry in self.entries:
+            # Cars are simulated in the order they start the lap, earliest
+            # first.  That is not a convenience: it is what makes the model
+            # causal.  Anybody physically in front of a car when it is out
+            # there started their lap before it did -- including a car a lap up
+            # the road -- so their trace already exists to be raced against,
+            # and nobody has to guess where anybody is.
+            drives: dict[int, Any] = {}
+            traffics: dict[int, Traffic | None] = {}
+            lap_passes: set[tuple[int, int]] = set()
+            for entry in self._running_order(elapsed):
                 simulator = self._simulators[entry.car_number]
+                traffic = self._traffic_for(
+                    entry, lap, elapsed[entry.car_number], lap_passes
+                )
+                traffics[entry.car_number] = traffic
                 launch = self.launches.get(entry.car_number) if lap == 1 else None
-                result = simulator.simulate(
+                drives[entry.car_number] = simulator.simulate(
                     lap=lap,
                     fuel_mass=entry.fuel_mass,
                     tyre_state=entry.tyres,
                     ers_state=entry.energy,
                     qualifying=qualifying,
                     record_telemetry=False,
+                    traffic=traffic,
+                    stride=self._interaction_stride(),
+                    run=traffic is None,
+                    on_step=self._recorder(entry.car_number, elapsed[entry.car_number], lap),
                     start_speed=launch.exit_speed if launch is not None else None,
                 )
+
+            # Step everybody forward together.  Whoever is furthest behind on
+            # the clock goes next, so a car is never simulated past a moment
+            # that the cars in front of it have not reached yet -- which is
+            # what makes an overtake something the loser finds out about.
+            if any(not isinstance(d, LapResult) for d in drives.values()):
+                self._step_together(drives, elapsed)
+
+            for entry in self.entries:
+                drive = drives[entry.car_number]
+                result = drive if isinstance(drive, LapResult) else drive.result
+                traffic = traffics[entry.car_number]
                 entry.fuel_mass = max(entry.fuel_mass - result.fuel_used, 0.0)
                 lap_time = result.lap_time
+                if traffic is not None:
+                    for move in traffic.passes:
+                        self.overtakes.append(move)
+                        # Who is in front of whom is a fact about the race, so
+                        # it outlives the lap it happened on.
+                        self._ahead_of[move.attacker].add(move.defender)
+                        self._ahead_of[move.defender].discard(move.attacker)
 
                 stop = self._pit_stop(entry, result, lap)
                 if stop is not None:
@@ -301,8 +357,96 @@ class RaceSession:
                     )
 
             self._advance_world(lap_times)
+            # A driver who was overtaken this lap regroups before trying again.
+            for car in self._just_passed:
+                self._just_passed[car] = {
+                    move.attacker for move in self.overtakes
+                    if move.lap == lap and move.defender == car
+                }
 
         return self._classify()
+
+    # -- racing each other ---------------------------------------------------
+
+    def _running_order(self, elapsed: dict[int, float]) -> list[RaceEntry]:
+        """The order to simulate this lap in: whoever is out there first.
+
+        Ordering by elapsed time is what makes the model causal.  Anybody
+        physically in front of a car when it is out there started their lap
+        before it did -- including a car a lap up the road -- so their trace
+        already exists to be raced against, and nobody has to guess where
+        anybody is.
+        """
+        return sorted(
+            self.entries, key=lambda e: (elapsed[e.car_number], e.car_number)
+        )
+
+    def _recorder(self, car: int, started: Seconds, lap: int):
+        """A callback that puts this car's progress on the timing tower as it
+        happens, so everybody racing it can see where it is now."""
+        base = (lap - 1) * self.track.length
+        timing = self.timing
+
+        def record(at: Seconds, covered: float) -> None:
+            timing.record_trace(car, (started + at,), (base + covered,))
+
+        return record
+
+    def _interaction_stride(self) -> int:
+        """How many segments a car drives between re-synchronisations.
+
+        The config asks for a number of stops per lap, which is the thing with
+        a meaning -- so many seconds of racing before everybody is lined up on
+        the clock again.  How many segments that is depends on the circuit.
+        """
+        steps = self.config.overtaking.interaction_steps
+        return max(1, len(self.track.segments) // steps)
+
+    def _step_together(self, drives: dict[int, Any], elapsed: dict[int, float]) -> None:
+        """Advance every car in progress, always the one furthest behind.
+
+        Nobody is ever simulated past a moment the cars in front of them have
+        not reached, so the answer to "who is in front" is never a guess -- and
+        a car that gets overtaken finds out about it on the lap it happened,
+        rather than driving the rest of it as though nothing had.
+        """
+        pending = {
+            car: drive for car, drive in drives.items()
+            if not isinstance(drive, LapResult)
+        }
+        while pending:
+            car = min(pending, key=lambda c: elapsed[c] + pending[c].elapsed)
+            if not pending[car].advance():
+                del pending[car]
+
+    def _traffic_for(
+        self,
+        entry: RaceEntry,
+        lap: int,
+        started: Seconds,
+        lap_passes: set[tuple[int, int]],
+    ) -> Traffic | None:
+        """This car's view of everybody in front of it, for one lap."""
+        if not self.racing or len(self.entries) < 2:
+            return None
+        return Traffic(
+            track=self.track,
+            timing=self.timing,
+            car_number=entry.car_number,
+            lap=lap,
+            attributes=entry.driver.attributes,
+            start_time=started,
+            others={
+                other.car_number: other.driver.attributes
+                for other in self.entries
+                if other.car_number != entry.car_number
+            },
+            ahead_of=set(self._ahead_of[entry.car_number]),
+            just_passed_by=set(self._just_passed[entry.car_number]),
+            lap_passes=lap_passes,
+            config=self.config.overtaking,
+            wake_config=self.config.wake,
+        )
 
     # -- getting off the line ------------------------------------------------
 
@@ -504,6 +648,10 @@ class RaceSession:
                     fuel_remaining=flag.fuel_mass,
                     mistakes=sum(r.mistakes for r in run),
                     pit_stops=sum(1 for r in run if r.pitted),
+                    overtakes=sum(
+                        1 for move in self.overtakes
+                        if move.attacker == car and move.lap <= flag.lap
+                    ),
                 )
             )
 
@@ -514,6 +662,7 @@ class RaceSession:
             timing=self.timing,
             entries=self.entries,
             fastest_lap=fastest,
+            overtakes=tuple(self.overtakes),
         )
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

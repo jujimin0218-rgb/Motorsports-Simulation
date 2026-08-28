@@ -98,6 +98,7 @@ def traction_limited_force(
     drs_open: bool = False,
     water_depth: float = 0.0,
     headwind: float = 0.0,
+    downforce_factor: float = 1.0,
     ceiling: float | None = None,
 ) -> Newtons:
     """Maximum drive force the rear tyres can transmit, N.
@@ -127,7 +128,7 @@ def traction_limited_force(
     tyres = tyre_state or TyreState()
     compound = tyres.compound
     air_speed = max(speed + headwind, 0.0)
-    downforce = vehicle.aero.downforce(
+    downforce = downforce_factor * vehicle.aero.downforce(
         air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
     balance = vehicle.spec.aero.aero_balance_front
@@ -194,6 +195,8 @@ def longitudinal_forces(
     ers_power: float = 0.0,
     water_depth: float = 0.0,
     headwind: float = 0.0,
+    downforce_factor: float = 1.0,
+    drag_factor: float = 1.0,
 ) -> LongitudinalForces:
     """Resolve the full longitudinal force balance.
 
@@ -204,6 +207,13 @@ def longitudinal_forces(
 
     ``water_depth`` is the standing water the tyres have to clear; what that
     costs depends on the tread, and the tyre model answers it.
+
+    ``downforce_factor`` and ``drag_factor`` are what the air the car is
+    driving through has been done to -- by the wake of a car in front, which is
+    the only thing that currently does it.  They are multipliers on the two
+    aerodynamic forces and nothing else, so what dirty air *costs* is worked
+    out by the same model that decides everything else, and it comes out
+    different at a circuit with fast corners than at one without.
 
     ``headwind`` is the wind component opposing the car, m/s.  Only the *aero*
     forces see it -- a headwind changes the air the car is driving through, not
@@ -223,10 +233,10 @@ def longitudinal_forces(
     brake = clamp(brake, 0.0, 1.0)
 
     air_speed = max(speed + headwind, 0.0)
-    downforce = vehicle.aero.downforce(
+    downforce = downforce_factor * vehicle.aero.downforce(
         air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
-    drag = vehicle.aero.drag(
+    drag = drag_factor * vehicle.aero.drag(
         air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
 
@@ -253,6 +263,7 @@ def longitudinal_forces(
             drs_open=drs_open,
             water_depth=water_depth,
             headwind=headwind,
+            downforce_factor=downforce_factor,
             ceiling=powertrain,
         )
         drive = min(powertrain, traction)

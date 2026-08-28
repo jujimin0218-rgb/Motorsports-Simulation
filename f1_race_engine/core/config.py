@@ -956,6 +956,134 @@ class TyreWearConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class WakeConfig(ConfigNode):
+    """The air behind another car (rule 29).
+
+    Calibrated against the figures the sport quotes about itself: roughly a
+    fifth of the downforce gone at one second, a third at half a second, and a
+    tow worth about an eighth of the drag at half a second.
+    """
+
+    peak_downforce_loss: float = 0.50
+    """Downforce lost when running right behind another car."""
+
+    downforce_scale: float = 0.90
+    """Time constant, s, of the dirty-air decay."""
+
+    peak_drag_saving: float = 0.14
+    """Drag saved sitting right behind another car."""
+
+    drag_scale: float = 0.60
+    """Time constant, s, of the tow's decay.  Shorter than the downforce one:
+    the hole in the air closes up faster than the turbulence settles down."""
+
+    tow_needs_a_straight: bool = True
+    """Whether the tow only counts where the cars are lined up.
+
+    Two cars are nose to tail down a straight and side by side through a
+    corner, so the hole in the air is only useful in one of those places.  The
+    dirty air is not so fussy -- turbulence fills the corner too."""
+
+    range: float = 3.0
+    """Gap, s, beyond which a car is in clean air."""
+
+    minimum_downforce: float = 0.45
+    """Floor on the downforce multiplier, so a car glued to a gearbox is
+    struggling rather than undriveable."""
+
+    def validate(self) -> None:
+        require_range("wake.peak_downforce_loss", self.peak_downforce_loss, 0.0, 1.0)
+        require_positive("wake.downforce_scale", self.downforce_scale)
+        require_range("wake.peak_drag_saving", self.peak_drag_saving, 0.0, 1.0)
+        require_positive("wake.drag_scale", self.drag_scale)
+        require_positive("wake.range", self.range)
+        require_range("wake.minimum_downforce", self.minimum_downforce, 0.1, 1.0)
+
+
+@dataclass(frozen=True)
+class OvertakingConfig(ConfigNode):
+    """When a following car gets past (rule 29)."""
+
+    minimum_gap: float = 0.35
+    """Closest, in seconds, a car will run behind another without passing.
+
+    Not a collision radius: it is how close a driver can follow through a
+    corner before the dirty air takes away the grip they would need to stay
+    there.  A car that catches this gap and cannot pass sits in it."""
+
+    car_length: float = 5.6
+    """Metres of overlap needed to be alongside rather than behind."""
+
+    defence_margin: float = 12.0
+    """How much quicker an attacker has to be, in m/s, per unit of racecraft
+    the defender has on them.
+
+    A defender takes the line the attacker wants, so being marginally faster is
+    not enough: the attacker has to arrive with a speed advantage that cannot be
+    covered.  Two equally matched drivers meet at zero, and a car quicker than
+    the one defending it needs less."""
+
+    drs_detection_gap: float = 1.0
+    """Gap, s, at the detection point that entitles a car to open DRS."""
+
+    drs_detection_offset: float = 150.0
+    """How far before a DRS zone the gap is measured, m.  Being within a
+    second at the detection point and not at the zone is a real thing that
+    happens, and it needs the two to be different places."""
+
+    interaction_steps: int = 40
+    """How many times a lap the field is re-synchronised while racing.
+
+    Cars have to move forward together for "who is in front" to mean anything:
+    a car overtaken a third of the way round has to know about it before it
+    reaches the line.  Forty steps is about one and a half seconds of racing
+    between resynchronisations, which is finer than the wake model can tell
+    apart and far finer than a position change."""
+
+    off_line_penalty: float = 1.0
+    """How much of the off-line surface an overtaking car has to use, 0 to 1.
+
+    Passing means leaving the racing line, where the marbles are.  That is what
+    makes a move cost something even when it works."""
+
+    passing_speed: float = 25.0
+    """Slowest, m/s, at which a move can be completed.
+
+    Getting alongside means carrying more speed than the car in front into a
+    place with room for two, and a hairpin taken at walking pace has neither."""
+
+    passing_radius: float = 400.0
+    """Straightest corner, m, that still counts as somewhere to pass.
+
+    Above this the road is effectively straight: the end of a straight and the
+    braking zone at the end of it, which is where a car carrying more speed
+    ends up alongside."""
+
+    commitment_gap: float = 4.0
+    """How close, in car lengths, an attacker has to be before it is committed.
+
+    Inside this the driver is out of the tow and into the move, which means off
+    the racing line -- so it is also where the marbles start costing them."""
+
+    def validate(self) -> None:
+        require_positive("overtaking.minimum_gap", self.minimum_gap)
+        if self.interaction_steps < 1:
+            raise ConfigError("overtaking.interaction_steps must be at least 1")
+        require_positive("overtaking.car_length", self.car_length)
+        require_non_negative("overtaking.defence_margin", self.defence_margin)
+        require_non_negative("overtaking.passing_speed", self.passing_speed)
+        require_positive("overtaking.passing_radius", self.passing_radius)
+        require_positive("overtaking.commitment_gap", self.commitment_gap)
+        require_positive("overtaking.drs_detection_gap", self.drs_detection_gap)
+        require_non_negative(
+            "overtaking.drs_detection_offset", self.drs_detection_offset
+        )
+        require_range(
+            "overtaking.off_line_penalty", self.off_line_penalty, 0.0, 1.0
+        )
+
+
+@dataclass(frozen=True)
 class WetConfig(ConfigNode):
     """How standing water and tread pattern decide grip (rule 30).
 
@@ -1204,6 +1332,8 @@ class SimulationConfig(ConfigNode):
     tyre_thermal: TyreThermalConfig = field(default_factory=TyreThermalConfig)
     tyre_wear: TyreWearConfig = field(default_factory=TyreWearConfig)
     wet: WetConfig = field(default_factory=WetConfig)
+    wake: WakeConfig = field(default_factory=WakeConfig)
+    overtaking: OvertakingConfig = field(default_factory=OvertakingConfig)
     fuel: FuelConfig = field(default_factory=FuelConfig)
     ers: ErsConfig = field(default_factory=ErsConfig)
     physics_validation: PhysicsValidationConfig = field(
