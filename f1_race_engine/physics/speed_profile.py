@@ -331,6 +331,7 @@ def _capability(
     gradient: float,
     limits: PerformanceLimits,
     braking: bool,
+    ers_power: float = 0.0,
 ) -> float:
     """Longitudinal acceleration available at ``speed``, m/s^2.
 
@@ -354,6 +355,7 @@ def _capability(
         surface_grip=surface_grip * utilisation,
         lateral_acceleration=lateral_acceleration,
         lateral_force_used=lateral_force,
+        ers_power=0.0 if braking else ers_power,
     )
     return -forces.acceleration if braking else forces.acceleration
 
@@ -404,6 +406,7 @@ def compute_speed_profile(
     conditions: TrackConditions | None = None,
     limits: PerformanceLimits | None = None,
     corner_limit_override: Sequence[float] | None = None,
+    ers_power: float = 0.0,
     config: SimulationConfig | SpeedProfileConfig | None = None,
 ) -> SpeedProfile:
     """Compute the speed profile for ``vehicle`` around ``track``.
@@ -468,6 +471,7 @@ def compute_speed_profile(
             "banking": state.banking,
             "gradient": state.gradient,
             "limits": limits_,
+            "ers_power": ers_power,
         }
 
     converged = False

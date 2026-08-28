@@ -174,8 +174,14 @@ def longitudinal_forces(
     lateral_acceleration: float = 0.0,
     lateral_force_used: float = 0.0,
     drs_open: bool = False,
+    ers_power: float = 0.0,
 ) -> LongitudinalForces:
     """Resolve the full longitudinal force balance.
+
+    ``ers_power`` is electrical power reaching the wheels, added to what the
+    engine makes.  It is still subject to the traction limit -- deploying into a
+    slow corner exit only spins the wheels, which is why the energy is worth
+    more on a straight.
 
     ``throttle`` and ``brake`` are demands in ``[0, 1]``; both limits are
     applied, so asking for more than the tyres can deliver simply yields the
@@ -199,6 +205,9 @@ def longitudinal_forces(
     drive = 0.0
     if throttle > 0.0:
         powertrain = vehicle.power_unit.tractive_force(speed, throttle=throttle)
+        if ers_power > 0.0:
+            effective_speed = max(speed, config.powertrain.min_tractive_speed)
+            powertrain += ers_power * min(throttle, 1.0) / effective_speed
         traction = traction_limited_force(
             vehicle,
             speed,

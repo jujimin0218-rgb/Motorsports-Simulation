@@ -6,10 +6,13 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phase 4 (lap simulation) complete.** Core infrastructure, the track
-model, a car whose behaviour comes out of a real force balance, a lap time that
-is the integral of a speed profile, and a driver who steps that car around the
-circuit and leaves telemetry behind. No tyre wear or fuel burn yet — Phase 5.
+**Status: Phase 5 (tyres, fuel and energy) complete.** Core infrastructure, the
+track model, a car whose behaviour comes out of a real force balance, a lap time
+that is the integral of a speed profile, a driver who steps that car around the
+circuit and leaves telemetry behind, and consumables that change underneath all
+of it — tyres that heat and wear from the work they do, fuel burned from the
+engine's work, and an energy store that has to recover what it deploys. One car
+at a time still — Phase 6.
 
 ## Quick start
 
@@ -29,6 +32,8 @@ python examples/09_setup_per_circuit.py        # the circuit chooses the setup
 python examples/10_visualise_lap.py            # speed profile, zones, g trace
 python examples/11_driver_stint.py            # a stint, driver by driver
 python examples/12_driver_telemetry.py        # telemetry CSV + overlay plot
+python examples/13_stint_consumables.py      # tyres, fuel and energy over a stint
+python examples/14_compound_choice.py        # where a softer tyre stops paying
 ```
 
 ```python
@@ -61,8 +66,8 @@ print(run.formatted, run.telemetry.full_throttle_fraction)
 |---|---|
 | `f1_race_engine/core/` | SI units, configuration, deterministic RNG, state, events, validation |
 | `f1_race_engine/track/` | Definitions → builder → segments → `distance → TrackState` |
-| `f1_race_engine/vehicle/` | Mass, aero, power unit, brakes, setup — separable systems |
-| `f1_race_engine/tyres/` | Compounds, load sensitivity, friction ellipse |
+| `f1_race_engine/vehicle/` | Mass, aero, power unit, brakes, setup, fuel, ERS — separable systems |
+| `f1_race_engine/tyres/` | Compounds, load sensitivity, friction ellipse, temperature, wear |
 | `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
 | `f1_race_engine/driver/` | Ten separate abilities, each connected to the car |
 | `f1_race_engine/simulation/` | The lap stepping loop and telemetry |
@@ -80,12 +85,12 @@ extra used only for debug plots.
 - [`docs/PHASE2.md`](docs/PHASE2.md) — the car, benchmarked against real F1 figures
 - [`docs/PHASE3.md`](docs/PHASE3.md) — the lap, and why circuits want different cars
 - [`docs/PHASE4.md`](docs/PHASE4.md) — the driver, and what each ability is worth
+- [`docs/PHASE5.md`](docs/PHASE5.md) — tyres, fuel and energy, and where a compound crosses over
 
 ## Roadmap
 
-Phases 1-4 done. Next: 5 tyres/fuel/ERS · 6 multi-car · 7 qualifying & race ·
-8 strategy & pit stops · 9 overtaking · 10 weather · 11 race events ·
-12 advanced physics.
+Phases 1-5 done. Next: 6 multi-car · 7 qualifying & race · 8 strategy & pit
+stops · 9 overtaking · 10 weather · 11 race events · 12 advanced physics.
 
 A web layer (FastAPI + React) and a season-management game sit **on top** of the
 engine; the engine itself stays UI-free and JSON-serialisable.

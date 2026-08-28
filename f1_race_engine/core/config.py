@@ -656,6 +656,176 @@ class SpeedProfileConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class TyreThermalConfig(ConfigNode):
+    """The tyre temperature model (project rule 21).
+
+    A tyre is heated by the work it does and cooled by the air and the track,
+    and it only works properly inside a window.  Every coefficient below was
+    calibrated by running the model until a stint settles where real Formula 1
+    tyres settle -- surface around 95-110 degC in operation, reaching the
+    window after a lap or two.
+    """
+
+    surface_heat_capacity: float = 30_000.0
+    """Thermal mass of the tread, J/K, for all four tyres.
+
+    Not the outermost skin but the tread block that actually participates on a
+    timescale of seconds -- roughly four tyres' worth of rubber.  It sets how
+    far the tread swings between the coolest point of a straight and the
+    hottest point of a corner, which on a real car is a few tens of degrees."""
+
+    carcass_heat_capacity: float = 60_000.0
+    """Thermal mass of the carcass, J/K.  Far larger, so it lags the surface --
+    which is why a tyre can be up to temperature on the outside and cold
+    underneath after one lap."""
+
+    work_coefficient: float = 0.115
+    """Fraction of frictional power that ends up in the tread.
+
+    Most of the energy at the contact patch goes into the road surface and the
+    air; only a share heats the rubber.  Calibrated so a medium compound driven
+    hard settles just below its own optimum: a compound is designed around the
+    temperature it will see, and leaving a little headroom is what lets pushing
+    harder warm a tyre *into* its window rather than straight out of it."""
+
+    hysteresis_exponent: float = 0.5
+    """How much more heat a softer compound makes, as a power of its wear rate.
+
+    Softer rubber has more hysteresis loss, so it heats faster and runs hotter.
+    Combined with a softer compound's higher optimum, that is why softs come in
+    quickly and then overheat where hards never do."""
+
+    convection_base: float = 180.0
+    """Still-air cooling, W/K."""
+
+    convection_speed: float = 12.0
+    """Extra cooling per m/s of airflow, W/K."""
+
+    track_conduction: float = 260.0
+    """Conduction between tread and track surface, W/K."""
+
+    internal_conduction: float = 900.0
+    """Conduction between tread and carcass, W/K."""
+
+    grip_falloff: float = 0.16
+    """Grip lost at one window half-width away from the optimum."""
+
+    min_thermal_grip: float = 0.55
+    """Floor on the temperature grip factor -- a stone-cold or destroyed tyre
+    still has some grip."""
+
+    def validate(self) -> None:
+        require_positive("tyre_thermal.surface_heat_capacity", self.surface_heat_capacity)
+        require_positive("tyre_thermal.carcass_heat_capacity", self.carcass_heat_capacity)
+        require_non_negative("tyre_thermal.work_coefficient", self.work_coefficient)
+        require_non_negative("tyre_thermal.hysteresis_exponent", self.hysteresis_exponent)
+        require_non_negative("tyre_thermal.convection_base", self.convection_base)
+        require_non_negative("tyre_thermal.convection_speed", self.convection_speed)
+        require_non_negative("tyre_thermal.track_conduction", self.track_conduction)
+        require_positive("tyre_thermal.internal_conduction", self.internal_conduction)
+        require_range("tyre_thermal.grip_falloff", self.grip_falloff, 0.0, 1.0)
+        require_range("tyre_thermal.min_thermal_grip", self.min_thermal_grip, 0.1, 1.0)
+
+
+@dataclass(frozen=True)
+class TyreWearConfig(ConfigNode):
+    """Tyre wear and degradation (project rule 22).
+
+    Not a fixed penalty per lap.  Wear accumulates from the work the tyre
+    actually does -- sliding energy, scaled by load, temperature and compound --
+    so a driver who looks after the tyres genuinely makes them last, and a hot
+    circuit destroys them faster than a cool one.
+    """
+
+    reference_wear_energy: float = 1.35e9
+    """Frictional energy, J, that wears a reference compound out completely."""
+
+    thermal_wear_exponent: float = 2.4
+    """How sharply wear accelerates above the working window.  Overheating a
+    tyre is far worse than merely using it."""
+
+    management_range: float = 0.55
+    """How much a driver's tyre management can change the wear rate.  A perfect
+    manager wears at ``1 - management_range`` of the reference."""
+
+    grip_loss_at_full_wear: float = 0.22
+    """Grip lost when the tread is completely gone."""
+
+    grip_loss_exponent: float = 1.6
+    """Above 1, so a tyre holds up and then falls away rather than fading
+    linearly -- which is what a real degradation curve looks like."""
+
+    thermal_damage_rate: float = 0.020
+    """Permanent grip lost per lap-equivalent spent far above the window.
+    Once a tyre is cooked it does not recover when it cools down."""
+
+    max_thermal_damage: float = 0.18
+
+    def validate(self) -> None:
+        require_positive("tyre_wear.reference_wear_energy", self.reference_wear_energy)
+        require_positive("tyre_wear.thermal_wear_exponent", self.thermal_wear_exponent)
+        require_range("tyre_wear.management_range", self.management_range, 0.0, 0.95)
+        require_range(
+            "tyre_wear.grip_loss_at_full_wear", self.grip_loss_at_full_wear, 0.0, 0.9
+        )
+        require_positive("tyre_wear.grip_loss_exponent", self.grip_loss_exponent)
+        require_non_negative("tyre_wear.thermal_damage_rate", self.thermal_damage_rate)
+        require_range("tyre_wear.max_thermal_damage", self.max_thermal_damage, 0.0, 0.9)
+
+
+@dataclass(frozen=True)
+class FuelConfig(ConfigNode):
+    """Fuel consumption (project rule 23)."""
+
+    lower_heating_value: float = 43.0e6
+    """Energy in a kilogram of fuel, J/kg."""
+
+    thermal_efficiency: float = 0.50
+    """Crank work out per unit of fuel energy in.  A current Formula 1 power
+    unit is the most efficient racing engine ever built, at about 50%."""
+
+    idle_flow: float = 0.008
+    """Fuel burned per second regardless of load, kg/s."""
+
+    def validate(self) -> None:
+        require_positive("fuel.lower_heating_value", self.lower_heating_value)
+        require_range("fuel.thermal_efficiency", self.thermal_efficiency, 0.1, 0.7)
+        require_non_negative("fuel.idle_flow", self.idle_flow)
+
+
+@dataclass(frozen=True)
+class ErsConfig(ConfigNode):
+    """Energy recovery (project rule 24).
+
+    ERS is never a lap-time bonus.  It is an energy store with a capacity, a
+    deployment limit and a harvest rate, and it runs out -- which is exactly
+    what makes deploying it a decision rather than a gift.
+    """
+
+    deployment_efficiency: float = 0.96
+    """Electrical energy out of the store to mechanical work at the wheels."""
+
+    harvest_efficiency: float = 0.90
+    """Braking work recovered into the store."""
+
+    thermal_recovery_fraction: float = 0.10
+    """Share of engine power the turbine can turn back into stored energy."""
+
+    minimum_deploy_speed: float = 15.0
+    """Below this speed, m/s, deployment only spins the wheels."""
+
+    def validate(self) -> None:
+        require_range(
+            "ers.deployment_efficiency", self.deployment_efficiency, 0.5, 1.0
+        )
+        require_range("ers.harvest_efficiency", self.harvest_efficiency, 0.3, 1.0)
+        require_range(
+            "ers.thermal_recovery_fraction", self.thermal_recovery_fraction, 0.0, 1.0
+        )
+        require_non_negative("ers.minimum_deploy_speed", self.minimum_deploy_speed)
+
+
+@dataclass(frozen=True)
 class DriverConfig(ConfigNode):
     """How driver ability turns into lap time.
 
@@ -799,6 +969,10 @@ class SimulationConfig(ConfigNode):
     powertrain: PowertrainConfig = field(default_factory=PowertrainConfig)
     speed_profile: SpeedProfileConfig = field(default_factory=SpeedProfileConfig)
     driver: DriverConfig = field(default_factory=DriverConfig)
+    tyre_thermal: TyreThermalConfig = field(default_factory=TyreThermalConfig)
+    tyre_wear: TyreWearConfig = field(default_factory=TyreWearConfig)
+    fuel: FuelConfig = field(default_factory=FuelConfig)
+    ers: ErsConfig = field(default_factory=ErsConfig)
     physics_validation: PhysicsValidationConfig = field(
         default_factory=PhysicsValidationConfig
     )

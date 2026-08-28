@@ -10,6 +10,7 @@ from f1_race_engine.core.rng import RngHub
 from f1_race_engine.driver import Driver, DriverAttributes
 from f1_race_engine.physics import compute_lap_time
 from f1_race_engine.simulation import LapSimulator, simulate_lap
+from f1_race_engine.vehicle.ers import ErsState
 
 
 def _driver(**overrides) -> Driver:
@@ -31,8 +32,15 @@ def test_a_perfect_driver_reproduces_the_limit_lap(fast_track, car, simulator):
     Phase 3 computes the lap as an integral over a speed profile; Phase 4 steps
     the vehicle state forward segment by segment with pedal inputs.  With a
     driver who leaves nothing on the table, the two must agree.
+
+    Phase 5 gave the car consumables, so the comparison holds them still: an
+    empty energy store and no fuel to burn off.  What is under test is the
+    integration, not what the car is carrying.
     """
-    stepped = simulator.simulate()
+    stepped = simulator.simulate(
+        mass=car.total_mass(), fuel_mass=0.0,
+        ers_state=ErsState(energy_remaining=0.0),
+    )
     limit = compute_lap_time(fast_track, car, analyse_zones=False)
     assert stepped.lap_time == pytest.approx(limit.lap_time, rel=2e-4)
     # The two evaluate the segment capability at slightly different points, so

@@ -21,6 +21,8 @@ from ..core.units import Kilograms
 from ..tyres.model import TyreModel
 from .aero import AeroModel, AeroProperties
 from .brakes import BrakeProperties, BrakeSystem
+from .ers import ErsProperties
+from .fuel import FuelProperties
 from .mass import MassProperties
 from .power_unit import PowerUnit, PowerUnitProperties
 from .setup import VehicleSetup
@@ -38,6 +40,8 @@ class VehicleSpec:
     aero: AeroProperties = field(default_factory=AeroProperties)
     power_unit: PowerUnitProperties = field(default_factory=PowerUnitProperties)
     brakes: BrakeProperties = field(default_factory=BrakeProperties)
+    fuel: FuelProperties = field(default_factory=FuelProperties)
+    ers: ErsProperties = field(default_factory=ErsProperties)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,6 +52,8 @@ class VehicleSpec:
             "aero": self.aero.to_dict(),
             "power_unit": self.power_unit.to_dict(),
             "brakes": self.brakes.to_dict(),
+            "fuel": self.fuel.to_dict(),
+            "ers": self.ers.to_dict(),
             "metadata": dict(self.metadata),
         }
 
@@ -55,7 +61,10 @@ class VehicleSpec:
     def from_dict(cls, data: dict[str, Any]) -> VehicleSpec:
         if "name" not in data:
             raise ConfigError("vehicle data is missing the 'name' key")
-        known = {"name", "team", "mass", "aero", "power_unit", "brakes", "metadata"}
+        known = {
+            "name", "team", "mass", "aero", "power_unit", "brakes", "fuel",
+            "ers", "metadata",
+        }
         unknown = set(data) - known
         if unknown:
             raise ConfigError(f"unknown vehicle key(s): {', '.join(sorted(unknown))}")
@@ -66,6 +75,8 @@ class VehicleSpec:
             aero=AeroProperties.from_dict(data.get("aero", {})),
             power_unit=PowerUnitProperties.from_dict(data.get("power_unit", {})),
             brakes=BrakeProperties.from_dict(data.get("brakes", {})),
+            fuel=FuelProperties.from_dict(data.get("fuel", {})),
+            ers=ErsProperties.from_dict(data.get("ers", {})),
             metadata=dict(data.get("metadata", {})),
         )
 

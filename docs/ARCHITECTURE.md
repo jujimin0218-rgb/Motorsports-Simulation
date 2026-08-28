@@ -401,11 +401,16 @@ f1_race_engine/
         brakes.py           system capability (above the grip limit, by design)
         setup.py            wing level, brake bias, fuel load
         state.py            physics state: distance, speed, fuel, tyres
+        fuel.py             fuel burned from engine work
+        ers.py              energy store, budgets, two recovery paths
         io.py               JSON load/save
     tyres/
         compound.py         peak friction, load sensitivity, wear rate
         model.py            grip limits and the friction ellipse
-        state.py            fitted set, age, wear (neutral until Phase 5)
+        state.py            fitted set, temperature, wear, damage, grip
+        temperature.py      two-mass tread/carcass heat balance
+        wear.py             wear as dissipated friction work
+        degradation.py      grip lost to wear and to overheating
         io.py               JSON load/save
     physics/
         grip.py             normal load: weight, downforce, banking, transfer
@@ -444,9 +449,9 @@ f1_race_engine/
 Arriving in later phases, attached at the seams above:
 
 ```
-    vehicle/   ers, gearbox, differential, cooling, fuel burn
-    tyres/     temperature, degradation, wear, pressure
-    driver/    racecraft (Phase 9), tyre management (Phase 5), wet skill (Phase 10)
+    vehicle/   gearbox, differential, cooling
+    tyres/     pressure, per-corner state (Phase 12)
+    driver/    racecraft (Phase 9), wet skill (Phase 10)
     physics/   suspension, slip angle, yaw, weight transfer (dynamic)
     race/      session, qualifying, race, timing, pitstop, strategy, overtaking
     environment/ weather, wind, track_temperature, track_evolution

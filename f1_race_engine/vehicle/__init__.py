@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from .aero import AeroForces, AeroModel, AeroProperties
 from .brakes import BrakeProperties, BrakeSystem
+from .ers import ErsProperties, ErsState
+from .fuel import FuelProperties, fuel_burned
 from .io import builtin_vehicle_names, load_builtin_vehicle, load_vehicle_spec
 from .mass import MassProperties
 from .model import Vehicle, VehicleSpec
@@ -13,7 +15,8 @@ from .state import VehicleState
 
 __all__ = [
     "AeroForces", "AeroModel", "AeroProperties", "BrakeProperties", "BrakeSystem",
-    "HIGH_DOWNFORCE", "LOW_DOWNFORCE", "MEDIUM_DOWNFORCE", "MassProperties",
+    "ErsProperties", "ErsState", "FuelProperties", "HIGH_DOWNFORCE",
+    "LOW_DOWNFORCE", "MEDIUM_DOWNFORCE", "MassProperties", "fuel_burned",
     "PowerUnit", "PowerUnitProperties", "Vehicle", "VehicleSetup", "VehicleSpec",
     "VehicleState", "builtin_vehicle_names", "load_builtin_vehicle",
     "load_vehicle_spec",

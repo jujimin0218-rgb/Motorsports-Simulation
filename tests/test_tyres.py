@@ -109,9 +109,10 @@ def test_rolling_resistance_is_proportional_to_load():
 # -- state -------------------------------------------------------------------
 
 
-def test_phase_two_tyre_state_is_neutral():
-    """Phase 2 has no degradation model; a fresh tyre performs as its compound
-    says, and Phase 5 replaces exactly this one method."""
+def test_a_fresh_tyre_in_its_window_is_neutral():
+    """Phase 2 promised the physics would keep reading one number from the
+    tyre and that Phase 5 would fill it in.  A new set at its working
+    temperature still answers 1.0 -- the compound alone decides."""
     assert TyreState().grip_multiplier() == 1.0
 
 

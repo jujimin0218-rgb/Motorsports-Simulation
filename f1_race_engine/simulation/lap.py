@@ -26,6 +26,7 @@ following straight as well.  Nothing here ever adds seconds to a result.
 
 from __future__ import annotations
 
+import copy
 import math
 from dataclasses import dataclass, field
 from typing import Any
@@ -44,6 +45,13 @@ from ..physics.speed_profile import SpeedProfile, compute_speed_profile, corneri
 from ..track.model import Track
 from ..track.surface import TrackConditions
 from ..tyres.state import TyreState
+from ..vehicle.ers import (
+    ErsState,
+    deploy_power,
+    harvest_power,
+    thermal_harvest_power,
+)
+from ..vehicle.fuel import fuel_burned
 from ..vehicle.model import Vehicle
 from ..vehicle.state import VehicleState
 from .telemetry import Telemetry, TelemetrySample
@@ -67,6 +75,22 @@ class LapResult:
     max_lateral_g: float
     max_braking_g: float
     commitment: Commitment
+    fuel_used: float = 0.0
+    """Fuel burned over the lap, kg."""
+
+    energy_deployed: float = 0.0
+    """Electrical energy sent to the wheels, J."""
+
+    energy_harvested: float = 0.0
+    tyre_wear: float = 0.0
+    """Fraction of tread used by the end of the lap."""
+
+    tyre_temperature: float = 0.0
+    """Tread surface temperature at the end of the lap, degC."""
+
+    tyre_grip: float = 1.0
+    """The tyres' grip multiplier at the end of the lap."""
+
     mistakes: tuple[DriverMistake, ...] = ()
     variation: LapVariation | None = field(default=None, repr=False)
     telemetry: Telemetry | None = field(default=None, repr=False)
@@ -100,6 +124,12 @@ class LapResult:
                 "braking": self.commitment.braking,
                 "traction": self.commitment.traction,
             },
+            "fuel_used": self.fuel_used,
+            "energy_deployed": self.energy_deployed,
+            "energy_harvested": self.energy_harvested,
+            "tyre_wear": self.tyre_wear,
+            "tyre_temperature": self.tyre_temperature,
+            "tyre_grip": self.tyre_grip,
             "mistakes": [mistake.to_dict() for mistake in self.mistakes],
         }
         if include_telemetry and self.telemetry is not None:
@@ -123,7 +153,7 @@ class LapSimulator:
 
     __slots__ = (
         "track", "vehicle", "driver", "ambient", "config", "rng",
-        "_conditions", "_corners", "_max_curvature",
+        "_conditions", "_corners", "_max_curvature", "_accelerating_time",
     )
 
     def __init__(
@@ -153,6 +183,71 @@ class LapSimulator:
         self._max_curvature = max(
             (abs(segment.curvature) for segment in track.segments), default=1.0
         ) or 1.0
+        self._accelerating_time: float | None = None
+
+    def accelerating_time(
+        self, mass: float | None = None, tyre_state: TyreState | None = None
+    ) -> float:
+        """Seconds per lap the car spends accelerating.
+
+        Computed from a reference profile with no deployment, once, and cached:
+        it barely moves as tyres go off or fuel burns away, and rebuilding a
+        profile every lap to refine it would double the cost of a race for no
+        measurable gain.
+        """
+        if self._accelerating_time is not None:
+            return self._accelerating_time
+
+        reference = compute_speed_profile(
+            self.track, self.vehicle, self.ambient,
+            mass=mass if mass is not None else self.vehicle.total_mass(),
+            tyre_state=tyre_state, conditions=self._conditions,
+            config=self.config.speed_profile,
+        )
+        total = 0.0
+        count = len(reference)
+        for index in range(count):
+            if reference.longitudinal_acceleration(index) <= 0.0:
+                continue
+            nxt = (index + 1) % count
+            speeds = reference.speed[index] + reference.speed[nxt]
+            if speeds > 0.0:
+                total += 2.0 * reference.length[index] / speeds
+        self._accelerating_time = total
+        return total
+
+    def sustainable_ers_power(
+        self,
+        energy: ErsState,
+        mass: float | None = None,
+        tyre_state: TyreState | None = None,
+    ) -> float:
+        """Deployment power that spreads this lap's energy over this lap.
+
+        Deploying greedily empties the store down the first straight and leaves
+        nothing for the last one.  The default policy instead decides a budget
+        for the lap and spends it evenly across the time the car is
+        accelerating.
+
+        The budget is what the car can actually afford: the regulated per-lap
+        limit, or what is in the store plus what the previous lap recovered,
+        whichever is smaller.  Over a stint that settles by itself into the
+        equilibrium every real hybrid runs at -- **you can deploy what you
+        recover, and no more** -- rather than emptying the battery on lap one
+        and then running flat for the rest of the race.
+
+        Phase 8 replaces this with a strategic policy that puts the energy
+        where it is worth most.  The accounting underneath does not change.
+        """
+        span = self.accelerating_time(mass, tyre_state)
+        if span <= 0.0:
+            return 0.0
+        ers = self.vehicle.spec.ers
+        budget = min(
+            ers.deployment_limit_per_lap,
+            energy.energy_remaining + energy.recovered_last_lap,
+        )
+        return min(ers.max_deploy_power, max(budget, 0.0) / span)
 
     # -- the lap -------------------------------------------------------------
 
@@ -161,7 +256,9 @@ class LapSimulator:
         *,
         lap: int = 1,
         mass: float | None = None,
+        fuel_mass: float | None = None,
         tyre_state: TyreState | None = None,
+        ers_state: ErsState | None = None,
         qualifying: bool = False,
         record_telemetry: bool = True,
         telemetry_stride: int = 1,
@@ -173,8 +270,17 @@ class LapSimulator:
         whatever speed the profile says it can carry there.
         """
         vehicle, track = self.vehicle, self.track
-        car_mass = vehicle.total_mass() if mass is None else mass
+        if fuel_mass is None:
+            fuel_mass = (
+                vehicle.setup.fuel_load if mass is None
+                else max(mass - vehicle.mass.dry_mass, 0.0)
+            )
+        car_mass = vehicle.mass.total_mass(fuel_mass) if mass is None else mass
         tyres = tyre_state or TyreState()
+        energy = ers_state if ers_state is not None else ErsState(
+            energy_remaining=vehicle.spec.ers.capacity
+        )
+        energy.start_lap()
         air_density = self.ambient.air_density
         driver_key = self.driver.abbreviation
 
@@ -200,12 +306,13 @@ class LapSimulator:
             qualifying=qualifying,
             bias=variation.lap_bias,
         )
+        deploy = self.sustainable_ers_power(energy, car_mass, tyres)
         profile = self._build_profile(
-            commitment, variation, mistakes, car_mass, tyres
+            commitment, variation, mistakes, car_mass, tyres, deploy
         )
         return self._drive(
             profile, commitment, variation, mistakes, lap,
-            car_mass, tyres, air_density,
+            car_mass, fuel_mass, tyres, energy, deploy, air_density,
             record_telemetry, telemetry_stride, start_speed,
         )
 
@@ -218,6 +325,7 @@ class LapSimulator:
         mistakes: tuple[DriverMistake, ...],
         car_mass: float,
         tyres: TyreState,
+        ers_power: float,
     ) -> SpeedProfile:
         limits = commitment.as_limits()
         base = cornering_limits(
@@ -237,7 +345,7 @@ class LapSimulator:
             return compute_speed_profile(
                 self.track, self.vehicle, self.ambient,
                 mass=car_mass, tyre_state=tyres, conditions=self._conditions,
-                limits=limits, corner_limit_override=base,
+                limits=limits, corner_limit_override=base, ers_power=ers_power,
                 config=self.config.speed_profile,
             )
 
@@ -262,11 +370,34 @@ class LapSimulator:
         return compute_speed_profile(
             self.track, self.vehicle, self.ambient,
             mass=car_mass, tyre_state=tyres, conditions=self._conditions,
-            limits=limits, corner_limit_override=adjusted,
+            limits=limits, corner_limit_override=adjusted, ers_power=ers_power,
             config=self.config.speed_profile,
         )
 
     # -- stage 2: drive it ---------------------------------------------------
+
+    def _available_assist(self, energy: ErsState, speed: float, deploy: float) -> float:
+        """Drive force the ERS can add at ``speed``, N.
+
+        Zero once the store or the lap's budget is spent, which is what makes
+        the driver settle for the engine alone on the last straight after
+        spending everything on the first.
+        """
+        ers_config = self.config.ers
+        if deploy <= 0.0 or speed < ers_config.minimum_deploy_speed:
+            return 0.0
+        ers = self.vehicle.spec.ers
+        remaining = min(
+            energy.energy_remaining,
+            ers.deployment_limit_per_lap - energy.deployed_this_lap,
+        )
+        if remaining <= 0.0:
+            return 0.0
+        return (
+            deploy
+            * ers_config.deployment_efficiency
+            / max(speed, self.config.powertrain.min_tractive_speed)
+        )
 
     def _drive(
         self,
@@ -276,7 +407,10 @@ class LapSimulator:
         mistakes: tuple[DriverMistake, ...],
         lap: int,
         car_mass: float,
+        fuel_mass: float,
         tyres: TyreState,
+        energy: ErsState,
+        deploy: float,
         air_density: float,
         record_telemetry: bool,
         telemetry_stride: int,
@@ -288,9 +422,33 @@ class LapSimulator:
         limits = commitment.as_limits()
         floor = self.config.speed_profile.minimum_speed
 
+        ers = vehicle.spec.ers
+        ers_config = self.config.ers
+        fuel_config = self.config.fuel
+        fuel_properties = vehicle.spec.fuel
+        thermal_config = self.config.tyre_thermal
+        wear_config = self.config.tyre_wear
+        drivetrain = self.config.powertrain.drivetrain_efficiency
+        min_tractive = self.config.powertrain.min_tractive_speed
+        management = self.driver.attributes.tyre_management
+        air_temperature = self.ambient.air_temperature
+        track_temperature = self.ambient.track_temperature
+
+        # The lap is planned on the tyre the driver went out on, so it is
+        # driven on that tyre too.  The live state goes on heating and wearing
+        # underneath -- it is what the *next* lap is planned and driven on, and
+        # what the stint report reads -- but grip is held still for the length
+        # of one lap.  Letting the plan and the execution disagree is worse than
+        # a small lag: a car whose real grip has dropped below its plan simply
+        # fails to brake as hard as it intended, carries the extra speed into
+        # the corner, and comes out with a *faster* lap for having less grip.
+        # Degradation belongs between laps, which is also where a strategist
+        # reads it.
+        planned = copy.copy(tyres)
+
         state = VehicleState(
             speed=profile.speed[0] if start_speed is None else start_speed,
-            fuel_mass=car_mass - vehicle.mass.dry_mass,
+            fuel_mass=fuel_mass,
             tyres=tyres,
         )
         telemetry = Telemetry(stride=telemetry_stride) if record_telemetry else None
@@ -301,6 +459,12 @@ class LapSimulator:
         minimum_speed = state.speed
         max_lateral = 0.0
         max_braking = 0.0
+
+        mass = car_mass
+        remaining_fuel = fuel_mass
+        fuel_used = 0.0
+        deployed_before = energy.deployed_total
+        recovered_before = energy.recovered_total
 
         for index in range(count):
             segment = segments[index]
@@ -316,15 +480,22 @@ class LapSimulator:
             # lifting slightly on a straight where they are in fact flat.
             reference = max(0.5 * (speed + target), floor)
 
+            # How long the segment lasts at that speed.  This is the figure the
+            # energy books use: an electrical force is ``P / v``, so debiting
+            # ``P * (ds / v)`` charges exactly the work that force does over the
+            # segment, and deployment stays consistent with propulsion no matter
+            # how the step is integrated.
+            span = step / reference
+
             lateral_acceleration = reference * reference * abs(curvature)
-            lateral_force = car_mass * lateral_acceleration
+            lateral_force = mass * lateral_acceleration
             surface_grip = track.state_at(segment.mid_distance, self._conditions).grip
 
             common = {
-                "mass": car_mass,
+                "mass": mass,
                 "gradient": segment.gradient,
                 "banking": segment.banking,
-                "tyre_state": tyres,
+                "tyre_state": planned,
                 "lateral_acceleration": lateral_acceleration,
                 "lateral_force_used": lateral_force,
             }
@@ -339,20 +510,38 @@ class LapSimulator:
                 speed=speed,
                 target_speed=target,
                 distance_step=step,
-                mass=car_mass,
+                mass=mass,
                 coast_acceleration=coasting.acceleration,
-                powertrain_force=vehicle.power_unit.tractive_force(reference),
+                powertrain_force=(
+                    vehicle.power_unit.tractive_force(reference)
+                    + self._available_assist(energy, reference, deploy)
+                ),
                 brake_system_force=vehicle.brakes.system_limit(),
                 curvature=curvature,
                 max_curvature=self._max_curvature,
             )
+
+            # Energy out of the store.  Requested in proportion to the pedal, so
+            # the debit matches what actually reaches the road; the force model
+            # scales what it is handed by the throttle again, so it is given the
+            # full-pedal equivalent.
+            ers_power = 0.0
+            if command.throttle > 0.0 and deploy > 0.0:
+                delivered = deploy_power(
+                    energy, ers,
+                    speed=reference,
+                    dt=span,
+                    request=deploy * command.throttle / ers.max_deploy_power,
+                    config=ers_config,
+                )
+                ers_power = delivered / command.throttle
 
             applied = longitudinal_forces(
                 vehicle, reference, air_density,
                 throttle=command.throttle, brake=command.brake,
                 surface_grip=surface_grip
                 * (limits.braking if command.is_braking else limits.traction),
-                **common,
+                ers_power=ers_power, **common,
             )
             acceleration = applied.acceleration
 
@@ -360,6 +549,67 @@ class LapSimulator:
             next_speed = math.sqrt(squared) if squared > 0.0 else floor
             next_speed = max(next_speed, floor)
             dt = 2.0 * step / (speed + next_speed)
+
+            # Fuel burns for the engine's share of the drive force only -- the
+            # electrical share is the whole point of a hybrid.  When the tyres
+            # cap the drive, both shares are cut in the same proportion.
+            burned = 0.0
+            if applied.drive > 0.0 and remaining_fuel > 0.0:
+                engine_demand = vehicle.power_unit.tractive_force(
+                    reference, throttle=command.throttle
+                )
+                ers_demand = ers_power * command.throttle / max(reference, min_tractive)
+                demand = engine_demand + ers_demand
+                engine_share = engine_demand / demand if demand > 0.0 else 0.0
+                engine_work = applied.drive * engine_share * step
+                crank_work = engine_work / drivetrain
+                burned = min(
+                    fuel_burned(
+                        crank_work, dt,
+                        properties=fuel_properties, config=fuel_config,
+                    ),
+                    remaining_fuel,
+                )
+                remaining_fuel -= burned
+                fuel_used += burned
+                mass -= burned
+
+                # The exhaust is doing work too, and the turbine takes a share
+                # of it back.  This is the recovery that runs while the car is
+                # on the throttle, and over a stint it is the larger of the two.
+                thermal_harvest_power(
+                    energy, ers,
+                    engine_power=crank_work / span,
+                    dt=span,
+                    config=ers_config,
+                )
+
+            # Energy back into the store.  Recovery rides along with the brakes
+            # rather than replacing them; the MGU-K's power limit is what binds,
+            # not the amount of braking on offer.
+            if applied.brake > 0.0:
+                harvest_power(
+                    energy, ers,
+                    braking_power=applied.brake * reference,
+                    dt=span,
+                    config=ers_config,
+                )
+
+            # The tyres heat and wear from the friction force they are asked
+            # for -- both axes of it, which is why a long corner punishes a set
+            # as hard as a heavy braking zone.
+            longitudinal_force = max(applied.drive, 0.0) + applied.brake
+            tyres.update(
+                friction_force=math.hypot(lateral_force, longitudinal_force),
+                speed=reference,
+                distance=step,
+                dt=dt,
+                air_temperature=air_temperature,
+                track_temperature=track_temperature,
+                tyre_management=management,
+                thermal_config=thermal_config,
+                wear_config=wear_config,
+            )
 
             self._accumulate_sectors(
                 sector_times, boundaries, segment.distance, step,
@@ -382,7 +632,7 @@ class LapSimulator:
                         gear=command.gear,
                         drs=segment.has_drs,
                         tyre_wear=tyres.wear,
-                        fuel_mass=state.fuel_mass,
+                        fuel_mass=remaining_fuel,
                         duration=dt,
                     )
                 )
@@ -394,7 +644,7 @@ class LapSimulator:
             state.lateral_acceleration = lateral_acceleration
             state.throttle = command.throttle
             state.brake = command.brake
-            tyres.age_distance += step
+            state.fuel_mass = remaining_fuel
 
             top_speed = max(top_speed, next_speed)
             minimum_speed = min(minimum_speed, next_speed)
@@ -416,6 +666,12 @@ class LapSimulator:
             max_lateral_g=max_lateral / 9.80665,
             max_braking_g=max_braking / 9.80665,
             commitment=commitment,
+            fuel_used=fuel_used,
+            energy_deployed=energy.deployed_total - deployed_before,
+            energy_harvested=energy.recovered_total - recovered_before,
+            tyre_wear=tyres.wear,
+            tyre_temperature=tyres.surface_temperature,
+            tyre_grip=tyres.grip,
             mistakes=mistakes,
             variation=variation,
             telemetry=telemetry,
