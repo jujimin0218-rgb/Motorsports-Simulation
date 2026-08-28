@@ -1,0 +1,22 @@
+{
+  "name": "Hana Sugiyama",
+  "abbreviation": "SUG",
+  "number": 31,
+  "team": "Meridian",
+  "attributes": {
+    "pace": 0.9,
+    "qualifying": 0.87,
+    "racecraft": 0.89,
+    "consistency": 0.94,
+    "tyre_management": 0.98,
+    "braking": 0.84,
+    "cornering": 0.92,
+    "throttle_control": 0.97,
+    "wet_skill": 0.93,
+    "risk_management": 0.92
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "The mirror image of the late braker: superb traction and tyre life, conservative on the brakes."
+  }
+}

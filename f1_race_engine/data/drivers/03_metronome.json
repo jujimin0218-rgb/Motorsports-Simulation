@@ -1,0 +1,22 @@
+{
+  "name": "Iris Vandal",
+  "abbreviation": "VAN",
+  "number": 24,
+  "team": "Northbridge",
+  "attributes": {
+    "pace": 0.88,
+    "qualifying": 0.85,
+    "racecraft": 0.9,
+    "consistency": 0.99,
+    "tyre_management": 0.96,
+    "braking": 0.89,
+    "cornering": 0.88,
+    "throttle_control": 0.92,
+    "wet_skill": 0.9,
+    "risk_management": 0.97
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "Not the quickest, but repeats the same lap all afternoon. The control case for the consistency model."
+  }
+}

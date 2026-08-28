@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "f1-race-engine"
+version = "0.4.0"
+description = "Physics-based F1 race simulation engine"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+viz = ["matplotlib>=3.7"]
+dev = ["pytest>=7.4", "matplotlib>=3.7"]
+
+[tool.setuptools.packages.find]
+include = ["f1_race_engine*"]
+
+[tool.setuptools.package-data]
+"f1_race_engine.data" = ["tracks/*.json", "vehicles/*.json", "tyres/*.json", "drivers/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

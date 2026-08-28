@@ -1,0 +1,22 @@
+{
+  "name": "Danil Orlov",
+  "abbreviation": "ORL",
+  "number": 45,
+  "team": "Meridian",
+  "attributes": {
+    "pace": 0.8,
+    "qualifying": 0.79,
+    "racecraft": 0.74,
+    "consistency": 0.72,
+    "tyre_management": 0.75,
+    "braking": 0.81,
+    "cornering": 0.79,
+    "throttle_control": 0.78,
+    "wet_skill": 0.76,
+    "risk_management": 0.68
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "First season. Off the pace, inconsistent, and the model's main source of mistakes."
+  }
+}

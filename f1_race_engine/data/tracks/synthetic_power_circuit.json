@@ -1,0 +1,200 @@
+{
+  "name": "Synthetic Power Circuit",
+  "country": "Testing",
+  "defaults": {
+    "transition_factor": 0.55,
+    "min_transition_length": 4.0,
+    "max_transition_fraction": 0.45,
+    "track_width": 13.0,
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 1416.2569492885373,
+      "name": "Main straight"
+    },
+    {
+      "type": "corner",
+      "radius": 250,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 452.2455470420997,
+      "name": "Curve link"
+    },
+    {
+      "type": "corner",
+      "radius": 60,
+      "angle": 90,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "straight",
+      "length": 607.597358455183,
+      "name": "Long back straight"
+    },
+    {
+      "type": "corner",
+      "radius": 350,
+      "angle": 45,
+      "direction": "left",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 452.68263197051675,
+      "name": "Sweeper link"
+    },
+    {
+      "type": "corner",
+      "radius": 300,
+      "angle": 45,
+      "direction": "right",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 536.871878023243,
+      "name": "North straight"
+    },
+    {
+      "type": "corner",
+      "radius": 200,
+      "angle": 90,
+      "direction": "left",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 664.7930183105768,
+      "name": "Stadium approach"
+    },
+    {
+      "type": "corner",
+      "radius": 90,
+      "angle": 75,
+      "direction": "left",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 392.69048707326004,
+      "name": "Final sweep"
+    },
+    {
+      "type": "corner",
+      "radius": 300,
+      "angle": 45,
+      "direction": "left",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 296.6502779715415,
+      "name": "Pit straight approach"
+    }
+  ],
+  "elevation": {
+    "control_points": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        1800.0,
+        5.0
+      ],
+      [
+        3600.0,
+        -8.0
+      ],
+      [
+        5200.0,
+        4.0
+      ],
+      [
+        7000.0,
+        0.0
+      ]
+    ],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        15.0
+      ],
+      [
+        1200.0,
+        14.0
+      ],
+      [
+        4500.0,
+        14.0
+      ],
+      [
+        7000.0,
+        15.0
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 0,
+        "name": "Main straight",
+        "detection_distance": 6620.0,
+        "activation_start": 90.0,
+        "activation_end": 1250.0,
+        "length": 1160.0
+      },
+      {
+        "index": 1,
+        "name": "Long back straight",
+        "detection_distance": 2250.0,
+        "activation_start": 2500.0,
+        "activation_end": 3550.0,
+        "length": 1050.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      2380.0,
+      4760.0
+    ]
+  },
+  "metadata": {
+    "purpose": "Power-sensitive reference circuit",
+    "geometry_confidence": "synthetic",
+    "character": "long straights, few corners, high average speed",
+    "notes": "Not a real circuit. Sits at the power-sensitive end of the character range so later phases can show track character emerging from geometry rather than per-track corrections."
+  }
+}

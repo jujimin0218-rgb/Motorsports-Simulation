@@ -1,0 +1,325 @@
+{
+  "name": "Synthetic Proving Ground",
+  "country": "Testing",
+  "defaults": {
+    "transition_factor": 0.55,
+    "min_transition_length": 4.0,
+    "max_transition_fraction": 0.45,
+    "track_width": 13.0,
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 1262.38,
+      "name": "Start/finish straight"
+    },
+    {
+      "type": "corner",
+      "radius": 40,
+      "angle": 90,
+      "direction": "left",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 117.0,
+      "name": "Link 1"
+    },
+    {
+      "type": "corner",
+      "radius": 200,
+      "angle": 60,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "straight",
+      "length": 204.94,
+      "name": "Esses approach"
+    },
+    {
+      "type": "corner",
+      "radius": 180,
+      "angle": 45,
+      "direction": "right",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 111.88,
+      "name": "Esses exit"
+    },
+    {
+      "type": "corner",
+      "radius": 90,
+      "angle": 75,
+      "direction": "left",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 714.12,
+      "name": "Back straight"
+    },
+    {
+      "type": "corner",
+      "radius": 350,
+      "angle": 45,
+      "direction": "left",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 522.71,
+      "name": "Hairpin approach"
+    },
+    {
+      "type": "corner",
+      "radius": 25,
+      "angle": 90,
+      "direction": "left",
+      "name": "Turn 6 (Hairpin)",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 349.98,
+      "name": "Hairpin exit"
+    },
+    {
+      "type": "corner",
+      "radius": 150,
+      "angle": 45,
+      "direction": "left",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 312.08,
+      "name": "Final link"
+    }
+  ],
+  "elevation": {
+    "control_points": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        700.0,
+        -6.0
+      ],
+      [
+        1262.0,
+        -12.0
+      ],
+      [
+        1970.0,
+        8.0
+      ],
+      [
+        2460.0,
+        24.0
+      ],
+      [
+        3170.0,
+        10.0
+      ],
+      [
+        4090.0,
+        -8.0
+      ],
+      [
+        4500.0,
+        -4.0
+      ],
+      [
+        4978.341364708182,
+        0.0
+      ]
+    ],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        1300.0,
+        0.0
+      ],
+      [
+        1616.0,
+        2.0
+      ],
+      [
+        1900.0,
+        0.0
+      ],
+      [
+        2075.0,
+        -1.5
+      ],
+      [
+        2250.0,
+        0.0
+      ],
+      [
+        3170.0,
+        0.0
+      ],
+      [
+        3370.0,
+        4.0
+      ],
+      [
+        3570.0,
+        0.0
+      ],
+      [
+        4978.341364708182,
+        0.0
+      ]
+    ],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": [
+      {
+        "start": 1767.9,
+        "end": 2289.7,
+        "surface_type": "abrasive_asphalt",
+        "name": "Esses (original 1998 surface)",
+        "grip": 0.98,
+        "roughness": 0.75
+      },
+      {
+        "start": 2457.0,
+        "end": 3171.1,
+        "surface_type": "smooth_asphalt",
+        "name": "Back straight (resurfaced)",
+        "grip": 1.02,
+        "roughness": 0.35
+      }
+    ]
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        15.0
+      ],
+      [
+        1200.0,
+        15.0
+      ],
+      [
+        1400.0,
+        13.0
+      ],
+      [
+        4000.0,
+        13.0
+      ],
+      [
+        4092.0,
+        10.5
+      ],
+      [
+        4200.0,
+        10.5
+      ],
+      [
+        4400.0,
+        13.0
+      ],
+      [
+        4978.341364708182,
+        15.0
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": [
+      {
+        "start": 1262.4,
+        "end": 1347.2,
+        "kerb": "medium"
+      },
+      {
+        "start": 1464.2,
+        "end": 1767.9,
+        "kerb": "medium"
+      },
+      {
+        "start": 1972.8,
+        "end": 2177.8,
+        "kerb": "medium"
+      },
+      {
+        "start": 2289.7,
+        "end": 2457.0,
+        "kerb": "high"
+      },
+      {
+        "start": 3171.1,
+        "end": 3569.7,
+        "kerb": "low"
+      },
+      {
+        "start": 4092.4,
+        "end": 4145.5,
+        "kerb": "high"
+      },
+      {
+        "start": 4495.4,
+        "end": 4666.3,
+        "kerb": "medium"
+      }
+    ]
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 0,
+        "name": "Start/finish straight",
+        "detection_distance": 4550.0,
+        "activation_start": 60.0,
+        "activation_end": 1180.0,
+        "length": 1120.0
+      },
+      {
+        "index": 1,
+        "name": "Back straight",
+        "detection_distance": 2300.0,
+        "activation_start": 2520.0,
+        "activation_end": 3120.0,
+        "length": 600.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1767.9,
+      3569.7
+    ]
+  },
+  "metadata": {
+    "purpose": "Phase 1 reference circuit for engine development and tests",
+    "geometry_confidence": "synthetic",
+    "notes": "Not a real circuit. Designed to exercise every part of the track model: two long straights, high/medium/low-speed corners, one right-hander among the lefts, elevation change, banking, two surface types and two DRS zones. Straight lengths were solved so the plan-view geometry closes exactly."
+  }
+}

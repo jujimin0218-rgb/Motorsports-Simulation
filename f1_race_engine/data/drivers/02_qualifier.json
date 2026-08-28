@@ -1,0 +1,22 @@
+{
+  "name": "Nico Bertone",
+  "abbreviation": "BER",
+  "number": 16,
+  "team": "Apex Racing",
+  "attributes": {
+    "pace": 0.94,
+    "qualifying": 0.99,
+    "racecraft": 0.88,
+    "consistency": 0.8,
+    "tyre_management": 0.79,
+    "braking": 0.96,
+    "cornering": 0.95,
+    "throttle_control": 0.9,
+    "wet_skill": 0.88,
+    "risk_management": 0.72
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "Devastating over one lap and erratic over a stint. Should beat the benchmark in qualifying trim and lose to him on race pace."
+  }
+}
