@@ -193,3 +193,36 @@ def simulator(fast_track, car, perfect_driver):
     from f1_race_engine.simulation import LapSimulator
 
     return LapSimulator(fast_track, car, perfect_driver, rng=RngHub(20260812))
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: a field of cars
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def make_entry(reference_spec):
+    """Build a race entry, defaulting everything that does not matter."""
+    from f1_race_engine.race import RaceEntry
+    from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle
+
+    def build(car_number, driver, *, spec=None, fuel_mass=50.0, team="", compound=None):
+        entry = RaceEntry(
+            car_number=car_number,
+            driver=driver,
+            vehicle=Vehicle(spec or reference_spec, MEDIUM_DOWNFORCE),
+            team=team,
+            fuel_mass=fuel_mass,
+            grid_position=car_number,
+        )
+        if compound is not None:
+            entry.fit(compound)
+        return entry
+
+    return build
+
+
+@pytest.fixture
+def small_field(make_entry, lineup):
+    """Four cars, four different drivers, otherwise identical."""
+    return [make_entry(index + 1, driver) for index, driver in enumerate(lineup[:4])]

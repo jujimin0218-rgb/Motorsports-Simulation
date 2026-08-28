@@ -433,6 +433,10 @@ f1_race_engine/
     simulation/
         lap.py              the rule-26 stepping loop
         telemetry.py        real-trace channels, CSV export
+    race/
+        entry.py            a car, its driver, and what it is carrying
+        timing.py           positions and gaps from distance and time (rule 28)
+        session.py          a field of cars over a race distance
     environment/
         conditions.py       air density from real atmospheric physics
     visualization/
@@ -453,7 +457,7 @@ Arriving in later phases, attached at the seams above:
     tyres/     pressure, per-corner state (Phase 12)
     driver/    racecraft (Phase 9), wet skill (Phase 10)
     physics/   suspension, slip angle, yaw, weight transfer (dynamic)
-    race/      session, qualifying, race, timing, pitstop, strategy, overtaking
+    race/      qualifying, grid and start, pitstop, strategy, overtaking
     environment/ weather, wind, track_temperature, track_evolution
     events/    safety_car, vsc, red_flag, collision, mechanical_failure
 ```
@@ -510,9 +514,9 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | 2 | Vehicle: mass, engine, drag, downforce, brakes, basic tyre grip | **done** |
 | 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass | **done** |
 | 4 | Lap simulation and the driver model | **done** |
-| 5 | Tyres, fuel, ERS | next |
-| 6 | Multi-car simulation |
-| 7 | Qualifying and race |
+| 5 | Tyres, fuel, ERS | **done** |
+| 6 | Multi-car simulation | **done** |
+| 7 | Qualifying and race | next |
 | 8 | Strategy and pit stops |
 | 9 | Overtaking and defence |
 | 10 | Weather and environment |

@@ -576,7 +576,17 @@ class PowertrainConfig(ConfigNode):
 
     traction_solver_iterations: int = 8
     """Load transfer makes traction implicit (grip depends on load depends on
-    acceleration depends on grip).  This many fixed-point passes settle it."""
+    acceleration depends on grip).  At most this many fixed-point passes settle
+    it."""
+
+    traction_solver_tolerance: float = 1e-5
+    """Relative change below which the traction solve is finished.
+
+    The iteration converges from below at a rate of roughly
+    ``mu * h_cg / wheelbase``, so it is done long before the iteration cap --
+    and the profile passes call it tens of thousands of times a lap, which
+    makes stopping early the difference between a race that runs and one that
+    does not."""
 
     def validate(self) -> None:
         require_range(
@@ -587,6 +597,9 @@ class PowertrainConfig(ConfigNode):
             raise ConfigError(
                 "powertrain.traction_solver_iterations must be at least 1"
             )
+        require_non_negative(
+            "powertrain.traction_solver_tolerance", self.traction_solver_tolerance
+        )
 
 
 @dataclass(frozen=True)

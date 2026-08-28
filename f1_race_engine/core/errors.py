@@ -50,3 +50,11 @@ class TrackValidationError(ValidationError, TrackError):
 
 class PhysicsValidationError(ValidationError):
     """Raised when a vehicle or physics model fails its sanity checks."""
+
+
+class RaceError(F1EngineError):
+    """Base class for failures in running a session."""
+
+
+class EntryError(RaceError):
+    """Raised when a session's entry list is malformed."""

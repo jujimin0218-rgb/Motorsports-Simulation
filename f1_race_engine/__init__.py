@@ -4,19 +4,19 @@ A physics-based Formula 1 simulator.  Lap times are the *result* of simulating
 a car driving a real distance-based track model -- never a random draw and
 never a per-track correction (project rules 2.1 to 2.4).
 
-Current status: **Phase 5 (tyres, fuel and energy)** -- core infrastructure, the
-track model, a car that obeys a real force balance, a lap time that is the
-integral of a speed profile, a driver who steps that car around the circuit and
-leaves telemetry behind, and consumables that change underneath all of it: tyres
-that heat and wear from the work they do, fuel burned from the engine's work,
-and an energy store that has to recover what it deploys.  See
-``docs/ARCHITECTURE.md`` for the full plan and ``docs/PHASE5.md`` for what this
-phase delivers.
+Current status: **Phase 6 (multi-car racing)** -- core infrastructure, the track
+model, a car that obeys a real force balance, a lap time that is the integral of
+a speed profile, a driver who steps that car around the circuit and leaves
+telemetry behind, consumables that change underneath all of it, and a field of
+cars sharing one circuit and one clock with positions and gaps computed from
+real distance and time.  The cars do not yet interact -- overtaking and dirty
+air are Phase 9.  See ``docs/ARCHITECTURE.md`` for the full plan and
+``docs/PHASE6.md`` for what this phase delivers.
 """
 
 from __future__ import annotations
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .core import (
     EventBus,
@@ -46,6 +46,15 @@ from .physics.benchmark import benchmark_vehicle, format_benchmark
 from .physics.lap_validation import validate_lap
 from .physics.setup_search import optimal_wing_level, wing_level_sweep
 from .physics.validation import validate_vehicle
+from .race import (
+    Classification,
+    Gap,
+    LapRecord,
+    RaceEntry,
+    RaceResult,
+    RaceSession,
+    TimingTower,
+)
 from .simulation import LapResult, LapSimulator, Telemetry, simulate_lap
 from .track import (
     Track,
@@ -67,6 +76,7 @@ from .vehicle.io import builtin_vehicle_names, load_builtin_vehicle
 
 __all__ = [
     "AmbientConditions",
+    "Classification",
     "CompoundSet",
     "Driver",
     "DriverAttributes",
@@ -75,14 +85,20 @@ __all__ = [
     "ErsState",
     "EventBus",
     "FuelProperties",
+    "Gap",
+    "LapRecord",
     "LapResult",
     "LapSimulator",
     "LapTimeResult",
     "PerformanceLimits",
+    "RaceEntry",
+    "RaceResult",
+    "RaceSession",
     "RngHub",
     "SpeedProfile",
     "Telemetry",
     "SimulationConfig",
+    "TimingTower",
     "Track",
     "TrackBuilder",
     "TrackDefinition",

@@ -96,6 +96,7 @@ def traction_limited_force(
     lateral_acceleration: float = 0.0,
     lateral_force_used: float = 0.0,
     drs_open: bool = False,
+    ceiling: float | None = None,
 ) -> Newtons:
     """Maximum drive force the rear tyres can transmit, N.
 
@@ -103,6 +104,14 @@ def traction_limited_force(
     the driven axle, which raises the grip available, which allows more
     acceleration.  A handful of fixed-point passes converge quickly because the
     feedback gain ``mu * h_cg / wheelbase`` is well under one.
+
+    ``ceiling`` is a force the caller is going to take the minimum against
+    anyway -- the engine's own output, usually.  The iteration only ever climbs
+    (more acceleration transfers more load onto the driven axle, which can only
+    raise the grip), so the moment a pass clears the ceiling the answer to
+    ``min(ceiling, traction)`` is settled and the remaining passes cannot change
+    it.  That is exact, not an approximation, and it skips the solve on most of
+    a lap, where the engine and not the tyre is what limits the car.
 
     Cornering is charged as a **fraction of the whole car's friction circle**,
     not as a force against the rear axle's own circle.  That consistency
@@ -122,6 +131,7 @@ def traction_limited_force(
 
     acceleration = 0.0
     force = 0.0
+    tolerance = config.powertrain.traction_solver_tolerance
     for _ in range(config.powertrain.traction_solver_iterations):
         loads = normal_loads(
             vehicle.mass,
@@ -151,10 +161,12 @@ def traction_limited_force(
             available = rear_limit.capacity * reserve
         else:
             available = rear_limit.capacity
-        if available <= force and force > 0.0:
-            force = available
-            break
+        if ceiling is not None and available >= ceiling:
+            return ceiling
+        settled = abs(available - force) <= tolerance * max(available, 1.0)
         force = available
+        if settled:
+            break
         acceleration = force / mass
     return max(force, 0.0)
 
@@ -220,6 +232,7 @@ def longitudinal_forces(
             lateral_acceleration=lateral_acceleration,
             lateral_force_used=lateral_force_used,
             drs_open=drs_open,
+            ceiling=powertrain,
         )
         drive = min(powertrain, traction)
 

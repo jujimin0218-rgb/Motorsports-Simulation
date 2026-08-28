@@ -6,13 +6,14 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phase 5 (tyres, fuel and energy) complete.** Core infrastructure, the
-track model, a car whose behaviour comes out of a real force balance, a lap time
-that is the integral of a speed profile, a driver who steps that car around the
-circuit and leaves telemetry behind, and consumables that change underneath all
-of it — tyres that heat and wear from the work they do, fuel burned from the
-engine's work, and an energy store that has to recover what it deploys. One car
-at a time still — Phase 6.
+**Status: Phase 6 (multi-car racing) complete.** Core infrastructure, the track
+model, a car whose behaviour comes out of a real force balance, a lap time that
+is the integral of a speed profile, a driver who steps that car around the
+circuit and leaves telemetry behind, consumables that change underneath all of
+it — tyres that heat and wear from the work they do, fuel burned from the
+engine's work, an energy store that has to recover what it deploys — and a whole
+field sharing one circuit and one clock, with positions and gaps computed from
+real distance and time. The cars do not fight each other yet — Phase 9.
 
 ## Quick start
 
@@ -34,13 +35,14 @@ python examples/11_driver_stint.py            # a stint, driver by driver
 python examples/12_driver_telemetry.py        # telemetry CSV + overlay plot
 python examples/13_stint_consumables.py      # tyres, fuel and energy over a stint
 python examples/14_compound_choice.py        # where a softer tyre stops paying
+python examples/15_race.py                   # a race, mid-race screens to flag
 ```
 
 ```python
 from f1_race_engine import (
-    Vehicle, benchmark_vehicle, compute_lap_time, load_builtin_driver,
-    load_builtin_vehicle, load_track, simulate_lap, validate_vehicle,
-    wing_level_sweep,
+    RaceEntry, RaceSession, Vehicle, benchmark_vehicle, compute_lap_time,
+    load_builtin_driver, load_builtin_vehicle, load_driver_lineup, load_track,
+    simulate_lap, validate_vehicle, wing_level_sweep,
 )
 
 track = load_track("synthetic_proving_ground")   # built and validated
@@ -58,6 +60,10 @@ print(wing_level_sweep(track, car).best)         # the circuit picks its setup
 driver = load_builtin_driver("02_qualifier")
 run = simulate_lap(track, car, driver, qualifying=True)
 print(run.formatted, run.telemetry.full_throttle_fraction)
+
+entries = [RaceEntry(car_number=i + 1, driver=d, vehicle=Vehicle(load_builtin_vehicle("reference_2024")))
+           for i, d in enumerate(load_driver_lineup())]
+print(RaceSession(track, entries, laps=10).run().format())   # gaps from distance and time
 ```
 
 ## What is here
@@ -71,6 +77,7 @@ print(run.formatted, run.telemetry.full_throttle_fraction)
 | `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
 | `f1_race_engine/driver/` | Ten separate abilities, each connected to the car |
 | `f1_race_engine/simulation/` | The lap stepping loop and telemetry |
+| `f1_race_engine/race/` | Entries, timing from distance and time, sessions |
 | `f1_race_engine/environment/` | Air density from real atmospheric physics |
 | `f1_race_engine/visualization/` | SVG circuit maps (no dependencies), matplotlib diagnostics |
 | `f1_race_engine/data/` | Three circuits, three cars, five compounds, six drivers |
@@ -86,11 +93,12 @@ extra used only for debug plots.
 - [`docs/PHASE3.md`](docs/PHASE3.md) — the lap, and why circuits want different cars
 - [`docs/PHASE4.md`](docs/PHASE4.md) — the driver, and what each ability is worth
 - [`docs/PHASE5.md`](docs/PHASE5.md) — tyres, fuel and energy, and where a compound crosses over
+- [`docs/PHASE6.md`](docs/PHASE6.md) — a field of cars, and what a gap actually is
 
 ## Roadmap
 
-Phases 1-5 done. Next: 6 multi-car · 7 qualifying & race · 8 strategy & pit
-stops · 9 overtaking · 10 weather · 11 race events · 12 advanced physics.
+Phases 1-6 done. Next: 7 qualifying & race · 8 strategy & pit stops ·
+9 overtaking · 10 weather · 11 race events · 12 advanced physics.
 
 A web layer (FastAPI + React) and a season-management game sit **on top** of the
 engine; the engine itself stays UI-free and JSON-serialisable.
