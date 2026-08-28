@@ -11,6 +11,13 @@ actually use it -- gap under one second, not the first laps, no wet flag -- is a
 race-core decision taken in Phase 9, and the drag reduction itself belongs to
 the aero model.  Keeping those three concerns apart is what stops DRS from
 becoming a lap-time bonus.
+
+A zone may **wrap the start/finish line**, and several real ones do: at Monza
+the flap opens on the exit of the Parabolica and closes on the approach to the
+Rettifilo, with the timing line in between.  The line is a timing device, not a
+feature of the road, so nothing about a zone should change when it moves.  A
+zone whose end is behind its start is therefore read as wrapping, which is why
+:class:`DrsZone` needs to know the lap length.
 """
 
 from __future__ import annotations
@@ -34,25 +41,50 @@ class DrsZone:
     activation_start: Metres
     activation_end: Metres
     name: str | None = None
+    lap_length: Metres | None = None
+    """Lap length, m.  Required only for a zone that wraps the timing line."""
 
     def __post_init__(self) -> None:
-        if self.activation_end <= self.activation_start:
+        if self.activation_end > self.activation_start:
+            return
+        if self.lap_length is None or self.lap_length <= 0.0:
             raise TrackBuildError(
-                f"DRS zone {self.index}: activation end ({self.activation_end} m) "
-                f"must be beyond its start ({self.activation_start} m)"
+                f"DRS zone {self.index}: activation end ({self.activation_end} m) is "
+                f"not beyond its start ({self.activation_start} m), so the zone wraps "
+                f"the start/finish line -- which needs the lap length to describe"
             )
+        if self.activation_start >= self.lap_length or self.activation_end < 0.0:
+            raise TrackBuildError(
+                f"DRS zone {self.index}: activation range "
+                f"({self.activation_start} m, {self.activation_end} m) falls outside "
+                f"a lap of {self.lap_length} m"
+            )
+        if self.length <= 0.0:
+            raise TrackBuildError(
+                f"DRS zone {self.index}: activation zone has no length"
+            )
+
+    @property
+    def wraps(self) -> bool:
+        """Whether the zone runs across the start/finish line."""
+        return self.activation_end <= self.activation_start
 
     @property
     def length(self) -> Metres:
         """Length of the activation zone, m."""
-        return self.activation_end - self.activation_start
+        if not self.wraps:
+            return self.activation_end - self.activation_start
+        assert self.lap_length is not None
+        return (self.activation_end - self.activation_start) % self.lap_length
 
     def contains(self, distance: Metres) -> bool:
         """Is ``distance`` inside the activation zone?"""
-        return self.activation_start <= distance < self.activation_end
+        if not self.wraps:
+            return self.activation_start <= distance < self.activation_end
+        return distance >= self.activation_start or distance < self.activation_end
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "index": self.index,
             "name": self.name,
             "detection_distance": self.detection_distance,
@@ -60,6 +92,9 @@ class DrsZone:
             "activation_end": self.activation_end,
             "length": self.length,
         }
+        if self.lap_length is not None:
+            payload["lap_length"] = self.lap_length
+        return payload
 
 
 class DrsMap:
@@ -104,12 +139,32 @@ class DrsMap:
         return None if zone is None else zone.index
 
     def overlaps(self) -> list[tuple[int, int]]:
-        """Pairs of zone indices whose activation ranges overlap."""
+        """Pairs of zone indices whose activation ranges overlap.
+
+        Compared as arcs of the lap rather than as intervals on a line, so a
+        zone that wraps the timing line is checked against the others properly
+        instead of appearing to end before it starts.
+        """
         clashes: list[tuple[int, int]] = []
-        for a, b in zip(self._zones, self._zones[1:]):
-            if b.activation_start < a.activation_end:
-                clashes.append((a.index, b.index))
-        return clashes
+        for i, a in enumerate(self._zones):
+            for b in self._zones[i + 1 :]:
+                if self._arcs_overlap(a, b):
+                    # Reported low index first: with a wrapping zone the order
+                    # the zones sort in says nothing useful.
+                    clashes.append(tuple(sorted((a.index, b.index))))  # type: ignore[arg-type]
+        return sorted(clashes)
+
+    def _arcs_overlap(self, a: DrsZone, b: DrsZone) -> bool:
+        """Whether two activation arcs share any of the lap between them."""
+        length = self._lap_length
+        if length <= 0.0:
+            return False
+        # Two arcs on a circle overlap unless each one's start lies outside the
+        # other, which is exactly what ``contains`` answers.
+        return (
+            a.contains(b.activation_start % length)
+            or b.contains(a.activation_start % length)
+        )
 
     def to_dict(self) -> list[dict[str, Any]]:
         return [zone.to_dict() for zone in self._zones]

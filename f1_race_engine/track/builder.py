@@ -112,6 +112,7 @@ class TrackBuilder:
         corner: CornerDefinition, defaults: TrackDefaults
     ) -> list[LayoutSpan]:
         curvature = corner.curvature
+        curvature_end = corner.curvature_end
         entry, exit_ = corner.transitions(defaults)
         arc = corner.constant_arc_length(defaults)
         if arc < -1e-9:  # pragma: no cover - transitions are capped below 0.5
@@ -137,7 +138,7 @@ class TrackBuilder:
                     kind=SegmentKind.CORNER,
                     length=arc,
                     curvature_start=curvature,
-                    curvature_end=curvature,
+                    curvature_end=curvature_end,
                     corner_id=corner.corner_id,
                     corner_name=corner.name,
                 )
@@ -147,7 +148,7 @@ class TrackBuilder:
                 LayoutSpan(
                     kind=SegmentKind.CORNER_EXIT,
                     length=exit_,
-                    curvature_start=curvature,
+                    curvature_start=curvature_end,
                     curvature_end=0.0,
                     corner_id=corner.corner_id,
                     corner_name=corner.name,

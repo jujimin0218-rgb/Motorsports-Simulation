@@ -106,6 +106,12 @@ This is not decoration. A step change in curvature would mean infinite lateral
 jerk at turn-in, and it is precisely what the curvature-continuity check
 rejects.
 
+Set `radius_end` and the arc becomes a curvature ramp rather than a constant,
+which is how a corner that tightens or opens out is described — the Parabolica
+opens, Bahrain's Turn 1 tightens. It has to be one corner rather than two,
+because a decreasing-radius corner is braked for its *exit*: split into two the
+speed profile would let the car accelerate through the join.
+
 ### Static geometry vs. session condition
 
 | Immutable, shared by all 20 cars | Mutable, one per session |
@@ -197,7 +203,15 @@ fast corner while its coefficient there is *lower* than in a slow one.
 * Traction is an axle question: a rear-drive car launches on its rear tyres, so
   the limit uses rear axle load including load transfer.
 * Braking is grip limited, because the brake system is specified above any grip
-  limit — an F1 car can lock its wheels at any speed.
+  limit — an F1 car can lock its wheels at any speed. It is an *axle* question
+  too: the brake bias is fixed while the car is stopping, so the first axle to
+  saturate ends the braking for both, and `min(F_front/bias, F_rear/(1-bias))`
+  is what the car actually gets. That is why brake bias has an optimum, and why
+  the engine puts it at 0.57 front without being told to.
+* Load sensitivity is a property of one contact patch, so every grip query says
+  how many patches carry the load. Split evenly, two axles offer exactly what
+  the whole car offers; without that basis they offer 5.7% more, and the axle
+  solvers would be inventing grip the lateral model does not believe in.
 * The corner speed limit is **implicit** (grip depends on speed depends on
   grip) and is solved by bisection, not by inverting a simplified formula that
   would be wrong exactly where it matters.

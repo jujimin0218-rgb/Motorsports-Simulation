@@ -15,6 +15,7 @@ from f1_race_engine.physics import (
     max_deceleration,
     normal_loads,
     required_lateral_acceleration,
+    braking_limited_force,
     slope_angle,
     traction_limited_force,
 )
@@ -200,6 +201,81 @@ def test_using_lateral_grip_reduces_braking(car, air_density):
         car, kph_to_ms(150.0), air_density, lateral_force_used=0.7 * limit.capacity
     )
     assert cornering < free
+
+
+def test_braking_is_limited_by_an_axle_not_by_the_car(car, air_density):
+    """The bias is fixed, so the first axle to saturate stops the car.
+
+    Charging the whole retarding force against the whole load instead assumes a
+    bias that follows the load transfer around, which no car has, and it lets
+    the car brake harder than either axle can actually hold.
+    """
+    speed = kph_to_ms(280.0)
+    mass = car.total_mass()
+    bias = car.brake_bias_front
+    limit = braking_limited_force(car, speed, air_density, mass=mass)
+
+    from f1_race_engine.physics import normal_loads
+
+    loads = normal_loads(
+        car.mass,
+        mass,
+        downforce=car.aero.downforce(speed, air_density, car.wing_level),
+        downforce_balance_front=car.spec.aero.aero_balance_front,
+        longitudinal_acceleration=-limit / mass,
+    )
+    front = car.tyre_model.grip_limit(TyreState().compound, loads.front, tyres=2)
+    rear = car.tyre_model.grip_limit(TyreState().compound, loads.rear, tyres=2)
+
+    # Neither axle is over its own limit ...
+    assert limit * bias <= front.capacity * 1.001
+    assert limit * (1.0 - bias) <= rear.capacity * 1.001
+    # ... and one of them is right on it, or the car is leaving grip unused.
+    assert (
+        limit * bias >= front.capacity * 0.999
+        or limit * (1.0 - bias) >= rear.capacity * 0.999
+    )
+
+
+def test_brake_bias_has_an_interior_optimum(car, air_density):
+    """Too much either way wastes the other axle, so the middle is quickest."""
+    from dataclasses import replace
+
+    speed = kph_to_ms(280.0)
+
+    def decel(bias: float) -> float:
+        spec = replace(
+            car.spec, brakes=replace(car.spec.brakes, brake_bias_front=bias)
+        )
+        return max_deceleration(car.with_spec(spec), speed, air_density)
+
+    values = {bias: decel(bias) for bias in (0.40, 0.50, 0.57, 0.68, 0.78)}
+    best = max(values, key=values.__getitem__)
+    assert 0.40 < best < 0.78, f"best bias {best} sits at the end of the range"
+    assert values[best] > values[0.40]
+    assert values[best] > values[0.78]
+
+
+def test_axle_grip_sums_to_the_whole_car(car):
+    """Load sensitivity is a per-patch property, so the bases must agree.
+
+    Split evenly, two axles must offer exactly what the whole car offers.  If
+    they offered more, the axle solvers would be inventing grip that the
+    lateral model does not believe in.
+    """
+    compound = TyreState().compound
+    for load in (8_000.0, 20_000.0, 35_000.0):
+        whole = car.tyre_model.grip_limit(compound, load).capacity
+        axles = 2.0 * car.tyre_model.grip_limit(compound, load / 2.0, tyres=2).capacity
+        assert axles == pytest.approx(whole, rel=1e-9)
+
+
+def test_an_axle_load_is_less_forgiving_than_the_same_car_load(car):
+    """Half the load on half the tyres presses each patch just as hard."""
+    compound = TyreState().compound
+    axle = car.tyre_model.friction_coefficient(compound, 10_000.0, tyres=2)
+    whole = car.tyre_model.friction_coefficient(compound, 10_000.0)
+    assert axle < whole
 
 
 def test_rolling_resistance_vanishes_at_rest(car, air_density):

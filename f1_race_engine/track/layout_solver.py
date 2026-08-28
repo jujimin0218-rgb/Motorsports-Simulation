@@ -20,6 +20,13 @@ and weighting by current length spreads the correction proportionally so a long
 straight absorbs metres while a 25 m chicane link barely moves.  An optional
 third equation pins the total lap length to a published figure.
 
+Corner *angles* need the same treatment for a different reason.  A closed lap
+turns through exactly 360 degrees, and straight lengths cannot help with that
+because a straight turns the car through nothing at all.  So a set of angles
+read off a track map has to be reconciled with that one constraint before the
+straights can be solved -- and how far they have to move is a useful, honest
+measure of how good the angles were.  :func:`solve_corner_angles` reports it.
+
 This is a **design-time** tool.  Run it once when authoring a circuit and store
 the solved lengths in the track's JSON; nothing calls it at simulation time.
 """
@@ -33,7 +40,14 @@ from typing import Any
 from ..core.errors import TrackBuildError
 from .definitions import CornerDefinition, StraightDefinition, TrackDefinition
 
-__all__ = ["ClosureSolution", "apply_straight_lengths", "solve_straight_lengths"]
+__all__ = [
+    "AngleSolution",
+    "ClosureSolution",
+    "apply_corner_angles",
+    "apply_straight_lengths",
+    "solve_corner_angles",
+    "solve_straight_lengths",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -73,6 +87,125 @@ class ClosureSolution:
             "iterations": self.iterations,
             "converged": self.converged,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class AngleSolution:
+    """The outcome of reconciling corner angles with a closed lap."""
+
+    angles: tuple[float, ...]
+    """Solved turn angle of every corner, degrees, in layout order."""
+
+    original_angles: tuple[float, ...]
+    turns: int
+    """Whole laps of heading the layout makes; -1 clockwise, +1 anticlockwise."""
+
+    residual_deg: float
+    """Heading the authored angles were short of (or over) a closed lap."""
+
+    @property
+    def adjustments(self) -> tuple[float, ...]:
+        """How far each angle moved, degrees."""
+        return tuple(
+            new - old for new, old in zip(self.angles, self.original_angles)
+        )
+
+    @property
+    def worst_adjustment_fraction(self) -> float:
+        """Largest relative change made to any one corner.
+
+        The honest quality measure for a hand-authored layout.  A few percent
+        means the angles were read carefully and the arithmetic just had to be
+        tidied up.  Tens of percent means the layout is a guess wearing a real
+        circuit's name, and it should not be shipped as one.
+        """
+        return max(
+            (
+                abs(new - old) / old
+                for new, old in zip(self.angles, self.original_angles)
+                if old > 0.0
+            ),
+            default=0.0,
+        )
+
+
+def _corner_indices(definition: TrackDefinition) -> list[int]:
+    return [
+        i
+        for i, element in enumerate(definition.layout)
+        if isinstance(element, CornerDefinition)
+    ]
+
+
+def apply_corner_angles(
+    definition: TrackDefinition, angles: list[float] | tuple[float, ...]
+) -> TrackDefinition:
+    """Return a copy of ``definition`` with new corner angles, in degrees."""
+    indices = _corner_indices(definition)
+    if len(indices) != len(angles):
+        raise TrackBuildError(
+            f"expected {len(indices)} corner angle(s), got {len(angles)}"
+        )
+    layout = list(definition.layout)
+    for position, angle in zip(indices, angles):
+        element = layout[position]
+        assert isinstance(element, CornerDefinition)
+        layout[position] = replace(element, angle=float(angle))
+    return replace(definition, layout=tuple(layout))
+
+
+def solve_corner_angles(
+    definition: TrackDefinition, *, turns: int | None = None
+) -> AngleSolution:
+    """Scale corner angles so the lap's heading closes exactly.
+
+    A closed circuit turns through a whole number of full revolutions -- one,
+    for every layout on the calendar.  Angles read off a track map never sum to
+    it exactly, and the error has nowhere to go: straights do not turn the car,
+    so unless the angles are reconciled first the plan view cannot close no
+    matter what :func:`solve_straight_lengths` does with the straights.
+
+    The correction is spread in proportion to each angle, which is the
+    minimum-norm choice under the natural assumption that a big corner read off
+    a map carries proportionally more error than a small one.  It also keeps
+    the layout's character: every corner keeps its share of the lap's turning.
+
+    :param turns: revolutions the layout makes, signed (-1 clockwise).
+        Defaults to whichever whole number the authored angles are nearest to.
+    """
+    indices = _corner_indices(definition)
+    if not indices:
+        raise TrackBuildError("a layout with no corners cannot be closed")
+
+    corners = [definition.layout[i] for i in indices]
+    original = tuple(corner.angle for corner in corners)
+    total = sum(
+        corner.direction.sign * corner.angle for corner in corners
+    )
+    if turns is None:
+        turns = round(total / 360.0)
+        if turns == 0:
+            raise TrackBuildError(
+                f"the layout turns through only {total:.1f} degrees, which is not "
+                f"close to a whole lap; check the corner directions"
+            )
+    target = 360.0 * turns
+    if total == 0.0:
+        raise TrackBuildError("the layout's corners cancel out entirely")
+
+    scale = target / total
+    if scale <= 0.0:
+        raise TrackBuildError(
+            f"the layout turns {total:.1f} degrees but was asked to close at "
+            f"{target:.1f}; the corner directions do not match the requested turns"
+        )
+    angles = tuple(angle * scale for angle in original)
+    return AngleSolution(
+        angles=angles,
+        original_angles=original,
+        turns=turns,
+        residual_deg=target - total,
+    )
 
 
 def _straight_headings(definition: TrackDefinition) -> list[float]:

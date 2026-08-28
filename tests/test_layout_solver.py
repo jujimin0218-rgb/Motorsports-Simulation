@@ -117,3 +117,76 @@ def test_solved_layouts_pass_validation():
                                                      2.0 * solved.lap_length / 3.0))
     )
     assert validate_track(build_track(solved)).ok
+
+
+# -- corner angles -----------------------------------------------------------
+
+
+def closed_lap_with_wrong_angles() -> TrackDefinition:
+    """Four right-handers that turn 400 degrees between them, not 360."""
+    return TrackDefinition(
+        name="over-turned",
+        layout=(
+            StraightDefinition(length=400.0),
+            CornerDefinition(radius=60.0, angle=100.0, direction=CornerDirection.RIGHT),
+            StraightDefinition(length=400.0),
+            CornerDefinition(radius=60.0, angle=100.0, direction=CornerDirection.RIGHT),
+            StraightDefinition(length=400.0),
+            CornerDefinition(radius=60.0, angle=100.0, direction=CornerDirection.RIGHT),
+            StraightDefinition(length=400.0),
+            CornerDefinition(radius=60.0, angle=100.0, direction=CornerDirection.RIGHT),
+        ),
+    )
+
+
+def test_corner_angles_are_scaled_until_the_heading_closes():
+    from f1_race_engine.track.layout_solver import (
+        apply_corner_angles,
+        solve_corner_angles,
+    )
+
+    solution = solve_corner_angles(closed_lap_with_wrong_angles())
+    assert solution.turns == -1
+    assert solution.residual_deg == pytest.approx(40.0)
+    assert solution.angles == pytest.approx((90.0, 90.0, 90.0, 90.0))
+    assert solution.worst_adjustment_fraction == pytest.approx(0.10)
+
+    closed = apply_corner_angles(closed_lap_with_wrong_angles(), solution.angles)
+    track = build_track(closed)
+    assert track.total_heading_change == pytest.approx(-2.0 * math.pi, abs=1e-9)
+
+
+def test_the_correction_is_shared_in_proportion_to_each_angle():
+    """A big corner read off a map carries proportionally more error."""
+    from f1_race_engine.track.layout_solver import solve_corner_angles
+
+    definition = TrackDefinition(
+        name="mixed",
+        layout=(
+            StraightDefinition(length=300.0),
+            CornerDefinition(radius=40.0, angle=180.0, direction=CornerDirection.RIGHT),
+            StraightDefinition(length=300.0),
+            CornerDefinition(radius=40.0, angle=90.0, direction=CornerDirection.RIGHT),
+            StraightDefinition(length=300.0),
+            CornerDefinition(radius=40.0, angle=130.0, direction=CornerDirection.RIGHT),
+        ),
+    )
+    solution = solve_corner_angles(definition)
+    assert sum(solution.angles) == pytest.approx(360.0)
+    adjustments = solution.adjustments
+    # Ordered the same way as the angles they correct.
+    assert abs(adjustments[0]) > abs(adjustments[2]) > abs(adjustments[1])
+
+
+def test_a_layout_that_does_not_go_round_is_rejected():
+    from f1_race_engine.track.layout_solver import solve_corner_angles
+
+    barely_turns = TrackDefinition(
+        name="not a lap",
+        layout=(
+            StraightDefinition(length=500.0),
+            CornerDefinition(radius=200.0, angle=20.0, direction=CornerDirection.RIGHT),
+        ),
+    )
+    with pytest.raises(TrackBuildError, match="not close to a whole lap|whole lap"):
+        solve_corner_angles(barely_turns)

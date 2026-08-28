@@ -193,14 +193,25 @@ class CornerDefinition(LayoutElement):
     """Parameters from which the builder generates a corner.
 
     The generated corner is an entry transition (curvature ramping from 0 to
-    ``1/radius``), a constant-radius arc, and an exit transition back to zero.
-    The transitions turn the car as well, so the arc is shortened to keep the
-    total turn angle exactly equal to :attr:`angle`.
+    ``1/radius``), an arc, and an exit transition back to zero.  The
+    transitions turn the car as well, so the arc is shortened to keep the total
+    turn angle exactly equal to :attr:`angle`.
+
+    Set :attr:`radius_end` and the arc becomes a curvature ramp rather than a
+    constant, which is how a real corner that tightens or opens out is
+    described.  It is not a cosmetic detail: a decreasing-radius corner has to
+    be braked for its *exit*, so it is slower than its entry radius suggests,
+    and one that opens out can be got on the power in early.  Modelled as two
+    separate corners instead, the car would be allowed to accelerate through
+    the join.
     """
 
     radius: Metres
     angle: Degrees
     direction: CornerDirection = CornerDirection.LEFT
+    radius_end: Metres | None = None
+    """Radius at the end of the arc, m.  ``None`` keeps it constant."""
+
     entry_transition: Metres | None = None
     exit_transition: Metres | None = None
     name: str | None = None
@@ -213,6 +224,11 @@ class CornerDefinition(LayoutElement):
         if self.radius <= 0.0:
             raise TrackBuildError(
                 f"corner {self.label} must have a positive radius, got {self.radius}"
+            )
+        if self.radius_end is not None and self.radius_end <= 0.0:
+            raise TrackBuildError(
+                f"corner {self.label} must have a positive radius_end, "
+                f"got {self.radius_end}"
             )
         if not 0.0 < self.angle <= 360.0:
             raise TrackBuildError(
@@ -239,12 +255,41 @@ class CornerDefinition(LayoutElement):
 
     @property
     def curvature(self) -> float:
-        """Signed curvature of the constant-radius section, 1/m."""
+        """Signed curvature at the start of the arc, 1/m."""
         return self.direction.sign / self.radius
+
+    @property
+    def exit_radius(self) -> Metres:
+        """Radius at the end of the arc, m; equal to :attr:`radius` by default."""
+        return self.radius if self.radius_end is None else self.radius_end
+
+    @property
+    def curvature_end(self) -> float:
+        """Signed curvature at the end of the arc, 1/m."""
+        return self.direction.sign / self.exit_radius
+
+    @property
+    def is_constant_radius(self) -> bool:
+        """Whether the arc holds one radius all the way through."""
+        return self.radius_end is None or self.radius_end == self.radius
+
+    @property
+    def mean_curvature_magnitude(self) -> float:
+        """Average unsigned curvature of the arc, 1/m.
+
+        Curvature varies linearly along the arc, so its mean is the average of
+        the ends -- and the heading a ramp turns is that mean times its length.
+        """
+        return 0.5 * (1.0 / self.radius + 1.0 / self.exit_radius)
+
+    @property
+    def tightest_radius(self) -> Metres:
+        """Smallest radius reached inside the corner, m."""
+        return min(self.radius, self.exit_radius)
 
     def pure_arc_length(self) -> Metres:
         """Length of the corner if it had no transitions, m."""
-        return self.angle_rad * self.radius
+        return self.angle_rad / self.mean_curvature_magnitude
 
     def transitions(self, defaults: TrackDefaults) -> tuple[Metres, Metres]:
         """Resolved ``(entry, exit)`` transition lengths, m.
@@ -256,33 +301,45 @@ class CornerDefinition(LayoutElement):
         pure = self.pure_arc_length()
         cap = defaults.max_transition_fraction * pure
 
-        def resolve(explicit: Metres | None) -> Metres:
+        def resolve(explicit: Metres | None, radius: Metres) -> Metres:
             if explicit is not None:
                 return clamp(explicit, 0.0, cap)
             nominal = max(
-                defaults.transition_factor * self.radius,
+                defaults.transition_factor * radius,
                 defaults.min_transition_length,
             )
             return clamp(nominal, 0.0, cap)
 
-        return resolve(self.entry_transition), resolve(self.exit_transition)
+        # Each transition is sized by the radius it joins: the entry ramps up
+        # to the entry radius and the exit ramps down from the exit one.
+        return (
+            resolve(self.entry_transition, self.radius),
+            resolve(self.exit_transition, self.exit_radius),
+        )
 
     def arc_length(self, defaults: TrackDefaults) -> Metres:
-        """Total length of the generated corner, m.
-
-        With entry and exit transitions of length ``Le`` and ``Lx`` and a
-        constant-radius arc ``La``, the heading change is
-        ``k * (La + (Le + Lx) / 2)``.  Holding that equal to the requested
-        angle gives ``La = pure - (Le + Lx) / 2``, hence a total length of
-        ``pure + (Le + Lx) / 2``.
-        """
+        """Total length of the generated corner, m."""
         entry, exit_ = self.transitions(defaults)
-        return self.pure_arc_length() + 0.5 * (entry + exit_)
+        return entry + self.constant_arc_length(defaults) + exit_
 
     def constant_arc_length(self, defaults: TrackDefaults) -> Metres:
-        """Length of the constant-radius section, m."""
+        """Length of the arc between the two transitions, m.
+
+        Curvature is linear in distance everywhere in the corner, so each part
+        turns the car by its mean curvature times its length::
+
+            angle = k_entry * Le / 2 + (k_entry + k_exit) / 2 * La
+                    + k_exit * Lx / 2
+
+        Solving for ``La`` keeps the total turn exactly equal to the requested
+        angle whatever the transitions cost.  With one radius throughout this
+        is the familiar ``pure - (Le + Lx) / 2``.
+        """
         entry, exit_ = self.transitions(defaults)
-        return self.pure_arc_length() - 0.5 * (entry + exit_)
+        turned_by_transitions = 0.5 * (
+            entry / self.radius + exit_ / self.exit_radius
+        )
+        return (self.angle_rad - turned_by_transitions) / self.mean_curvature_magnitude
 
     def turn_angle(self, defaults: TrackDefaults) -> float:
         return self.direction.sign * self.angle_rad
@@ -296,6 +353,8 @@ class CornerDefinition(LayoutElement):
             "name": self.name,
             "corner_id": self.corner_id,
         }
+        if self.radius_end is not None:
+            payload["radius_end"] = self.radius_end
         if self.entry_transition is not None:
             payload["entry_transition"] = self.entry_transition
         if self.exit_transition is not None:
@@ -489,6 +548,9 @@ class DrsDefinition:
                     activation_start=float(raw["activation_start"]),
                     activation_end=float(raw["activation_end"]),
                     name=raw.get("name"),
+                    lap_length=(
+                        None if raw.get("lap_length") is None else float(raw["lap_length"])
+                    ),
                 )
             )
         return cls(zones=tuple(zones))

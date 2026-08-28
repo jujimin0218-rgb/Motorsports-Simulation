@@ -8,6 +8,15 @@ cornering ability would rise linearly with downforce and the high-speed corners
 would come out absurd.  The compound owns the coefficient
 (:meth:`TyreCompound.friction_coefficient`); this module applies it.
 
+Because the coefficient is not linear in load, *what the load is spread over*
+matters.  Load sensitivity is a property of one contact patch, so a query has
+to say how many tyres are carrying the load it is asking about: an axle
+carrying ``N`` is, per patch, the same as a whole car carrying ``2N``.  Without
+that basis the axles evaluated separately come out with more grip between them
+than the same load evaluated as one lump -- which would let a car brake or
+launch harder than its own friction circle allows, purely as an artefact of
+which function asked the question.
+
 **The friction ellipse.**  A tyre has one friction budget, shared between
 braking/accelerating and cornering:
 
@@ -99,6 +108,7 @@ class TyreModel:
         compound: TyreCompound,
         normal_load: float,
         *,
+        tyres: int = 4,
         state: TyreState | None = None,
         surface_grip: float = 1.0,
         water_depth: float = 0.0,
@@ -111,9 +121,17 @@ class TyreModel:
         water -- how much of it this tread can get out of the way at this speed.
         Each is owned by a different part of the engine, and each can change
         without the others knowing.
+
+        ``tyres`` says how many contact patches ``normal_load`` is spread
+        across -- 4 for the whole car, 2 for one axle.  The compound's
+        reference load is a whole-car figure, so an axle load is converted to
+        the car load that would press each patch equally hard before the
+        coefficient is looked up.
         """
+        if tyres < 1:
+            raise ValueError(f"tyres must be at least 1, got {tyres}")
         load = max(normal_load, self._config.min_normal_load)
-        coefficient = compound.friction_coefficient(load)
+        coefficient = compound.friction_coefficient(load * (4.0 / tyres))
         if state is not None:
             coefficient *= state.grip_multiplier()
         if water_depth > 0.0:
@@ -125,15 +143,22 @@ class TyreModel:
         compound: TyreCompound,
         normal_load: float,
         *,
+        tyres: int = 4,
         state: TyreState | None = None,
         surface_grip: float = 1.0,
         water_depth: float = 0.0,
         speed: float = 0.0,
     ) -> GripLimit:
-        """The friction circle available at this load."""
+        """The friction circle available at this load.
+
+        Pass ``tyres=2`` when ``normal_load`` is one axle's share, so that the
+        coefficient is evaluated on the same per-patch basis as a whole-car
+        query.  Evenly split, two axle queries then sum to exactly the whole-car
+        answer.
+        """
         load = max(normal_load, 0.0)
         coefficient = self.friction_coefficient(
-            compound, load, state=state, surface_grip=surface_grip,
+            compound, load, tyres=tyres, state=state, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
         )
         return GripLimit(

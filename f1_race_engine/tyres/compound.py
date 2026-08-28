@@ -51,8 +51,13 @@ class TyreCompound:
     surface it runs on scales it (``TrackSegment.surface_grip``)."""
 
     reference_load: float = 8000.0
-    """Vertical load, N, at which :attr:`peak_friction` applies.  Roughly the
-    static load on one axle of a fuelled car."""
+    """Vertical load, N, at which :attr:`peak_friction` applies.
+
+    A **whole-car** figure -- roughly the static weight of a fuelled car, so
+    the peak coefficient is the one the tyre shows sitting still.  Queries
+    about a single axle convert to this basis first
+    (:meth:`TyreModel.friction_coefficient`), because load sensitivity belongs
+    to one contact patch and not to the car."""
 
     load_sensitivity: float = 0.08
     """Exponent ``k`` in ``mu = mu_peak * (N / N_ref)^-k``.

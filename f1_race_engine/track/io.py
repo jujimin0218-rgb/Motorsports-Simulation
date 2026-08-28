@@ -64,6 +64,9 @@ def _layout_element_from_dict(data: dict[str, Any], index: int) -> LayoutElement
             radius=float(data["radius"]),
             angle=float(data["angle"]),
             direction=CornerDirection(data.get("direction", "left")),
+            radius_end=(
+                None if data.get("radius_end") is None else float(data["radius_end"])
+            ),
             entry_transition=(
                 None
                 if data.get("entry_transition") is None

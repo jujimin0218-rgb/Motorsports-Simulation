@@ -157,3 +157,61 @@ def test_invalid_defaults_are_rejected():
         TrackDefaults(roughness=1.5)
     with pytest.raises(TrackBuildError):
         TrackDefaults(max_transition_fraction=0.9)
+
+
+# -- corners that change radius ----------------------------------------------
+
+
+def test_a_constant_radius_corner_is_unchanged_by_the_variable_radius_path():
+    """``radius_end`` is opt-in: leaving it out must change nothing."""
+    defaults = TrackDefaults()
+    corner = CornerDefinition(radius=100.0, angle=90.0, direction=CornerDirection.RIGHT)
+    pure = corner.pure_arc_length()
+    entry, exit_ = corner.transitions(defaults)
+    assert pure == pytest.approx(100.0 * math.radians(90.0))
+    assert corner.constant_arc_length(defaults) == pytest.approx(
+        pure - 0.5 * (entry + exit_)
+    )
+    assert corner.is_constant_radius
+
+
+def test_a_corner_that_opens_out_still_turns_the_requested_angle():
+    """The whole point: the arc is a ramp, and the total turn is unchanged.
+
+    Curvature is linear everywhere in the corner, so each part turns the car by
+    its mean curvature times its length.  If that arithmetic were wrong the
+    circuit would not close.
+    """
+    defaults = TrackDefaults()
+    corner = CornerDefinition(
+        radius=100.0, angle=120.0, direction=CornerDirection.RIGHT, radius_end=250.0
+    )
+    entry, exit_ = corner.transitions(defaults)
+    arc = corner.constant_arc_length(defaults)
+    turned = (
+        0.5 * entry / corner.radius
+        + 0.5 * (1.0 / corner.radius + 1.0 / corner.exit_radius) * arc
+        + 0.5 * exit_ / corner.exit_radius
+    )
+    assert turned == pytest.approx(math.radians(120.0))
+    assert corner.tightest_radius == 100.0
+    assert not corner.is_constant_radius
+
+
+def test_a_corner_that_tightens_is_slower_than_its_entry_radius_suggests():
+    """A decreasing-radius corner has to be braked for its exit."""
+    defaults = TrackDefaults()
+    opening = CornerDefinition(
+        radius=80.0, angle=100.0, direction=CornerDirection.LEFT, radius_end=200.0
+    )
+    tightening = CornerDefinition(
+        radius=200.0, angle=100.0, direction=CornerDirection.LEFT, radius_end=80.0
+    )
+    assert opening.tightest_radius == tightening.tightest_radius == 80.0
+    # Same turn through the same pair of radii, so the same length of road.
+    assert opening.pure_arc_length() == pytest.approx(tightening.pure_arc_length())
+
+
+def test_a_radius_end_of_zero_is_rejected():
+    with pytest.raises(TrackBuildError, match="radius_end"):
+        CornerDefinition(radius=100.0, angle=90.0, radius_end=0.0)

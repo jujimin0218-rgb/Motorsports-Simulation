@@ -240,3 +240,38 @@ def test_segment_count_criteria():
     )
 
     assert builder.segment_count(LayoutSpan(SegmentKind.STRAIGHT, 0.0, 0.0, 0.0)) == 0
+
+
+# -- DRS zones across the timing line ----------------------------------------
+
+
+def test_a_drs_zone_may_wrap_the_start_finish_line():
+    """Monza's main-straight zone does exactly this.
+
+    The timing line is a timing device, not a feature of the road, so a zone
+    that happens to straddle it is an ordinary zone and everything about it has
+    to keep working.
+    """
+    zone = DrsZone(0, 4_500.0, 4_800.0, 300.0, "main", lap_length=5_000.0)
+    assert zone.wraps
+    assert zone.length == pytest.approx(500.0)
+    assert zone.contains(4_900.0)
+    assert zone.contains(100.0)
+    assert not zone.contains(400.0)
+    assert not zone.contains(2_500.0)
+
+
+def test_a_wrapping_zone_needs_the_lap_length_to_be_described():
+    with pytest.raises(TrackBuildError, match="wraps the start/finish line"):
+        DrsZone(0, 4_500.0, 4_800.0, 300.0)
+
+
+def test_overlaps_are_found_across_the_timing_line():
+    """A wrapping zone must be compared as an arc, not as an interval."""
+    from f1_race_engine.track.drs import DrsMap
+
+    wrapping = DrsZone(0, 4_500.0, 4_800.0, 300.0, lap_length=5_000.0)
+    overlapping = DrsZone(1, 3_000.0, 100.0, 900.0)
+    separate = DrsZone(2, 1_500.0, 1_800.0, 2_600.0)
+    assert DrsMap([wrapping, overlapping], 5_000.0).overlaps() == [(0, 1)]
+    assert DrsMap([wrapping, separate], 5_000.0).overlaps() == []

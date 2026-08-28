@@ -87,8 +87,25 @@ class AeroProperties:
         return self.zero_lift_drag_area + self.induced_drag_factor * lift_area * lift_area
 
     def efficiency(self, wing_level: float) -> float:
-        """Lift-to-drag ratio.  Falls as wing is added -- that is the trade."""
+        """Lift-to-drag ratio, ``ClA / CdA``.
+
+        Not the thing that makes the wing choice a trade, and worth being clear
+        about: because a large part of an F1 car's drag comes from the wheels
+        and bodywork rather than from the wings, ``L/D`` stays roughly flat
+        across the usable wing range and can even rise slightly.  What actually
+        costs is the *marginal* drag of the last bit of downforce,
+        ``dCdA/dClA = 2 k ClA``, which grows with every wing level -- so the
+        trade is real, it just does not show up as falling efficiency.
+        """
         return self.downforce_area(wing_level) / self.drag_area(wing_level)
+
+    def marginal_drag(self, wing_level: float) -> float:
+        """``dCdA/dClA`` at this wing level, dimensionless.
+
+        The price of one more unit of downforce area.  It rises with wing
+        level, which is what makes a low-drag circuit want a small wing and a
+        high-downforce one accept the cost."""
+        return 2.0 * self.induced_drag_factor * self.downforce_area(wing_level)
 
     def to_dict(self) -> dict[str, Any]:
         return {

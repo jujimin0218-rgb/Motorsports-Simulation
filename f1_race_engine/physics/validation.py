@@ -440,6 +440,105 @@ def check_braking_improves_with_speed(
     return issues
 
 
+def check_axle_grip_is_consistent(
+    vehicle: Vehicle, ambient: AmbientConditions, cfg: PhysicsValidationConfig
+) -> list[ValidationIssue]:
+    """Two axles must not have more grip between them than the whole car.
+
+    Friction coefficient falls with load, so asking about half a car's load
+    returns a higher coefficient than asking about all of it.  If the axle
+    solvers and the lateral model do not agree on what a load is spread over,
+    that difference becomes free grip: a car could brake or launch harder than
+    its own friction circle allows, purely because a different function asked
+    the question.  Split evenly, the two must add up exactly.
+    """
+    issues: list[ValidationIssue] = []
+    compound = TyreState().compound
+    model = vehicle.tyre_model
+    for load in (8_000.0, 20_000.0, 35_000.0):
+        car = model.grip_limit(compound, load).capacity
+        axles = 2.0 * model.grip_limit(compound, load / 2.0, tyres=2).capacity
+        if car <= 0.0:
+            continue
+        error = abs(axles - car) / car
+        if error > 1e-6:
+            issues.append(
+                _issue(
+                    "axle_grip_basis",
+                    Severity.ERROR,
+                    f"at {load:.0f} N the two axles offer {axles:.0f} N between "
+                    f"them but the whole car offers {car:.0f} N "
+                    f"({error * 100:.2f}% apart)",
+                )
+            )
+    return issues
+
+
+def check_brake_bias_matters(
+    vehicle: Vehicle, ambient: AmbientConditions, cfg: PhysicsValidationConfig
+) -> list[ValidationIssue]:
+    """Braking must be limited by an axle, not by the car as a lump.
+
+    The bias is fixed while the car is stopping, so sending too much effort to
+    either axle wastes the other one's grip and the car stops more slowly.  If
+    bias made no difference, braking would be being charged against the total
+    load -- which quietly assumes a bias that chases the load transfer around,
+    and overstates high-speed braking by a wide margin.
+    """
+    issues: list[ValidationIssue] = []
+    rho = ambient.air_density
+    speed = kph_to_ms(280.0)
+    biases = (0.40, 0.50, 0.57, 0.68, 0.78)
+    results: list[tuple[float, float]] = []
+    for bias in biases:
+        try:
+            car = vehicle.with_spec(
+                replace(
+                    vehicle.spec,
+                    brakes=replace(vehicle.spec.brakes, brake_bias_front=bias),
+                )
+            )
+        except Exception:  # a spec may legitimately restrict the range
+            continue
+        results.append((bias, max_deceleration(car, speed, rho)))
+
+    if len(results) < 3:
+        return issues
+
+    best_bias, best = max(results, key=lambda item: item[1])
+    worst_bias, worst = min(results, key=lambda item: item[1])
+    if best <= worst * 1.001:
+        issues.append(
+            _issue(
+                "brake_bias",
+                Severity.ERROR,
+                "brake bias made no difference to braking, so braking is not "
+                "limited by either axle",
+            )
+        )
+        return issues
+
+    if best_bias in (results[0][0], results[-1][0]):
+        issues.append(
+            _issue(
+                "brake_bias",
+                Severity.WARNING,
+                f"the best brake bias tried ({best_bias:.2f} front) is at the end "
+                f"of the range, so the car's own bias is not near its optimum",
+            )
+        )
+    issues.append(
+        _issue(
+            "brake_bias",
+            Severity.INFO,
+            f"brake bias is worth {(best - worst) / 9.80665:.2f} g at 280 km/h; "
+            f"best {best_bias:.2f} front at {best / 9.80665:.2f} g, "
+            f"worst {worst_bias:.2f} at {worst / 9.80665:.2f} g",
+        )
+    )
+    return issues
+
+
 def check_air_density_effects(
     vehicle: Vehicle, ambient: AmbientConditions, cfg: PhysicsValidationConfig
 ) -> list[ValidationIssue]:
@@ -661,6 +760,8 @@ PHYSICS_CHECKS: list[Check] = [
     check_radius_reduces_corner_speed,
     check_load_sensitivity,
     check_friction_ellipse,
+    check_axle_grip_is_consistent,
+    check_brake_bias_matters,
     check_braking_improves_with_speed,
     check_air_density_effects,
     check_fuel_mass_effect,

@@ -152,33 +152,38 @@ def test_lap_time_converges_with_track_resolution(proving_ground_definition,
     would make every later result meaningless.
     """
     car = Vehicle(reference_spec, MEDIUM_DOWNFORCE)
-    configs = [
-        TrackBuildConfig(
-            straight_segment_length=30.0, corner_segment_length=20.0,
-            min_segment_length=5.0, max_segment_length=30.0,
-            max_heading_change_per_segment_deg=8.0,
-            max_curvature_change_per_segment=0.01,
-        ),
-        TrackBuildConfig(),
-        TrackBuildConfig(
-            straight_segment_length=10.0, corner_segment_length=3.0,
-            min_segment_length=1.0, max_segment_length=10.0,
-            max_heading_change_per_segment_deg=1.0,
-            max_curvature_change_per_segment=0.001,
-        ),
-    ]
+
+    # A *uniform* refinement ladder: every criterion is tightened by the same
+    # factor at each step.  Mixing a coarse corner setting with a fine straight
+    # one gives a sequence that is not ordered by resolution at all, and then
+    # "does it converge" has no meaning to test.
+    def ladder(scale: float) -> TrackBuildConfig:
+        return TrackBuildConfig(
+            straight_segment_length=30.0 * scale,
+            corner_segment_length=20.0 * scale,
+            min_segment_length=max(0.5, 5.0 * scale),
+            max_segment_length=30.0 * scale,
+            max_heading_change_per_segment_deg=8.0 * scale,
+            max_curvature_change_per_segment=0.01 * scale,
+        )
+
     times = []
     counts = []
-    for config in configs:
-        track = build_track(proving_ground_definition, config)
+    for scale in (1.0, 0.5, 0.25, 0.125):
+        track = build_track(proving_ground_definition, ladder(scale))
         counts.append(len(track))
         times.append(compute_lap_time(track, car, analyse_zones=False).lap_time)
 
     assert counts[-1] > 4 * counts[0]  # the sampling really did change
     spread = max(times) - min(times)
     assert spread < 0.05, f"lap times {times} span {spread:.4f} s"
-    # And it converges rather than wandering.
-    assert abs(times[2] - times[1]) < abs(times[1] - times[0]) * 1.5
+
+    # And it converges rather than wandering: halving the step must shrink the
+    # change it makes, every time.
+    steps = [abs(b - a) for a, b in zip(times, times[1:])]
+    assert all(
+        later < earlier for earlier, later in zip(steps, steps[1:])
+    ), f"lap times {times} changed by {steps} -- not converging"
 
 
 # -- zones -------------------------------------------------------------------

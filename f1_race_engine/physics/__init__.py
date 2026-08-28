@@ -43,6 +43,7 @@ from .longitudinal import (
     longitudinal_forces,
     max_acceleration,
     max_deceleration,
+    braking_limited_force,
     traction_limited_force,
 )
 from .speed_profile import (
@@ -77,5 +78,6 @@ __all__ = [
     "normal_loads",
     "required_lateral_acceleration",
     "slope_angle",
+    "braking_limited_force",
     "traction_limited_force",
 ]

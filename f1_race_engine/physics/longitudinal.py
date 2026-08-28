@@ -21,14 +21,18 @@ interesting:
   iteration.
 * **Braking** is capped by the brake system *and* by tyre friction.  On an F1
   car the tyres always lose that argument, which is why braking performance is
-  a grip question.
+  a grip question -- and, like traction, it is an *axle* question.  The brake
+  bias is fixed while the car is stopping, so the axle that saturates first
+  ends the argument for both of them.  Braking is therefore solved the same
+  implicit way as traction, in the opposite direction: decelerating harder
+  moves load onto the front axle, which can then take more of the bias.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from ..core.config import SimulationConfig
 from ..core.interpolation import clamp
@@ -39,6 +43,7 @@ from .grip import AxleLoads, normal_loads, slope_angle
 
 __all__ = [
     "LongitudinalForces",
+    "braking_limited_force",
     "longitudinal_forces",
     "max_acceleration",
     "max_deceleration",
@@ -150,7 +155,7 @@ def traction_limited_force(
             enable_load_transfer=config.powertrain.longitudinal_load_transfer,
         )
         rear_limit = vehicle.tyre_model.grip_limit(
-            compound, loads.rear, state=tyres, surface_grip=surface_grip,
+            compound, loads.rear, tyres=2, state=tyres, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
         )
         # How much of the car's total friction circle cornering is already
@@ -175,6 +180,168 @@ def traction_limited_force(
             break
         acceleration = force / mass
     return max(force, 0.0)
+
+
+def braking_limited_force(
+    vehicle: Vehicle,
+    speed: float,
+    air_density: float,
+    *,
+    mass: float,
+    tyre_state: TyreState | None = None,
+    surface_grip: float = 1.0,
+    gradient: float = 0.0,
+    banking: float = 0.0,
+    lateral_acceleration: float = 0.0,
+    lateral_force_used: float = 0.0,
+    drs_open: bool = False,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
+    downforce_factor: float = 1.0,
+) -> Newtons:
+    """Maximum retarding force the tyres can transmit, N.
+
+    Braking is an axle question for the same reason traction is, and the
+    argument is sharper: the brake bias is *fixed* while the car is stopping.
+    A driver cannot send more effort to the axle that still has grip, so the
+    first axle to reach its friction limit ends the braking for both of them::
+
+        F_total = min( F_front_limit / bias ,  F_rear_limit / (1 - bias) )
+
+    Treating the car as one lump instead -- charging the total retarding force
+    against the total load -- quietly assumes a bias that follows the load
+    transfer around, which no car has.  It overstates braking badly at high
+    speed, where downforce is large and the transfer with it: it lets the front
+    axle carry far more than its share of the effort, and the deceleration that
+    comes out exceeds anything a real Formula 1 car achieves.
+
+    Like traction the problem is implicit, and in the opposite direction:
+    decelerating harder moves load onto the front axle, which raises the front
+    limit and lowers the rear one.  The two feedbacks pull opposite ways, so
+    each axle is solved on its own and the smaller answer wins -- see the
+    comment below for why iterating on the minimum instead does not converge.
+
+    Cornering is charged as a fraction of the whole car's friction circle, the
+    same basis :func:`traction_limited_force` uses, so that a car at its
+    cornering limit has no braking left on either axle.
+    """
+    config = vehicle.config
+    tyres = tyre_state or TyreState()
+    compound = tyres.compound
+    air_speed = max(speed + headwind, 0.0)
+    downforce = downforce_factor * vehicle.aero.downforce(
+        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
+    )
+    bias = vehicle.brake_bias_front
+    transfer_enabled = config.powertrain.longitudinal_load_transfer
+
+    # Only the transfer term depends on how hard the car is stopping, so the
+    # standing loads are computed once and the iteration just moves load
+    # between the axles.  That keeps the solve to a handful of friction
+    # lookups, which matters: this runs for every segment of every backward
+    # pass of every lap of every car.
+    base = normal_loads(
+        vehicle.mass,
+        mass,
+        downforce=downforce,
+        downforce_balance_front=vehicle.spec.aero.aero_balance_front,
+        gradient=gradient,
+        banking=banking,
+        lateral_acceleration=lateral_acceleration,
+        longitudinal_acceleration=0.0,
+        gravity=_gravity(config),
+        enable_load_transfer=False,
+    )
+
+    def axle_capacity(load: float) -> float:
+        return vehicle.tyre_model.grip_limit(
+            compound, load, tyres=2, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
+        ).capacity
+
+    # Load transfer moves grip between the axles but not the total, so the
+    # cornering reserve is the same on every pass and is computed once.
+    reserve = 1.0
+    lateral_used = abs(lateral_force_used)
+    if lateral_used > 0.0:
+        total_capacity = vehicle.tyre_model.grip_limit(
+            compound, base.total, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
+        ).capacity
+        if total_capacity <= 0.0:
+            return 0.0
+        exponent = config.tyres.combined_grip_exponent
+        utilisation = min(lateral_used / total_capacity, 1.0)
+        reserve = (1.0 - utilisation**exponent) ** (1.0 / exponent)
+        if reserve <= 0.0:
+            return 0.0
+
+    def front_branch(deceleration: float) -> float:
+        shift = vehicle.mass.load_transfer(deceleration, mass)
+        return axle_capacity(max(base.front + shift, 0.0)) * reserve / bias
+
+    def rear_branch(deceleration: float) -> float:
+        shift = vehicle.mass.load_transfer(deceleration, mass)
+        return axle_capacity(max(base.rear - shift, 0.0)) * reserve / (1.0 - bias)
+
+    if not transfer_enabled:
+        limits = []
+        if bias > 0.0:
+            limits.append(front_branch(0.0))
+        if bias < 1.0:
+            limits.append(rear_branch(0.0))
+        return max(min(limits), 0.0) if limits else 0.0
+
+    # The two axles are solved *separately* and the smaller answer wins.
+    #
+    # That is not a shortcut, it is what makes the solve well behaved.  Braking
+    # harder loads the front and unloads the rear, so the front branch grows
+    # with the answer and the rear branch shrinks; each on its own is a
+    # contraction and settles in a few passes.  Iterating on the minimum of the
+    # two instead makes the map jump between branches from pass to pass and it
+    # never settles at all.  Both branches are monotone in the force, so each
+    # admits exactly one crossing, and every force below both crossings
+    # satisfies both axles -- so the smaller crossing is the limit.
+    tolerance = config.powertrain.traction_solver_tolerance
+    iterations = config.powertrain.traction_solver_iterations
+    limit = math.inf
+    if bias > 0.0:
+        limit = min(limit, _axle_braking_crossing(front_branch, mass, tolerance, iterations))
+    if bias < 1.0:
+        limit = min(limit, _axle_braking_crossing(rear_branch, mass, tolerance, iterations))
+    return max(limit, 0.0) if math.isfinite(limit) else 0.0
+
+
+def _axle_braking_crossing(
+    branch: Callable[[float], float],
+    mass: float,
+    tolerance: float,
+    max_iterations: int,
+) -> Newtons:
+    """Solve ``F = branch(F / mass)`` for one axle.
+
+    The branch is monotone in the force and its slope is well under one, so a
+    secant step converges in two or three evaluations where plain substitution
+    needs eight.  This is called for every segment of every backward pass, so
+    the difference is worth the ten lines.
+    """
+    previous_force = 0.0
+    previous_residual = branch(0.0)
+    force = previous_residual
+    for _ in range(max_iterations):
+        value = branch(force / mass)
+        residual = value - force
+        if abs(residual) <= tolerance * max(abs(value), 1.0):
+            return value
+        denominator = residual - previous_residual
+        candidate = value
+        if denominator != 0.0:
+            secant = force - residual * (force - previous_force) / denominator
+            if math.isfinite(secant) and secant >= 0.0:
+                candidate = secant
+        previous_force, previous_residual = force, residual
+        force = candidate
+    return force
 
 
 def longitudinal_forces(
@@ -290,12 +457,21 @@ def longitudinal_forces(
 
     brake_force = 0.0
     if brake > 0.0:
-        grip = vehicle.tyre_model.grip_limit(
-            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip,
-            water_depth=water_depth, speed=speed,
-        )
-        grip_limit = vehicle.tyre_model.available_longitudinal(
-            grip, abs(lateral_force_used)
+        grip_limit = braking_limited_force(
+            vehicle,
+            speed,
+            air_density,
+            mass=car_mass,
+            tyre_state=tyres,
+            surface_grip=surface_grip,
+            gradient=gradient,
+            banking=banking,
+            lateral_acceleration=lateral_acceleration,
+            lateral_force_used=lateral_force_used,
+            drs_open=drs_open,
+            water_depth=water_depth,
+            headwind=headwind,
+            downforce_factor=downforce_factor,
         )
         brake_force = min(vehicle.brakes.brake_force(brake), grip_limit)
 
