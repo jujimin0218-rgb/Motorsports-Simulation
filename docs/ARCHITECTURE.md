@@ -252,6 +252,42 @@ corrector makes it second-order for the speed-dependent case.
 
 ---
 
+## 3c. The driver acts through the car, never on the result
+
+Project rule 18 lists ten abilities, and the rule that makes them meaningful is
+2.4: a driver may not be a subtraction from a lap time. So each driving ability
+becomes the **fraction of available grip the driver uses**:
+
+```
+utilisation = 1 - (1 - attribute) * max_commitment_deficit
+```
+
+which is fed into `PerformanceLimits` — the seam the speed profile has carried
+since Phase 3. The physics never learns that a driver exists.
+
+Everything then follows without being written: a weaker braker brakes earlier
+because the backward pass finds a lower deceleration; a weaker traction driver
+loses specifically out of slow corners; a mistake lowers apex speed at one
+corner and the forward pass carries the loss down the following straight.
+
+Two results the model produces on its own, both matching what racing people
+say:
+
+* **Traction is worth about twice braking** for pure lap time, because a lap
+  spends far longer accelerating than braking.
+* **Inconsistency costs average pace, not just scatter** — commitment can fall
+  short of the limit but never exceed it, so the variation is one-sided.
+
+The stepping loop lives in `simulation/`, between the two cores: a lap needs
+the physics to move the car and the driver to decide what to ask of it, but
+knows nothing about positions, gaps or strategy. The race core (Phases 6-7) is
+built on top of it.
+
+**The test that says the stepping is right:** a driver with no shortfall and no
+variation reproduces the Phase 3 limit lap to 0.0013%.
+
+---
+
 ## 4. Determinism
 
 `RngHub` is the single owner of randomness. It hands out **named, hierarchical
@@ -306,6 +342,9 @@ lives in `core/validation.py`; each system owns its own suite of checks:
 * `track/validation.py` — 16 checks on circuit geometry
 * `physics/validation.py` — 14 checks on vehicle behaviour
 * `physics/lap_validation.py` — 11 checks on the profile and the lap
+
+Phase 4 adds no new suite: a driver is validated by the lap they produce,
+and the lap checks already cover it.
 
 Both kinds matter. **Directional** checks (speed up, downforce up; mass up,
 acceleration down) catch a sign error or a dropped force term. **Envelope**
@@ -380,13 +419,22 @@ f1_race_engine/
         benchmark.py        measured performance envelope
         validation.py       14 vehicle checks
         lap_validation.py   11 lap checks, including rule 40 Test C
+    driver/
+        model.py            ten separate abilities (rule 18)
+        pace.py             abilities -> grip commitment, the physics seam
+        inputs.py           throttle / brake / steering / gear / ERS (rule 19)
+        consistency.py      per-lap and per-corner variation
+        mistakes.py         errors that cost time through the driving
+    simulation/
+        lap.py              the rule-26 stepping loop
+        telemetry.py        real-trace channels, CSV export
     environment/
         conditions.py       air density from real atmospheric physics
     visualization/
         svg.py              standalone SVG maps, no dependencies
         track_plots.py      matplotlib circuit diagnostics (optional extra)
         vehicle_plots.py    force balance, g-g envelope, cornering limit
-        lap_plots.py        speed profile, zones, g trace, speed map
+        lap_plots.py        speed profile, zones, g trace, speed map, telemetry
     data/
         tracks/             three synthetic circuits
         vehicles/           three cars: reference, power-biased, aero-biased
@@ -398,7 +446,7 @@ Arriving in later phases, attached at the seams above:
 ```
     vehicle/   ers, gearbox, differential, cooling, fuel burn
     tyres/     temperature, degradation, wear, pressure
-    driver/    pace, inputs, braking, cornering, consistency, racecraft
+    driver/    racecraft (Phase 9), tyre management (Phase 5), wet skill (Phase 10)
     physics/   suspension, slip angle, yaw, weight transfer (dynamic)
     race/      session, qualifying, race, timing, pitstop, strategy, overtaking
     environment/ weather, wind, track_temperature, track_evolution
@@ -456,8 +504,8 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | 1 | Core, units, config, RNG, track model, builder, validation, viz | **done** |
 | 2 | Vehicle: mass, engine, drag, downforce, brakes, basic tyre grip | **done** |
 | 3 | Speed profile: cornering / braking / acceleration limits, forward + backward pass | **done** |
-| 4 | Lap simulation and the driver model | next |
-| 5 | Tyres, fuel, ERS |
+| 4 | Lap simulation and the driver model | **done** |
+| 5 | Tyres, fuel, ERS | next |
 | 6 | Multi-car simulation |
 | 7 | Qualifying and race |
 | 8 | Strategy and pit stops |

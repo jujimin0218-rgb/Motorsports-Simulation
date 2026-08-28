@@ -35,7 +35,9 @@ __all__ = [
     "plot_lap_overview",
     "plot_speed_map",
     "plot_speed_profile",
+    "plot_telemetry",
     "save_lap_overview",
+    "save_telemetry_comparison",
 ]
 
 _BRAKING_COLOUR = "#D55E00"
@@ -212,6 +214,77 @@ def save_lap_overview(
     """Render :func:`plot_lap_overview` to an image file."""
     plt = _pyplot()
     figure = plot_lap_overview(result, track)
+    figure.savefig(path, dpi=dpi)
+    plt.close(figure)
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: driver telemetry
+# ---------------------------------------------------------------------------
+
+
+def plot_telemetry(results, axes=None, *, labels=None):
+    """The classic telemetry view: speed, throttle and brake against distance.
+
+    Pass several :class:`~f1_race_engine.simulation.lap.LapResult` objects to
+    overlay drivers, which is how a real engineer finds where one is losing
+    time to another -- the speed traces separate at exactly the corner
+    responsible.
+    """
+    plt = _pyplot()
+    if not isinstance(results, (list, tuple)):
+        results = [results]
+    if axes is None:
+        _, axes = plt.subplots(
+            3, 1, figsize=(13, 7), sharex=True,
+            gridspec_kw={"height_ratios": (2.2, 1, 1)}, layout="constrained",
+        )
+    speed_axes, throttle_axes, brake_axes = axes
+    colours = ("#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00")
+
+    for index, result in enumerate(results):
+        telemetry = result.telemetry
+        if telemetry is None:
+            continue
+        colour = colours[index % len(colours)]
+        label = (
+            labels[index] if labels else f"{result.driver_name} {result.formatted}"
+        )
+        distance = telemetry.channel("distance")
+        speed_axes.plot(
+            distance, [ms_to_kph(v) for v in telemetry.channel("speed")],
+            color=colour, linewidth=1.6, label=label,
+        )
+        throttle_axes.plot(
+            distance, telemetry.channel("throttle"), color=colour, linewidth=1.1
+        )
+        brake_axes.plot(
+            distance, telemetry.channel("brake"), color=colour, linewidth=1.1
+        )
+
+    speed_axes.set_ylabel("speed  [km/h]")
+    speed_axes.legend(fontsize=8, loc="lower right")
+    speed_axes.grid(alpha=0.2)
+    first = results[0]
+    speed_axes.set_title(
+        f"Telemetry -- {first.vehicle_name} at {first.track_name}"
+    )
+    throttle_axes.set_ylabel("throttle")
+    throttle_axes.set_ylim(-0.05, 1.05)
+    throttle_axes.grid(alpha=0.2)
+    brake_axes.set_ylabel("brake")
+    brake_axes.set_ylim(-0.05, 1.05)
+    brake_axes.set_xlabel("distance  [m]")
+    brake_axes.grid(alpha=0.2)
+    return axes
+
+
+def save_telemetry_comparison(results, path: str, *, dpi: int = 110) -> str:
+    """Render :func:`plot_telemetry` to an image file."""
+    plt = _pyplot()
+    axes = plot_telemetry(results)
+    figure = axes[0].figure
     figure.savefig(path, dpi=dpi)
     plt.close(figure)
     return path

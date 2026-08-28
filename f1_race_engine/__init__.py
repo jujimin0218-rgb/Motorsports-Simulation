@@ -4,16 +4,16 @@ A physics-based Formula 1 simulator.  Lap times are the *result* of simulating
 a car driving a real distance-based track model -- never a random draw and
 never a per-track correction (project rules 2.1 to 2.4).
 
-Current status: **Phase 3 (speed profile)** -- core infrastructure, the track
-model, a car that obeys a real force balance, and a lap time that is the
-integral of a speed profile rather than a number anyone chose.  See
-``docs/ARCHITECTURE.md`` for the full plan and ``docs/PHASE3.md`` for what this
-phase delivers.
+Current status: **Phase 4 (lap simulation)** -- core infrastructure, the track
+model, a car that obeys a real force balance, a lap time that is the integral of
+a speed profile, and a driver who steps that car around the circuit and leaves
+telemetry behind.  See ``docs/ARCHITECTURE.md`` for the full plan and
+``docs/PHASE4.md`` for what this phase delivers.
 """
 
 from __future__ import annotations
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 from .core import (
     EventBus,
@@ -23,6 +23,8 @@ from .core import (
     load_config,
     save_config,
 )
+from .driver import Driver, DriverAttributes, DriverInput
+from .driver.io import builtin_driver_names, load_builtin_driver, load_driver_lineup
 from .environment import AmbientConditions
 from .physics import (
     LapTimeResult,
@@ -41,6 +43,7 @@ from .physics.benchmark import benchmark_vehicle, format_benchmark
 from .physics.lap_validation import validate_lap
 from .physics.setup_search import optimal_wing_level, wing_level_sweep
 from .physics.validation import validate_vehicle
+from .simulation import LapResult, LapSimulator, Telemetry, simulate_lap
 from .track import (
     Track,
     TrackBuilder,
@@ -60,11 +63,17 @@ from .vehicle.io import builtin_vehicle_names, load_builtin_vehicle
 __all__ = [
     "AmbientConditions",
     "CompoundSet",
+    "Driver",
+    "DriverAttributes",
+    "DriverInput",
     "EventBus",
+    "LapResult",
+    "LapSimulator",
     "LapTimeResult",
     "PerformanceLimits",
     "RngHub",
     "SpeedProfile",
+    "Telemetry",
     "SimulationConfig",
     "Track",
     "TrackBuilder",
@@ -80,6 +89,7 @@ __all__ = [
     "__version__",
     "benchmark_vehicle",
     "build_track",
+    "builtin_driver_names",
     "compute_lap_time",
     "compute_speed_profile",
     "builtin_compound_sets",
@@ -90,7 +100,9 @@ __all__ = [
     "format_benchmark",
     "format_lap_result",
     "load_builtin_compounds",
+    "load_builtin_driver",
     "load_builtin_vehicle",
+    "load_driver_lineup",
     "load_config",
     "load_track",
     "longitudinal_forces",
@@ -99,6 +111,7 @@ __all__ = [
     "max_lateral_acceleration",
     "optimal_wing_level",
     "save_config",
+    "simulate_lap",
     "track_report",
     "validate_lap",
     "validate_track",

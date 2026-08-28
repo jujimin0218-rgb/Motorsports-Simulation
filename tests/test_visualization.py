@@ -178,3 +178,26 @@ def test_lap_plots_are_reachable_from_the_package():
     from f1_race_engine import visualization
 
     assert callable(visualization.plot_speed_profile)
+
+
+def test_telemetry_plot_renders(fast_track, car, perfect_driver, tmp_path):
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.simulation import LapSimulator
+    from f1_race_engine.visualization.lap_plots import save_telemetry_comparison
+
+    result = LapSimulator(fast_track, car, perfect_driver, rng=RngHub(1)).simulate()
+    save_telemetry_comparison([result], str(tmp_path / "telemetry.png"))
+    assert (tmp_path / "telemetry.png").stat().st_size > 10_000
+
+
+def test_telemetry_plot_overlays_drivers(fast_track, car, lineup, tmp_path):
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.simulation import LapSimulator
+    from f1_race_engine.visualization.lap_plots import save_telemetry_comparison
+
+    results = [
+        LapSimulator(fast_track, car, driver, rng=RngHub(1)).simulate()
+        for driver in lineup[:3]
+    ]
+    save_telemetry_comparison(results, str(tmp_path / "compare.png"))
+    assert (tmp_path / "compare.png").stat().st_size > 10_000

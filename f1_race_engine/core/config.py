@@ -656,6 +656,70 @@ class SpeedProfileConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class DriverConfig(ConfigNode):
+    """How driver ability turns into lap time.
+
+    Every number here was calibrated by measurement, not chosen.  On the
+    reference circuit, using 94% of the available grip costs 0.86% of lap time;
+    99% costs 0.17%.  Formula 1's best-to-worst one-lap spread in equal
+    machinery is around 1%, so the whole driver field has to live inside a very
+    narrow band of commitment -- which is itself the interesting result.
+    """
+
+    max_commitment_deficit: float = 0.30
+    """Grip a driver with an attribute of 0 leaves unused.
+
+    ``utilisation = 1 - (1 - attribute) * max_commitment_deficit``.  Calibrated
+    against the measured cost of commitment: with Formula 1 drivers spanning
+    attributes of about 0.80 to 0.98, this gives a one-lap spread near 0.6 s on
+    a 68 s lap and teammate gaps of 0.1-0.3 s, which is what the real thing
+    looks like."""
+
+    consistency_sigma: float = 0.12
+    """Commitment scatter of a completely inconsistent driver, scaled by
+    ``(1 - consistency)``.
+
+    Drawn one-sided -- a driver can fall short of the limit but never exceed
+    it -- so inconsistency costs average pace as well as adding scatter, which
+    is the real effect.  Calibrated to give a mid-field driver a lap-to-lap
+    standard deviation near 0.1-0.2 s and a metronome under 0.02 s."""
+
+    corner_sigma_fraction: float = 0.55
+    """Share of the variation that lands per corner rather than per lap.
+    A driver is not uniformly good or bad on a lap -- some corners go better
+    than others, and that is what makes a lap time distribution rather than a
+    single offset."""
+
+    mistake_rate: float = 0.30
+    """Chance per corner, per lap, that a driver with zero risk management and
+    zero consistency makes a mistake.
+
+    Scaled by the *product* of both shortfalls, so a driver has to be weak on
+    each to be genuinely error-prone.  Calibrated so a rookie makes a visible
+    error every few laps and the grid's benchmark roughly once in a hundred."""
+
+    mistake_severity: float = 0.22
+    """Fraction of apex speed lost in a full mistake.  Real lock-ups and runs
+    wide cost a few tenths, which this produces through the driving rather
+    than by adding time to the result."""
+
+    min_commitment: float = 0.5
+    """Floor on commitment, so no combination of noise can stop the car."""
+
+    def validate(self) -> None:
+        require_range(
+            "driver.max_commitment_deficit", self.max_commitment_deficit, 0.0, 0.5
+        )
+        require_non_negative("driver.consistency_sigma", self.consistency_sigma)
+        require_range(
+            "driver.corner_sigma_fraction", self.corner_sigma_fraction, 0.0, 1.0
+        )
+        require_range("driver.mistake_rate", self.mistake_rate, 0.0, 1.0)
+        require_range("driver.mistake_severity", self.mistake_severity, 0.0, 1.0)
+        require_range("driver.min_commitment", self.min_commitment, 0.1, 1.0)
+
+
+@dataclass(frozen=True)
 class PhysicsValidationConfig(ConfigNode):
     """Bounds for the automatic physics sanity checks (project rule 39).
 
@@ -734,6 +798,7 @@ class SimulationConfig(ConfigNode):
     tyres: TyreConfig = field(default_factory=TyreConfig)
     powertrain: PowertrainConfig = field(default_factory=PowertrainConfig)
     speed_profile: SpeedProfileConfig = field(default_factory=SpeedProfileConfig)
+    driver: DriverConfig = field(default_factory=DriverConfig)
     physics_validation: PhysicsValidationConfig = field(
         default_factory=PhysicsValidationConfig
     )

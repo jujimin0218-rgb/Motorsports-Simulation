@@ -1,0 +1,22 @@
+{
+  "name": "Alex Rensen",
+  "abbreviation": "REN",
+  "number": 1,
+  "team": "Apex Racing",
+  "attributes": {
+    "pace": 0.98,
+    "qualifying": 0.97,
+    "racecraft": 0.96,
+    "consistency": 0.96,
+    "tyre_management": 0.94,
+    "braking": 0.97,
+    "cornering": 0.98,
+    "throttle_control": 0.96,
+    "wet_skill": 0.95,
+    "risk_management": 0.93
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "The grid's reference. Strong everywhere, with no obvious way to beat him on a single lap."
+  }
+}

@@ -6,9 +6,10 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phase 3 (speed profile) complete.** Core infrastructure, the track
-model, a car whose behaviour comes out of a real force balance, and a lap time
-that is the integral of a speed profile. No driver yet — that is Phase 4.
+**Status: Phase 4 (lap simulation) complete.** Core infrastructure, the track
+model, a car whose behaviour comes out of a real force balance, a lap time that
+is the integral of a speed profile, and a driver who steps that car around the
+circuit and leaves telemetry behind. No tyre wear or fuel burn yet — Phase 5.
 
 ## Quick start
 
@@ -26,12 +27,15 @@ python examples/07_visualise_vehicle.py         # force balance, g-g, cornering
 python examples/08_lap_time.py --validate      # lap time + automatic checks
 python examples/09_setup_per_circuit.py        # the circuit chooses the setup
 python examples/10_visualise_lap.py            # speed profile, zones, g trace
+python examples/11_driver_stint.py            # a stint, driver by driver
+python examples/12_driver_telemetry.py        # telemetry CSV + overlay plot
 ```
 
 ```python
 from f1_race_engine import (
-    Vehicle, benchmark_vehicle, compute_lap_time, load_builtin_vehicle,
-    load_track, validate_vehicle, wing_level_sweep,
+    Vehicle, benchmark_vehicle, compute_lap_time, load_builtin_driver,
+    load_builtin_vehicle, load_track, simulate_lap, validate_vehicle,
+    wing_level_sweep,
 )
 
 track = load_track("synthetic_proving_ground")   # built and validated
@@ -45,6 +49,10 @@ print(benchmark_vehicle(car).peak_lateral_g)     # 5.40 -- integrated, not set
 lap = compute_lap_time(track, car)
 print(lap.formatted, lap.sector_times)           # 1:08.632 -- nobody chose this
 print(wing_level_sweep(track, car).best)         # the circuit picks its setup
+
+driver = load_builtin_driver("02_qualifier")
+run = simulate_lap(track, car, driver, qualifying=True)
+print(run.formatted, run.telemetry.full_throttle_fraction)
 ```
 
 ## What is here
@@ -56,9 +64,11 @@ print(wing_level_sweep(track, car).best)         # the circuit picks its setup
 | `f1_race_engine/vehicle/` | Mass, aero, power unit, brakes, setup — separable systems |
 | `f1_race_engine/tyres/` | Compounds, load sensitivity, friction ellipse |
 | `f1_race_engine/physics/` | Force balance, cornering, speed profile, lap time, validation |
+| `f1_race_engine/driver/` | Ten separate abilities, each connected to the car |
+| `f1_race_engine/simulation/` | The lap stepping loop and telemetry |
 | `f1_race_engine/environment/` | Air density from real atmospheric physics |
 | `f1_race_engine/visualization/` | SVG circuit maps (no dependencies), matplotlib diagnostics |
-| `f1_race_engine/data/` | Three circuits, three cars, five tyre compounds |
+| `f1_race_engine/data/` | Three circuits, three cars, five compounds, six drivers |
 
 The engine core has **no third-party dependencies**. matplotlib is an optional
 extra used only for debug plots.
@@ -69,12 +79,13 @@ extra used only for debug plots.
 - [`docs/PHASE1.md`](docs/PHASE1.md) — the track model, with benchmark output
 - [`docs/PHASE2.md`](docs/PHASE2.md) — the car, benchmarked against real F1 figures
 - [`docs/PHASE3.md`](docs/PHASE3.md) — the lap, and why circuits want different cars
+- [`docs/PHASE4.md`](docs/PHASE4.md) — the driver, and what each ability is worth
 
 ## Roadmap
 
-Phases 1-3 done. Next: 4 lap simulation & driver · 5 tyres/fuel/ERS ·
-6 multi-car · 7 qualifying & race · 8 strategy & pit stops · 9 overtaking ·
-10 weather · 11 race events · 12 advanced physics.
+Phases 1-4 done. Next: 5 tyres/fuel/ERS · 6 multi-car · 7 qualifying & race ·
+8 strategy & pit stops · 9 overtaking · 10 weather · 11 race events ·
+12 advanced physics.
 
 A web layer (FastAPI + React) and a season-management game sit **on top** of the
 engine; the engine itself stays UI-free and JSON-serialisable.

@@ -153,3 +153,43 @@ def fast_lap(fast_track, reference_spec):
     from f1_race_engine.vehicle import MEDIUM_DOWNFORCE, Vehicle
 
     return compute_lap_time(fast_track, Vehicle(reference_spec, MEDIUM_DOWNFORCE))
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: drivers
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def perfect_driver():
+    """A driver with no shortfall and no variation.
+
+    Reproduces the Phase 3 limit lap exactly, which is the test that says the
+    stepping is right.
+    """
+    from f1_race_engine.driver import Driver, DriverAttributes
+
+    return Driver(
+        name="Perfect Reference",
+        abbreviation="REF",
+        attributes=DriverAttributes(
+            pace=1.0, qualifying=1.0, racecraft=1.0, consistency=1.0,
+            tyre_management=1.0, braking=1.0, cornering=1.0,
+            throttle_control=1.0, wet_skill=1.0, risk_management=1.0,
+        ),
+    )
+
+
+@pytest.fixture(scope="session")
+def lineup():
+    from f1_race_engine.driver.io import load_driver_lineup
+
+    return load_driver_lineup()
+
+
+@pytest.fixture
+def simulator(fast_track, car, perfect_driver):
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.simulation import LapSimulator
+
+    return LapSimulator(fast_track, car, perfect_driver, rng=RngHub(20260812))

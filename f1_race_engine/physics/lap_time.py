@@ -60,7 +60,13 @@ class LapTimeResult:
     max_braking_g: float
     max_acceleration_g: float
     full_throttle_fraction: float
-    """Fraction of the lap distance spent accelerating at the limit."""
+    """Fraction of the lap *distance* spent accelerating under power.
+
+    Distance-weighted, and it counts any positive drive.  The time-weighted,
+    pedal-at-100% figure teams quote is
+    :attr:`~f1_race_engine.simulation.telemetry.Telemetry.full_throttle_fraction`,
+    which comes out lower on the same lap and is the one to compare with real
+    telemetry."""
 
     braking_fraction: float
     cornering_limited_fraction: float

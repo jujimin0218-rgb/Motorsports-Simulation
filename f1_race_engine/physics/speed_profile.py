@@ -42,6 +42,7 @@ than assuming a free longitudinal budget.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -402,12 +403,20 @@ def compute_speed_profile(
     tyre_state: TyreState | None = None,
     conditions: TrackConditions | None = None,
     limits: PerformanceLimits | None = None,
+    corner_limit_override: Sequence[float] | None = None,
     config: SimulationConfig | SpeedProfileConfig | None = None,
 ) -> SpeedProfile:
     """Compute the speed profile for ``vehicle`` around ``track``.
 
     The result is the pointwise minimum of the cornering limit, what braking
     allows on the way in, and what acceleration allows on the way out.
+
+    ``corner_limit_override`` replaces the computed cornering limit with one
+    supplied by the caller, keeping the forward and backward passes.  Phase 4
+    uses it to vary a driver's commitment corner by corner and to make a
+    mistake cost apex speed -- the passes then propagate the consequences down
+    the following straight on their own, which is what makes a mistake cost
+    time through the driving rather than by adding it to the result.
     """
     conditions_ = ambient or AmbientConditions()
     if isinstance(config, SimulationConfig):
@@ -420,16 +429,24 @@ def compute_speed_profile(
     car_mass = vehicle.total_mass() if mass is None else mass
     tyres = tyre_state or TyreState()
 
-    limit = cornering_limits(
-        track,
-        vehicle,
-        conditions_,
-        mass=car_mass,
-        tyre_state=tyres,
-        conditions=conditions,
-        limits=limits_,
-        config=cfg,
-    )
+    if corner_limit_override is None:
+        limit = cornering_limits(
+            track,
+            vehicle,
+            conditions_,
+            mass=car_mass,
+            tyre_state=tyres,
+            conditions=conditions,
+            limits=limits_,
+            config=cfg,
+        )
+    else:
+        if len(corner_limit_override) != len(track.segments):
+            raise ConfigError(
+                f"corner_limit_override has {len(corner_limit_override)} entries "
+                f"but the track has {len(track.segments)} segments"
+            )
+        limit = [max(v, cfg.minimum_speed) for v in corner_limit_override]
     speed = list(limit)
     count = len(speed)
     if count == 0:  # pragma: no cover - a Track cannot be empty

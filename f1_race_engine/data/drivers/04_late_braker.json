@@ -1,0 +1,22 @@
+{
+  "name": "Tomas Reyes",
+  "abbreviation": "REY",
+  "number": 7,
+  "team": "Northbridge",
+  "attributes": {
+    "pace": 0.91,
+    "qualifying": 0.92,
+    "racecraft": 0.94,
+    "consistency": 0.86,
+    "tyre_management": 0.82,
+    "braking": 0.99,
+    "cornering": 0.9,
+    "throttle_control": 0.83,
+    "wet_skill": 0.86,
+    "risk_management": 0.78
+  },
+  "metadata": {
+    "fictional": true,
+    "notes": "Brakes later than anyone and struggles for traction on the way out. Should gain on circuits with heavy braking zones and lose where corner exit dominates."
+  }
+}
