@@ -17,7 +17,15 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 
 from ..game.errors import SaveNotFound
-from ..schemas.common import LoadRequest, NewGameRequest, SaveRequest
+from ..schemas.common import (
+    ContractOfferRequest,
+    FacilityRequest,
+    InvestRequest,
+    LoadRequest,
+    NewGameRequest,
+    SaveRequest,
+    SponsorRequest,
+)
 from ..services.game_service import GameService
 from .dependencies import get_service
 
@@ -178,3 +186,88 @@ def list_jobs(
     service: GameService = Depends(get_service),
 ) -> list[dict[str, Any]]:
     return [job.to_dict() for job in service.jobs.recent(limit)]
+
+
+# -- between the races -------------------------------------------------------
+
+
+@router.get("/rd", summary="What this team could develop, and what it would get")
+def read_development(
+    team: str | None = Query(default=None, description="Defaults to the player's team."),
+    service: GameService = Depends(get_service),
+) -> dict[str, Any]:
+    return service.development_options(team)
+
+
+@router.post("/rd/invest", summary="Commission an upgrade")
+def invest(
+    request: InvestRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.commission_upgrade(
+        area=request.area, points=request.points, rushed=request.rushed
+    )
+
+
+@router.get("/upgrades")
+def read_upgrades(
+    team: str | None = Query(default=None),
+    service: GameService = Depends(get_service),
+) -> list[dict[str, Any]]:
+    return service.upgrades(team)
+
+
+@router.post("/facilities/upgrade")
+def upgrade_facility(
+    request: FacilityRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.upgrade_facility(request.facility)
+
+
+@router.get("/finances")
+def read_finances(
+    team: str | None = Query(default=None),
+    service: GameService = Depends(get_service),
+) -> dict[str, Any]:
+    return service.finances(team)
+
+
+@router.get("/sponsors")
+def read_sponsors(
+    team: str | None = Query(default=None),
+    service: GameService = Depends(get_service),
+) -> list[dict[str, Any]]:
+    return service.available_sponsors(team)
+
+
+@router.post("/sponsors/sign")
+def sign_sponsor(
+    request: SponsorRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.sign_sponsor(request.sponsor_id)
+
+
+@router.post("/contracts/negotiate", summary="Ask, without committing")
+def negotiate(
+    request: ContractOfferRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.negotiate(
+        request.driver_id,
+        salary=request.salary,
+        seasons=request.seasons,
+        signing_bonus=request.signing_bonus,
+        performance_bonus=request.performance_bonus,
+    )
+
+
+@router.post("/contracts/sign", summary="Make the offer for real")
+def sign_driver(
+    request: ContractOfferRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.sign_driver(
+        request.driver_id,
+        salary=request.salary,
+        seasons=request.seasons,
+        signing_bonus=request.signing_bonus,
+        performance_bonus=request.performance_bonus,
+        seat=request.seat,
+    )

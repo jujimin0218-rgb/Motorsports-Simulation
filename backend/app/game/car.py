@@ -16,7 +16,7 @@ the car is*, not a lap-time bonus.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .errors import UnknownEntity

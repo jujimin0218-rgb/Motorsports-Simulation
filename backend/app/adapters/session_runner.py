@@ -22,10 +22,10 @@ gets new ones.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Sequence
+from typing import Callable, Sequence
 
 from f1_race_engine.core.rng import RngHub
-from f1_race_engine.environment import AmbientConditions, Forecast
+from f1_race_engine.environment import AmbientConditions
 from f1_race_engine.race import (
     QualifyingResult,
     RaceEntry,

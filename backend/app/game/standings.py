@@ -12,7 +12,7 @@ What a position is worth is not decided here -- it comes from
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Iterable, Sequence
 
 from .rules import Rules

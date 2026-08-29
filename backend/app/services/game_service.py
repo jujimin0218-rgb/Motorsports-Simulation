@@ -14,16 +14,15 @@ game asks the round machine whether this is the moment for it first.
 from __future__ import annotations
 
 import threading
-from typing import Any, Callable
+from typing import Any
 
-from ..adapters import session_runner
 from ..game.calendar import RoundPhase
-from ..game.errors import GameError, InvalidGamePhase, SaveNotFound, UnknownEntity
+from ..game.errors import InvalidGamePhase, SaveNotFound, UnknownEntity
 from ..game.newgame import available_teams, new_game
 from ..game.state import GameState
-from . import round_service
+from . import management_service, round_service
 from .jobs import Job, JobRunner
-from .storage import AUTOSAVE_SLOT, SaveStore, SaveSummary
+from .storage import SaveStore, SaveSummary
 
 __all__ = ["GameService"]
 
@@ -285,3 +284,70 @@ class GameService:
 
     def next_round(self) -> dict[str, Any]:
         return round_service.advance_to_next_round(self.state).to_dict()
+
+    # -- between the races ---------------------------------------------------
+
+    def _team_id(self, team_id: str | None) -> str:
+        """Whose team an endpoint is talking about.
+
+        Defaults to the player's.  A named team is allowed for reading -- a
+        player can look at what a rival has been developing -- and the write
+        operations below all resolve to the player's own regardless, because
+        spending somebody else's money is not a move.
+        """
+        return team_id or self.state.player_team
+
+    def development_options(self, team_id: str | None = None) -> dict[str, Any]:
+        return management_service.development_options(self.state, self._team_id(team_id))
+
+    def upgrades(self, team_id: str | None = None) -> list[dict[str, Any]]:
+        return [u.to_dict() for u in self.state.upgrades_for(self._team_id(team_id))]
+
+    def commission_upgrade(
+        self, *, area: str, points: float, rushed: float = 0.0
+    ) -> dict[str, Any]:
+        with self._lock:
+            upgrade = management_service.commission_upgrade(
+                self.state,
+                self.state.player_team,
+                area=area,
+                points=points,
+                rushed=rushed,
+            )
+            self._touch()
+            return upgrade.to_dict()
+
+    def upgrade_facility(self, facility: str) -> dict[str, Any]:
+        with self._lock:
+            result = management_service.upgrade_facility(
+                self.state, self.state.player_team, facility
+            )
+            self._touch()
+            return result
+
+    def finances(self, team_id: str | None = None) -> dict[str, Any]:
+        return management_service.finances(self.state, self._team_id(team_id))
+
+    def available_sponsors(self, team_id: str | None = None) -> list[dict[str, Any]]:
+        return management_service.available_sponsors(self.state, self._team_id(team_id))
+
+    def sign_sponsor(self, sponsor_id: str) -> dict[str, Any]:
+        with self._lock:
+            result = management_service.sign_sponsor(
+                self.state, self.state.player_team, sponsor_id
+            )
+            self._touch()
+            return result
+
+    def negotiate(self, driver_id: str, **terms: Any) -> dict[str, Any]:
+        return management_service.negotiate(
+            self.state, self.state.player_team, driver_id, **terms
+        )
+
+    def sign_driver(self, driver_id: str, **terms: Any) -> dict[str, Any]:
+        with self._lock:
+            result = management_service.sign_driver(
+                self.state, self.state.player_team, driver_id, **terms
+            )
+            self._touch()
+            return result

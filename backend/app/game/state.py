@@ -24,7 +24,9 @@ from typing import Any, Iterable
 
 from .calendar import Calendar, Circuit, Round, RoundPhase
 from .car import EngineSupplier
+from .development import Upgrade
 from .errors import UnknownEntity
+from .finance import SponsorDeal
 from .people import DriverProfile
 from .rng import GameRng
 from .rules import Rules
@@ -101,6 +103,11 @@ class GameState:
     is what a replay is played back from, and it is deliberately the engine's
     output rather than a summary of it."""
 
+    upgrades: list[Upgrade] = field(default_factory=list)
+    """Every project any team has commissioned this season, finished or not."""
+
+    sponsor_deals: list[SponsorDeal] = field(default_factory=list)
+
     history: list[SeasonRecord] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     name: str = "New Game"
@@ -141,6 +148,37 @@ class GameState:
     @property
     def free_agents(self) -> list[DriverProfile]:
         return [d for d in self.drivers.values() if d.is_free_agent]
+
+    # -- what a team has going on --------------------------------------------
+
+    def upgrades_for(self, team_id: str) -> list[Upgrade]:
+        return [u for u in self.upgrades if u.team_id == team_id]
+
+    def upgrades_in_development(self, team_id: str) -> list[Upgrade]:
+        return [u for u in self.upgrades_for(team_id) if u.in_development]
+
+    def upgrades_arriving(self, round_number: int) -> list[Upgrade]:
+        """Projects due to be fitted at this round, whoever owns them."""
+        return [
+            u
+            for u in self.upgrades
+            if u.in_development and u.arrives_at_round <= round_number
+        ]
+
+    def sponsor_deals_for(self, team_id: str) -> list[SponsorDeal]:
+        return [d for d in self.sponsor_deals if d.team_id == team_id]
+
+    def fragility_for(self, team_id: str, round_number: int) -> float:
+        """How much extra failure rate this team's new parts are carrying.
+
+        A car running three fresh upgrades is a car with three things on it
+        nobody has raced, and the engine charges that as a hazard rate rather
+        than as a chance of a DNF.
+        """
+        return sum(
+            upgrade.fragility_at(round_number)
+            for upgrade in self.upgrades_for(team_id)
+        )
 
     # -- where the season has got to -----------------------------------------
 
@@ -242,6 +280,8 @@ class GameState:
             "engines": {eid: e.to_dict() for eid, e in self.engines.items()},
             "outcomes": [o.to_dict() for o in self.outcomes],
             "race_archive": self.race_archive,
+            "upgrades": [u.to_dict() for u in self.upgrades],
+            "sponsor_deals": [d.to_dict() for d in self.sponsor_deals],
             "history": [record.to_dict() for record in self.history],
         }
 
@@ -274,6 +314,10 @@ class GameState:
             },
             outcomes=[RaceOutcome.from_dict(o) for o in data.get("outcomes", [])],
             race_archive=dict(data.get("race_archive", {})),
+            upgrades=[Upgrade.from_dict(u) for u in data.get("upgrades", [])],
+            sponsor_deals=[
+                SponsorDeal.from_dict(d) for d in data.get("sponsor_deals", [])
+            ],
             history=[SeasonRecord.from_dict(h) for h in data.get("history", [])],
             created_at=float(data.get("created_at", time.time())),
             name=str(data.get("name", "New Game")),

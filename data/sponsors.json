@@ -1,0 +1,145 @@
+{
+  "_comment": "Fictional sponsors -- see data/engines/engines.json for why.  Payments are in millions per season.  A sponsor is a bet on a team: the base payment is what they pay for the space, and the bonus is what they pay for the result. reputation_required is the gate -- the big money will not go on a car nobody is watching, which is why reputation is worth building.",
+  "sponsors": [
+    {
+      "id": "meridian_bank",
+      "name": "Meridian Bank",
+      "sector": "finance",
+      "base_payment": 42.0,
+      "reputation_required": 0.88,
+      "target": {
+        "kind": "constructors_position",
+        "value": 2
+      },
+      "bonus": 22.0,
+      "penalty": 12.0,
+      "seasons": 3
+    },
+    {
+      "id": "helion_energy",
+      "name": "Helion Energy",
+      "sector": "energy",
+      "base_payment": 34.0,
+      "reputation_required": 0.8,
+      "target": {
+        "kind": "constructors_position",
+        "value": 3
+      },
+      "bonus": 16.0,
+      "penalty": 9.0,
+      "seasons": 2
+    },
+    {
+      "id": "atlas_logistics",
+      "name": "Atlas Logistics",
+      "sector": "logistics",
+      "base_payment": 26.0,
+      "reputation_required": 0.7,
+      "target": {
+        "kind": "constructors_position",
+        "value": 5
+      },
+      "bonus": 11.0,
+      "penalty": 6.0,
+      "seasons": 3
+    },
+    {
+      "id": "kestrel_watches",
+      "name": "Kestrel Watches",
+      "sector": "luxury",
+      "base_payment": 21.0,
+      "reputation_required": 0.62,
+      "target": {
+        "kind": "podiums",
+        "value": 4
+      },
+      "bonus": 9.0,
+      "penalty": 4.0,
+      "seasons": 2
+    },
+    {
+      "id": "novaline_telecom",
+      "name": "Novaline Telecom",
+      "sector": "telecom",
+      "base_payment": 17.0,
+      "reputation_required": 0.55,
+      "target": {
+        "kind": "constructors_position",
+        "value": 7
+      },
+      "bonus": 7.0,
+      "penalty": 3.0,
+      "seasons": 2
+    },
+    {
+      "id": "grit_tools",
+      "name": "Grit Tools",
+      "sector": "industrial",
+      "base_payment": 12.0,
+      "reputation_required": 0.45,
+      "target": {
+        "kind": "points_finishes",
+        "value": 8
+      },
+      "bonus": 5.0,
+      "penalty": 2.0,
+      "seasons": 3
+    },
+    {
+      "id": "harbour_insurance",
+      "name": "Harbour Insurance",
+      "sector": "finance",
+      "base_payment": 9.0,
+      "reputation_required": 0.35,
+      "target": {
+        "kind": "constructors_position",
+        "value": 9
+      },
+      "bonus": 4.0,
+      "penalty": 1.5,
+      "seasons": 2
+    },
+    {
+      "id": "vantage_media",
+      "name": "Vantage Media",
+      "sector": "media",
+      "base_payment": 6.5,
+      "reputation_required": 0.25,
+      "target": {
+        "kind": "points_finishes",
+        "value": 2
+      },
+      "bonus": 3.0,
+      "penalty": 1.0,
+      "seasons": 1
+    },
+    {
+      "id": "orbit_software",
+      "name": "Orbit Software",
+      "sector": "technology",
+      "base_payment": 15.0,
+      "reputation_required": 0.52,
+      "target": {
+        "kind": "wins",
+        "value": 1
+      },
+      "bonus": 12.0,
+      "penalty": 0.0,
+      "seasons": 2
+    },
+    {
+      "id": "pinehill_drinks",
+      "name": "Pinehill Drinks",
+      "sector": "consumer",
+      "base_payment": 11.0,
+      "reputation_required": 0.4,
+      "target": {
+        "kind": "podiums",
+        "value": 1
+      },
+      "bonus": 6.0,
+      "penalty": 2.0,
+      "seasons": 1
+    }
+  ]
+}

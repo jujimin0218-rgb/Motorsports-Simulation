@@ -25,9 +25,11 @@ from typing import Any
 from f1_race_engine.race import QualifyingResult, RaceResult
 
 from ..adapters import session_runner
+from ..game import ai, development, finance
 from ..game.calendar import Round, RoundPhase
+from ..game.development import Upgrade
+from ..game.finance import Ledger
 from ..game.errors import InvalidGamePhase, RaceAlreadyCompleted
-from ..game.standings import RaceOutcome
 from ..game.state import GameState
 
 __all__ = [
@@ -242,24 +244,80 @@ def _archive(result: RaceResult, field: list[session_runner.FieldEntry]) -> dict
 def run_development(state: GameState) -> RoundReport:
     """Close the weekend out.
 
-    Phase 3 spends the round's research here.  For now it books the research
-    the round earned and closes the round, so that the season advances.
+    Four things happen here and they happen in this order for a reason.  Parts
+    commissioned earlier are fitted *first*, so the research a team banks this
+    round is measured against the car it will actually run next time.  Then the
+    round is paid for -- salaries, the engine deal, the people, against the
+    sponsors.  Then the factory's work is booked.  Then the AI teams spend, with
+    the same information the player had.
     """
     entry = _current(state)
     entry.require(RoundPhase.RESULT)
     entry.advance(RoundPhase.RESULT)  # -> development
 
-    rules = state.rules.development
+    fitted = _fit_arriving_upgrades(state, entry.number)
+    ledgers = _settle_round(state, entry.number)
+    earned = _award_research(state)
+    decisions = ai.run_ai_development(state)
+
+    entry.advance(RoundPhase.DEVELOPMENT)  # -> complete
+    return RoundReport(
+        entry.number,
+        entry.phase,
+        {
+            "upgrades_fitted": [u.to_dict() for u in fitted],
+            "rd_points_earned": earned,
+            "finances": {tid: led.to_dict() for tid, led in ledgers.items()},
+            "ai": [d.to_dict() for d in decisions],
+        },
+    )
+
+
+def _fit_arriving_upgrades(state: GameState, round_number: int) -> list[Upgrade]:
+    """Fit -- or write off -- every project that has come due.
+
+    A failed project is not a refund: the research and the money went either
+    way, which is what makes commissioning one a decision rather than a
+    formality.
+    """
+    fitted: list[Upgrade] = []
+    for upgrade in state.upgrades_arriving(round_number):
+        stream = state.round_rng(round_number).stream(
+            "development.resolve", upgrade=upgrade.id
+        )
+        development.resolve(upgrade, state.team(upgrade.team_id), stream)
+        fitted.append(upgrade)
+    return fitted
+
+
+def _settle_round(state: GameState, round_number: int) -> dict[str, Ledger]:
+    """Pay for the round, for everybody."""
+    ledgers: dict[str, Ledger] = {}
+    for team in state.teams.values():
+        ledger = finance.round_costs(state, team.id, round_number=round_number)
+        finance.apply(ledger, team)
+        ledgers[team.id] = ledger
+    return ledgers
+
+
+def _award_research(state: GameState) -> dict[str, float]:
+    """Book the factory's work, on the sliding scale.
+
+    The championship position is *this* season's, so a team that has fallen
+    back gets more allowance from the next round onwards -- which is the
+    regulation doing what it exists to do, in season rather than after it.
+    """
+    standings = state.standings()
     earned: dict[str, float] = {}
     for team in state.teams.values():
-        points = rules.rd_points_per_round_base * (
-            1.0 + rules.facility_multiplier_per_level * (team.facilities.average_level - 3)
+        points = development.research_earned(
+            team,
+            state.rules.development,
+            position=standings.team_position(team.id) or team.prize_position,
         )
         team.rd_points += points
         earned[team.id] = round(points, 2)
-
-    entry.advance(RoundPhase.DEVELOPMENT)  # -> complete
-    return RoundReport(entry.number, entry.phase, {"rd_points_earned": earned})
+    return earned
 
 
 def advance_to_next_round(state: GameState) -> RoundReport:

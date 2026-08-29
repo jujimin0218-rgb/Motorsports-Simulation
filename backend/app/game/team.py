@@ -48,21 +48,56 @@ class Team:
     """Head count.  Raises the research a round produces and the cost of
     producing it, which is what makes a big team expensive to be."""
 
+    prize_position: int = 5
+    """Where this team finished the constructors' championship last season.
+
+    Prize money is paid on it, in instalments across this season, which is how
+    the real thing works and is what keeps a team solvent between January and
+    the first cheque.  A new game seeds it from the order the teams are in."""
+
+    season_spending: float = 0.0
+    """What this team has spent against the cost cap this season, in millions.
+
+    Driver salaries are outside it, as they are in the real regulation, which
+    is why a team can pay for a champion and still develop -- and why the cap
+    bites hardest on the team trying to out-develop everyone."""
+
     # -- money ---------------------------------------------------------------
 
     def can_afford(self, amount: float) -> bool:
         return self.budget >= amount
 
-    def spend(self, amount: float, *, what: str = "") -> None:
-        """Take money out, refusing rather than going quietly negative."""
+    def cap_headroom(self, cap: float) -> float:
+        """What this team may still spend against the cost cap this season."""
+        return max(0.0, cap - self.season_spending)
+
+    def spend(
+        self, amount: float, *, what: str = "", cap: float | None = None
+    ) -> None:
+        """Take money out, refusing rather than going quietly negative.
+
+        ``cap`` brings the cost cap into it.  Spending that counts against the
+        cap -- building parts, putting up buildings -- is refused once the
+        allowance is gone, whatever is left in the bank.  That is the point of
+        a cap: it stops the richest team from simply outspending, and it means
+        money and *allowance* are two different resources to run out of.
+        """
         if amount < 0.0:
             raise InsufficientBudget("cannot spend a negative amount")
+        detail = f" on {what}" if what else ""
         if not self.can_afford(amount):
-            detail = f" on {what}" if what else ""
             raise InsufficientBudget(
                 f"{self.name} cannot afford {amount:.1f}M{detail} "
                 f"(budget {self.budget:.1f}M)"
             )
+        if cap is not None:
+            headroom = self.cap_headroom(cap)
+            if amount > headroom:
+                raise InsufficientBudget(
+                    f"{self.name} has {headroom:.1f}M of cost-cap allowance "
+                    f"left, not {amount:.1f}M{detail}"
+                )
+            self.season_spending += amount
         self.budget -= amount
 
     def earn(self, amount: float) -> None:
@@ -99,6 +134,8 @@ class Team:
             "rd_points": round(self.rd_points, 4),
             "drivers": list(self.drivers),
             "staff": self.staff,
+            "prize_position": self.prize_position,
+            "season_spending": round(self.season_spending, 4),
         }
 
     @classmethod
@@ -115,4 +152,6 @@ class Team:
             rd_points=float(data.get("rd_points", 0.0)),
             drivers=list(data.get("drivers", [])),
             staff=int(data.get("staff", 600)),
+            prize_position=int(data.get("prize_position", 5)),
+            season_spending=float(data.get("season_spending", 0.0)),
         )

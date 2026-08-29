@@ -3,22 +3,62 @@
   "season_length": 22,
   "cars_per_team": 2,
   "points": {
-    "race": [25, 18, 15, 12, 10, 8, 6, 4, 2, 1],
+    "race": [
+      25,
+      18,
+      15,
+      12,
+      10,
+      8,
+      6,
+      4,
+      2,
+      1
+    ],
     "fastest_lap": 1,
     "fastest_lap_within_position": 10,
-    "sprint": [8, 7, 6, 5, 4, 3, 2, 1]
+    "sprint": [
+      8,
+      7,
+      6,
+      5,
+      4,
+      3,
+      2,
+      1
+    ]
   },
   "qualifying": {
     "segments": [
-      {"name": "Q1", "eliminated": 5},
-      {"name": "Q2", "eliminated": 5},
-      {"name": "Q3", "eliminated": 0}
+      {
+        "name": "Q1",
+        "eliminated": 5
+      },
+      {
+        "name": "Q2",
+        "eliminated": 5
+      },
+      {
+        "name": "Q3",
+        "eliminated": 0
+      }
     ]
   },
   "prize_money": {
-    "_comment": "Paid at season end on constructors' position, in millions.  Game-balance values, not a published F1 payout table.",
-    "per_position": [140, 120, 105, 92, 80, 70, 62, 55, 48, 42],
-    "per_point": 0.35
+    "_comment": "Paid at season end on constructors' position, in millions.  Game-balance values, not a published F1 payout table.  Set so that a season roughly balances: a good team ends up with money for next year's car and a bad one has to choose.",
+    "per_position": [
+      98,
+      86,
+      76,
+      68,
+      61,
+      55,
+      50,
+      46,
+      42,
+      39
+    ],
+    "per_point": 0.055
   },
   "budget": {
     "_comment": "Millions.  A cost cap that bites is what makes R&D a choice rather than a slider.",

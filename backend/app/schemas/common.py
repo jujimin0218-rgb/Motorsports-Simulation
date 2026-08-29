@@ -10,16 +10,17 @@ lose.
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 __all__ = [
+    "ContractOfferRequest",
     "ErrorResponse",
+    "FacilityRequest",
     "InvestRequest",
     "LoadRequest",
     "NewGameRequest",
     "SaveRequest",
+    "SponsorRequest",
     "StrategyRequest",
 ]
 
@@ -76,6 +77,35 @@ class StrategyRequest(BaseModel):
 class InvestRequest(BaseModel):
     area: str = Field(description="One of the car's six development areas.")
     points: float = Field(gt=0.0, description="Research points to spend.")
+    rushed: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Shorten the project.  Half the time costs half again the money "
+            "and a materially worse chance of the part working."
+        ),
+    )
+
+
+class FacilityRequest(BaseModel):
+    facility: str = Field(description="One of the six departments.")
+
+
+class ContractOfferRequest(BaseModel):
+    driver_id: str
+    salary: float = Field(gt=0.0, description="Millions per season.")
+    seasons: int = Field(default=2, ge=1, le=5)
+    signing_bonus: float = Field(default=0.0, ge=0.0)
+    performance_bonus: float = Field(default=0.0, ge=0.0)
+    seat: int | None = Field(
+        default=None,
+        description="Which car to put them in.  Required when both seats are full.",
+    )
+
+
+class SponsorRequest(BaseModel):
+    sponsor_id: str
 
 
 class ErrorResponse(BaseModel):

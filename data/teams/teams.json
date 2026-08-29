@@ -24,7 +24,8 @@
         "mechanical_grip": 0.92,
         "tyre_management": 0.9,
         "reliability": 0.9
-      }
+      },
+      "staff": 1050
     },
     {
       "id": "apex_gp",
@@ -49,7 +50,8 @@
         "mechanical_grip": 0.955,
         "tyre_management": 0.885,
         "reliability": 0.885
-      }
+      },
+      "staff": 1000
     },
     {
       "id": "scuderia_lucente",
@@ -74,7 +76,8 @@
         "mechanical_grip": 0.905,
         "tyre_management": 0.925,
         "reliability": 0.865
-      }
+      },
+      "staff": 980
     },
     {
       "id": "brackley_united",
@@ -99,7 +102,8 @@
         "mechanical_grip": 0.88,
         "tyre_management": 0.92,
         "reliability": 0.82
-      }
+      },
+      "staff": 850
     },
     {
       "id": "meridian",
@@ -124,7 +128,8 @@
         "mechanical_grip": 0.87,
         "tyre_management": 0.82,
         "reliability": 0.81
-      }
+      },
+      "staff": 780
     },
     {
       "id": "aurora",
@@ -149,7 +154,8 @@
         "mechanical_grip": 0.808,
         "tyre_management": 0.838,
         "reliability": 0.838
-      }
+      },
+      "staff": 700
     },
     {
       "id": "northgate",
@@ -174,7 +180,8 @@
         "mechanical_grip": 0.848,
         "tyre_management": 0.818,
         "reliability": 0.788
-      }
+      },
+      "staff": 640
     },
     {
       "id": "veloce",
@@ -199,7 +206,8 @@
         "mechanical_grip": 0.758,
         "tyre_management": 0.768,
         "reliability": 0.808
-      }
+      },
+      "staff": 580
     },
     {
       "id": "cobalt",
@@ -224,7 +232,8 @@
         "mechanical_grip": 0.778,
         "tyre_management": 0.798,
         "reliability": 0.728
-      }
+      },
+      "staff": 500
     },
     {
       "id": "harrow",
@@ -249,7 +258,8 @@
         "mechanical_grip": 0.768,
         "tyre_management": 0.758,
         "reliability": 0.718
-      }
+      },
+      "staff": 430
     }
   ]
 }

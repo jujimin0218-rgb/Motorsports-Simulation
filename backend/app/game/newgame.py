@@ -84,6 +84,14 @@ def load_static_data() -> tuple[
             )
         drivers[profile.id] = profile
 
+    # Last season's finish, which this season's prize money is paid on.  A new
+    # game has no last season, so the teams are seeded in the order their data
+    # puts them -- which is the order they would have finished in.
+    for position, team in enumerate(
+        sorted(teams.values(), key=lambda t: -t.car.overall), start=1
+    ):
+        team.prize_position = position
+
     # Seat the drivers.  Done from the drivers' side rather than the teams' so
     # that the two can never disagree about who drives what.
     for profile in drivers.values():

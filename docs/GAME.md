@@ -78,6 +78,80 @@ The engine's other four attributes — braking, cornering, throttle control, ris
 management — are derived from the ratings above rather than stored separately,
 so each ability has one source of truth.
 
+## The management game
+
+Three resources, and they buy different things on different timescales. That is
+the whole design: a game where every decision is bought with the same currency
+has no decisions in it.
+
+**Money** buys a driver now. **Research** buys car performance over a few
+rounds. **Reputation** buys the *option* to sign the driver or the sponsor at
+all, and takes a season to move. There is also a fourth thing to run out of --
+**cost-cap allowance**, which is not money and cannot be topped up.
+
+### Development is concave, twice
+
+Progress in an area goes as `invested ** e` with `e` below one, *and* it is
+proportional to the headroom left in that area. So:
+
+- the tenth upgrade to the aerodynamics is worth a fraction of the first;
+- a car at 0.95 gains a fraction of what a car at 0.70 gains from the same
+  research.
+
+Concavity alone turned out not to be enough, and the measurement said so: run
+whole seasons with the shipped grid and the field barely closed at all, because
+a big team earns far more research from its factory and its head count than a
+small one and that advantage swamped the curve. So the game uses the sport's
+own answer to exactly this problem — a **sliding scale of development
+allowance**, most for the team at the back and least for the team leading.
+
+With it, a season closes the front-to-back spread by eight or nine per cent and
+the midfield develops about twice as fast as the leader, who stays in front.
+That is the balance rule 31 asks for: an early advantage does not decide the
+year, and it is not a reset either. Three or four seasons of getting it right
+is what it takes a backmarker to reach the front, which is about the pace the
+real thing moves at.
+
+A third constraint sits under both: **building the parts costs money.** Set too
+high and money rather than research becomes what the back of the grid runs out
+of — which stops the sliding scale doing anything at all, and was what the first
+measurement found.
+
+Three things about a project, all of them decisions:
+
+| | |
+|---|---|
+| it takes time | commissioned at round five, arrives at round eight; the season may have moved |
+| it can fail | and the failure chance falls with the facility, so the factory buys reliability of development as well as speed |
+| it costs reliability | a new part is a part nobody has raced, and the fragility wears off over three rounds |
+
+### The transfer market is not a price check
+
+A driver decides on the car first, the money second, the team's standing third.
+A star will refuse a backmarker at the fair price — *not convinced by the car* —
+and take it at sixty per cent over. And there is a floor: an offer below about
+62% of what a driver is asking is refused outright, whatever the car, because in
+a real negotiation there is a number below which nobody is having the
+conversation.
+
+The asking price is not one number for the whole grid. A driver charges a slow
+team more, which is what stops a backmarker buying its way to the front cheaply.
+
+### The AI does not cheat
+
+It reads the same calendar, spends the same money under the same cap, and its
+cars are built by the same adapter. What difficulty changes is how well it
+decides — how accurately it reads what the remaining rounds ask for, and how
+much of its allowance it commits. There is a test that asserts a harder AI's
+cars are not faster, because that is the easy thing to get wrong.
+
+The interesting part is what it is deciding. Not "develop the weakest area",
+which is the obvious answer and the wrong one, but "where do the next hundred
+points buy the most lap time *over the races that are left*" — so a team facing
+eight power circuits builds an engine even if its aerodynamics are worse, and
+the same team in October builds nothing, because the part would arrive after the
+flag.
+
 ## Determinism
 
 One seed, addressed by name:
@@ -138,8 +212,8 @@ borrows the synthetic circuit closest to its character — named in
 | 0 | Repository analysis | done |
 | 1 | Game core: state, calendar, teams, drivers, standings, save/load | done |
 | 2 | Race engine integration: qualifying, race, championship update | done |
-| 3 | Management: R&D, upgrades, facilities, contracts, sponsors, AI teams | next |
-| 4 | Frontend | |
+| 3 | Management: R&D, upgrades, facilities, contracts, sponsors, AI teams | done |
+| 4 | Frontend | next |
 | 5 | SVG race visualisation | |
 | 6 | Advanced events | mostly already in the engine |
 | 7 | Polish, replay, season history | |
