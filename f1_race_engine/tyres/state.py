@@ -12,6 +12,8 @@ number is now the product of three real effects.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -62,6 +64,17 @@ class TyreState(MutableState):
     """Hottest the tread has been on this set, degC.  Kept for the stint
     report: it is usually the clearest explanation of why a set went away."""
 
+    running_surface_temperature: float | None = None
+    """Tread temperature averaged over the last few kilometres, degC.
+
+    What a lap should be *planned* from.  :attr:`surface_temperature` is an
+    instant, and an instant of a quantity that moves tens of degrees between
+    a corner and the end of the next straight; planning a whole lap from the
+    one reading taken at the timing line closes a feedback loop with a one-lap
+    delay, and on a circuit that works the tread hard it oscillates rather than
+    settling.  Execution still uses the instantaneous value -- that is what the
+    tyre is actually doing."""
+
     grip: float = 1.0
     """The condition-derived multiplier on the compound's peak friction.
 
@@ -78,6 +91,8 @@ class TyreState(MutableState):
         self.peak_surface_temperature = max(
             self.peak_surface_temperature, self.surface_temperature
         )
+        if self.running_surface_temperature is None:
+            self.running_surface_temperature = self.surface_temperature
         self.refresh()
 
     def snapshot(self) -> dict[str, Any]:
@@ -91,6 +106,7 @@ class TyreState(MutableState):
             "pressure": self.pressure,
             "thermal_damage": self.thermal_damage,
             "peak_surface_temperature": self.peak_surface_temperature,
+            "running_surface_temperature": self.running_surface_temperature,
             "grip_multiplier": self.grip,
         }
 
@@ -171,6 +187,16 @@ class TyreState(MutableState):
         self.peak_surface_temperature = max(
             self.peak_surface_temperature, step.surface_temperature
         )
+        # A distance-weighted running mean, so the planning temperature follows
+        # the tread over a lap rather than over one segment.
+        span = thermal.running_temperature_distance
+        if span > 0.0 and distance > 0.0:
+            weight = -math.expm1(-distance / span)
+            self.running_surface_temperature += weight * (
+                step.surface_temperature - self.running_surface_temperature
+            )
+        else:
+            self.running_surface_temperature = step.surface_temperature
 
         self.wear = min(
             1.0,
@@ -217,7 +243,25 @@ class TyreState(MutableState):
         self.surface_temperature = start
         self.carcass_temperature = start - 10.0
         self.peak_surface_temperature = start
+        self.running_surface_temperature = start
         self.refresh()
+
+    def for_planning(self) -> "TyreState":
+        """A copy whose tread temperature is the running mean, for the plan.
+
+        The lap is planned from how the tyre has been behaving; it is then
+        driven on what the tyre is actually doing.  Planning from the instant
+        at the timing line instead makes a hot reading slow the whole next lap,
+        which cools the tyre, which makes the lap after that fast -- a
+        one-lap-delayed loop that oscillates instead of settling.
+        """
+        import dataclasses
+
+        planning = dataclasses.replace(
+            self, surface_temperature=self.running_surface_temperature
+        )
+        planning.refresh()
+        return planning
 
     @property
     def is_wet_weather(self) -> bool:

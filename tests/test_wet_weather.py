@@ -69,10 +69,28 @@ def test_a_slick_on_a_wet_track_is_in_trouble_immediately(slick):
     assert wet_grip_factor(slick, 0.0005, 40.0) < 0.6
 
 
-def test_a_wet_tyre_in_its_element_loses_nothing_here(full_wet):
+def test_a_wet_tyre_in_its_element_loses_almost_nothing_here(full_wet):
     """The surface penalty has already been charged; this is only the water the
-    tread cannot get rid of, and a full wet in 2 mm gets rid of all of it."""
-    assert wet_grip_factor(full_wet, 0.002, 50.0) == 1.0
+    tread cannot get rid of, and a full wet in 2 mm gets rid of nearly all of
+    it.  Nearly, not all: evacuation is a rate, so a thin film stays behind and
+    grows as the grooves run out of room."""
+    assert 0.97 < wet_grip_factor(full_wet, 0.002, 50.0) < 1.0
+
+
+def test_the_loss_arrives_before_the_tread_runs_out(inter):
+    """A tyre must not be perfect right up to its limit and then fall off it.
+
+    Modelled as a switch, an intermediate in light rain and one in water it can
+    only just cope with lap identically, and the tyre goes from fine to
+    undriveable between one shower and the next.
+    """
+    clearance = water_clearance(inter, 55.0)
+    light = wet_grip_factor(inter, 0.15 * clearance, 55.0)
+    most = wet_grip_factor(inter, 0.9 * clearance, 55.0)
+    at_limit = wet_grip_factor(inter, clearance, 55.0)
+    assert light > 0.999          # light rain costs nothing worth having
+    assert most < light - 0.05    # and the loss has arrived before the limit
+    assert at_limit < most
 
 
 def test_deeper_water_is_worse(inter):
@@ -95,10 +113,21 @@ def test_grip_never_reaches_zero(slick):
 
 
 def test_aquaplaning_is_a_speed_not_a_coin_flip(inter):
+    """Above the limit the tyre is floating; below it, it is still driving.
+
+    "Still driving" is not the same as "perfect": approaching the speed where
+    the tread runs out of time, it is already leaving a film behind.  What must
+    not happen is a coin flip -- the same depth and speed always give the same
+    answer, and going faster always makes it worse.
+    """
     speed = aquaplaning_speed(inter, 0.002)
     assert math.isfinite(speed)
-    assert wet_grip_factor(inter, 0.002, speed * 0.8) == 1.0
-    assert wet_grip_factor(inter, 0.002, speed * 1.5) < 1.0
+    below = wet_grip_factor(inter, 0.002, speed * 0.5)
+    approaching = wet_grip_factor(inter, 0.002, speed * 0.8)
+    above = wet_grip_factor(inter, 0.002, speed * 1.5)
+    assert below > 0.85, "well below the limit the tyre is still on the road"
+    assert above < 0.5, "above it the tyre is floating"
+    assert above < approaching < below
 
 
 def test_deeper_water_lowers_the_speed_limit(full_wet):

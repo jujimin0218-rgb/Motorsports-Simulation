@@ -39,17 +39,29 @@ def thermal_wear_factor(
 ) -> float:
     """Wear multiplier from temperature.
 
-    At or below its optimum the tyre wears at its reference rate.  Above it,
-    wear climbs steeply and keeps climbing -- which is what makes overheating a
-    tyre a strategic disaster rather than a small inefficiency.  Measuring the
-    excess from the optimum rather than from the edge of the window is
-    deliberate: rubber does not wear at one flat rate right up to a cliff.
+    Two regimes, because a tyre has two.  **Inside its working window** wear
+    rises gently with temperature -- rubber does not wear at one flat rate up
+    to a cliff, but the window is the range the compound is built to work
+    across and running in it is not abuse.  **Above the window** wear climbs
+    with a power above one and keeps climbing, which is what makes overheating
+    a tyre a strategic disaster rather than a small inefficiency.
+
+    Charging the whole excess from the optimum at the steep exponent, with no
+    window in between, bills a tyre for being in the range it was designed for.
+    It hits the softer compounds hardest, because they run nearest their own
+    hot edge, and by a different amount at every circuit -- so the durability
+    ratio between compounds stops being a property of the compounds at all.
     """
     cfg = config or TyreWearConfig()
     excess = surface_temperature - compound.optimal_temperature
     if excess <= 0.0:
         return 1.0
-    return (1.0 + excess / compound.temperature_window) ** cfg.thermal_wear_exponent
+    window = compound.temperature_window
+    inside = min(excess, window) / window
+    above = max(excess - window, 0.0) / window
+    return (1.0 + cfg.in_window_wear_gain * inside) * (
+        (1.0 + above) ** cfg.thermal_wear_exponent
+    )
 
 
 def wear_increment(

@@ -445,8 +445,18 @@ class LapSimulator:
             effort=effort,
         )
         deploy = self.sustainable_ers_power(energy, car_mass, tyres)
+        # The lap is planned from how the tyre has been behaving over the last
+        # few kilometres, not from the single reading taken at the timing line.
+        # The instantaneous tread temperature moves tens of degrees between a
+        # corner and the end of the next straight, and planning a whole lap on
+        # one sample of it closes a one-lap-delayed loop: a hot reading makes
+        # the next lap slow, the slow lap cools the tyre, and the lap after
+        # that is fast again.  On a circuit that works the tread hard the gain
+        # of that loop reaches one and the lap times oscillate instead of
+        # settling.  Execution still uses what the tyre is actually doing.
+        planning_tyres = tyres.for_planning()
         profile = self._build_profile(
-            commitment, variation, mistakes, car_mass, tyres, deploy
+            commitment, variation, mistakes, car_mass, planning_tyres, deploy
         )
         wake: Sequence[TrafficState] | None = None
         if traffic is not None:
@@ -464,8 +474,8 @@ class LapSimulator:
             wake = self._wake_along(profile, traffic, start_speed)
             if any(state.wake.in_traffic or state.drs_allowed for state in wake):
                 profile = self._build_profile(
-                    commitment, variation, mistakes, car_mass, tyres, deploy,
-                    wake=wake,
+                    commitment, variation, mistakes, car_mass, planning_tyres,
+                    deploy, wake=wake,
                 )
         drive = LapDrive(
             self._drive(

@@ -1,7 +1,7 @@
 # Realism Review — measuring the engine against the real thing
 
-**Status: two passes done. Six defects fixed, two capabilities added, two gaps
-left open and named.** A pass over the Phase 1–9 engine looking for places where the model
+**Status: three passes done. Nine defects fixed, two capabilities added, two
+gaps left open and named.** A pass over the Phase 1–9 engine looking for places where the model
 disagrees with a real Formula 1 car, done by measuring the engine and putting
 the numbers next to published ones rather than by reading the code and forming
 opinions.
@@ -282,6 +282,91 @@ against the radius the car takes rather than the road's centreline.  Adding a
 racing-line model means moving the grip calibration with it, which is Phase 12
 work.  Until then the circuits state racing-line radii, and
 `tools/design_circuits.py` says so at the top.
+
+## Third pass: the consumables
+
+With the circuits representative, the systems that act over a stint could be
+measured against published figures for the first time.
+
+### 7. A stint oscillated instead of settling
+
+On the street circuit a set of softs produced lap times of 76, 92, 76, 76, 92,
+77, 90 seconds -- alternating by sixteen seconds a lap, with the tread
+temperature swinging between 133 C and 105 C to match.  That is not a tyre
+going off, it is a limit cycle.
+
+A lap is planned before it is driven, so it has to be planned from some tyre
+temperature, and it was planned from the single reading taken at the timing
+line.  That closes a feedback loop with a one-lap delay: a hot reading makes
+the whole next lap slow, the slow lap cools the tyre, and the lap after that is
+fast again.  Measured, the loop gain was almost exactly **-1.0** -- a period-two
+cycle sitting on the stability boundary.
+
+The tread temperature moves tens of degrees between a corner and the end of the
+next straight, so one sample of it was never the right thing to plan a whole
+lap on.  `TyreState` now carries a distance-weighted running mean and the plan
+uses that; execution still uses what the tyre is actually doing.  The same
+stint now settles and degrades at 0.16 s a lap.
+
+### 8. A tyre was billed for working in its own window
+
+`thermal_wear_factor` measured the temperature excess from the compound's
+*optimum* and raised the whole thing to the overheating exponent.  Every
+compound on every circuit was inside its working window -- 13 to 35 K below the
+top of it -- and still being charged:
+
+```
+  soft    114.5 C, window top 127 C   ->  2.37x wear
+  medium  104.6 C, window top 125 C   ->  1.50x
+  hard     92.9 C, window top 125 C   ->  1.00x
+```
+
+The window is the range a compound is *built* to work across.  Charging it as
+though it were overheating fell hardest on the softer compounds, which
+naturally run nearest their own hot edge, and by a different amount at every
+circuit -- so the durability ratio between compounds stopped being a property
+of the compounds at all, swinging from 2.8 to 4.9 where the wear rates say
+1.88.  Wear now rises gently inside the window and steeply above it, and the
+ratio is back to 1.9-2.5 across circuits.
+
+### 9. Wet tyres were perfect and then suddenly useless
+
+`wet_grip_factor` returned exactly 1.0 for any depth the tread could evacuate
+and then fell off a cliff.  An intermediate in 0.2 mm of water and one in 2 mm
+lapped identically, and the tyre went from fine to undriveable between one
+shower and the next.  Evacuation is a rate, not a switch: the closer the water
+gets to what the grooves can move, the more of it stays under the contact
+patch.  The loss now arrives gradually as the tread runs out of room and only
+then turns into flotation, so the intermediate-to-wet crossover is a trade
+rather than a cliff.
+
+### What the third pass measured and found right
+
+| | engine | real |
+|---|---|---|
+| ERS deployed per lap | 2.9-3.7 MJ | up to 4.0 MJ, and a car uses nearly all of it |
+| fuel burn | 0.32-0.37 kg/km | 0.30-0.35 |
+| pit stop loss | 19.4-20.8 s | 20-24 |
+| stops over 305 km | 1-2 | 1-3 |
+| green to rubbered track | -1.94 s | 1-2.5 s |
+| grid spread, equal cars | 0-1.3% (rookie 3.8%) | ~1-1.5% |
+| lap-to-lap variation, good driver | 0.08 s | 0.1-0.3 s |
+| qualifying vs race-start trim | -3.0 s | 3-5 s |
+| wind, averaged over direction | +0.04 to +0.77 s | a loss, growing with wind |
+| stint length, medium | 129-197 km | 125-175 |
+| stint length, hard | 194-284 km | 175-225 |
+
+Wind is worth singling out.  Individual directions range from -0.30 s to
++1.58 s at the same wind speed, which looks alarming until it is averaged: over
+the four cardinal directions the answer is always a loss and it grows with wind
+speed, which is what a convex drag law on a closed lap has to give.  The spread
+between directions is real -- it is why teams care which way the wind is
+blowing.
+
+Still off: a soft degrades at 0.26-0.30 s a lap on the two faster circuits
+against a real 0.12-0.20, so it stops being the quicker tyre earlier than it
+should.  The medium and hard land in range and the compound ratios are right,
+which points at the soft's thermal behaviour rather than at the wear curve.
 
 ---
 

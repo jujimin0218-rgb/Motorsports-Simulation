@@ -57,20 +57,35 @@ def wet_grip_factor(
 ) -> float:
     """Grip multiplier from the water this tyre cannot get rid of.
 
-    1.0 on a dry track, and 1.0 in standing water shallower than the tread can
-    evacuate -- a full wet in its element loses nothing here, because the
-    surface penalty has already been charged elsewhere.  Beyond that the tyre
-    is riding on a film of water and the fall is steep.
+    1.0 on a dry track, and near enough 1.0 in the light water a tread is built
+    for -- the surface penalty for a wet road has already been charged
+    elsewhere, so this is only the film left under the contact patch.
+
+    That film is not zero right up to the tread's limit and then everything all
+    at once.  Evacuation is a rate: the closer the water gets to what the
+    grooves can move in the time the patch is over it, the more of it stays
+    behind.  So the loss arrives gradually as the tread runs out of room and
+    only then turns into flotation.  Modelled as a switch instead, an
+    intermediate in 0.2 mm of water and one in 2 mm lap identically and then
+    the tyre falls off a cliff between one shower and the next, which is not
+    what a wet race looks like.
     """
     if water_depth <= 0.0:
         return 1.0
     cfg = config or WetConfig()
-    unevacuated = water_depth - water_clearance(compound, speed, cfg)
-    if unevacuated <= 0.0:
+    clearance = water_clearance(compound, speed, cfg)
+    if clearance <= 0.0:
+        # A slick has no grooves: every millimetre of it stays under the tyre.
+        film = water_depth
+    else:
+        utilisation = min(water_depth / clearance, 1.0)
+        film = clearance * cfg.residual_film_fraction * (
+            utilisation**cfg.residual_film_exponent
+        )
+        film += max(water_depth - clearance, 0.0)
+    if film <= 0.0:
         return 1.0
-    return clamp(
-        1.0 / (1.0 + unevacuated / cfg.aquaplaning_depth), cfg.min_wet_grip, 1.0
-    )
+    return clamp(1.0 / (1.0 + film / cfg.aquaplaning_depth), cfg.min_wet_grip, 1.0)
 
 
 def aquaplaning_speed(

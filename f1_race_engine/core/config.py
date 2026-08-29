@@ -888,6 +888,21 @@ class TyreThermalConfig(ConfigNode):
     internal_conduction: float = 900.0
     """Conduction between tread and carcass, W/K."""
 
+    running_temperature_distance: float = 2_500.0
+    """Distance, m, the tread temperature is averaged over for *planning*.
+
+    A lap is planned before it is driven, so it has to be planned from some
+    temperature, and the one at the timing line is a poor choice: it is a
+    single instant of a quantity that swings tens of degrees within a lap.
+    Planning from it closes a feedback loop with a one-lap delay -- a hot
+    reading makes the whole next lap slow, which cools the tyre, which makes
+    the lap after that fast again -- and on a circuit that works the tread hard
+    the loop gain reaches one and the lap times oscillate instead of settling.
+
+    Averaging over something like a lap is both the fix and the better model of
+    what a driver actually goes out on: how the tyre has been behaving, not
+    what it read at one point on the road."""
+
     grip_falloff: float = 0.16
     """Grip lost at one window half-width away from the optimum."""
 
@@ -907,6 +922,10 @@ class TyreThermalConfig(ConfigNode):
         require_positive("tyre_thermal.internal_conduction", self.internal_conduction)
         require_range("tyre_thermal.grip_falloff", self.grip_falloff, 0.0, 1.0)
         require_range("tyre_thermal.min_thermal_grip", self.min_thermal_grip, 0.1, 1.0)
+        require_positive(
+            "tyre_thermal.running_temperature_distance",
+            self.running_temperature_distance,
+        )
 
 
 @dataclass(frozen=True)
@@ -919,12 +938,30 @@ class TyreWearConfig(ConfigNode):
     circuit destroys them faster than a cool one.
     """
 
-    reference_wear_energy: float = 1.35e9
-    """Frictional energy, J, that wears a reference compound out completely."""
+    reference_wear_energy: float = 1.10e9
+    """Frictional energy, J, that wears a reference compound out completely.
+
+    Set from stint length rather than guessed: on the reference circuit a soft
+    lasts around 90 km, a medium 150 and a hard 220, which is where Formula 1
+    stints sit.  It is the one number that scales all three, so the compounds'
+    own wear rates decide the ratios between them and this decides the level."""
 
     thermal_wear_exponent: float = 2.4
     """How sharply wear accelerates above the working window.  Overheating a
     tyre is far worse than merely using it."""
+
+    in_window_wear_gain: float = 0.5
+    """Extra wear at the top of the working window, as a fraction.
+
+    A tyre run at the hot edge of its window wears half again as fast as one at
+    its optimum -- real, and not nothing.  What it must not do is wear
+    *several* times as fast, which is what charging the whole excess at the
+    exponent above does: the window is the range the tyre is built to work
+    across, and a compound sitting comfortably inside it should not be billed
+    as though it were overheating.  Getting this wrong makes the softer
+    compound, which naturally runs nearer its own hot edge, look two or three
+    times less durable than its wear rate says -- and by a different factor at
+    every circuit."""
 
     management_range: float = 0.55
     """How much a driver's tyre management can change the wear rate.  A perfect
@@ -951,6 +988,7 @@ class TyreWearConfig(ConfigNode):
     def validate(self) -> None:
         require_positive("tyre_wear.reference_wear_energy", self.reference_wear_energy)
         require_positive("tyre_wear.thermal_wear_exponent", self.thermal_wear_exponent)
+        require_non_negative("tyre_wear.in_window_wear_gain", self.in_window_wear_gain)
         require_range("tyre_wear.management_range", self.management_range, 0.0, 0.95)
         require_range(
             "tyre_wear.grip_loss_at_full_wear", self.grip_loss_at_full_wear, 0.0, 0.9
@@ -1108,6 +1146,20 @@ class WetConfig(ConfigNode):
     """Unevacuated depth, m, that halves grip.  Half a millimetre of water
     under the contact patch is already most of the way to floating."""
 
+    residual_film_fraction: float = 0.06
+    """Film a tread leaves behind at exactly its rated depth, as a fraction of
+    what it can clear.
+
+    Evacuation is a rate, not a switch.  Without this a tyre is perfect right
+    up to its limit and then falls off a cliff, so an intermediate in 0.2 mm of
+    water and one in 2 mm lap identically -- which is not what a wet race looks
+    like from the pit wall."""
+
+    residual_film_exponent: float = 3.0
+    """How the residual film grows as the demand approaches the tread's
+    capacity.  Above one, so light rain costs almost nothing and the loss
+    arrives as the tread runs out of room."""
+
     min_wet_grip: float = 0.12
     """Floor, so a car that aquaplanes is out of control rather than out of
     physics."""
@@ -1118,6 +1170,10 @@ class WetConfig(ConfigNode):
         )
         require_positive("wet.clearance_exponent", self.clearance_exponent)
         require_positive("wet.aquaplaning_depth", self.aquaplaning_depth)
+        require_range(
+            "wet.residual_film_fraction", self.residual_film_fraction, 0.0, 1.0
+        )
+        require_positive("wet.residual_film_exponent", self.residual_film_exponent)
         require_range("wet.min_wet_grip", self.min_wet_grip, 0.0, 1.0)
 
 

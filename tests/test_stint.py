@@ -204,3 +204,41 @@ def test_results_carry_the_consumables(fast_track, car, perfect_driver):
     for key in ("fuel_used", "energy_deployed", "energy_harvested",
                 "tyre_wear", "tyre_temperature", "tyre_grip"):
         assert isinstance(payload[key], float)
+
+
+# -- the stint has to settle -------------------------------------------------
+
+
+def test_a_stint_settles_instead_of_oscillating(street_track, car, perfect_driver,
+                                                slicks):
+    """Lap times must drift, not alternate.
+
+    A lap is planned before it is driven, so it is planned from some tyre
+    temperature.  Taking that from the single reading at the timing line closes
+    a feedback loop with a one-lap delay: a hot reading makes the whole next
+    lap slow, the slow lap cools the tyre, and the lap after that is fast
+    again.  On a circuit that works the tread hard the gain of that loop
+    reaches one and the stint oscillates -- sixteen seconds a lap, alternating,
+    which is not a tyre going off but a numerical artefact.
+
+    The street circuit is the one that exposes it: slow, busy, and hardest on
+    tread temperature.
+    """
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.simulation import LapSimulator
+
+    simulator = LapSimulator(street_track, car, perfect_driver, rng=RngHub(20260812))
+    results, _, _ = _stint(simulator, 12, compound=slicks["S"], fuel_mass=45.0)
+    times = [r.lap_time for r in results]
+
+    # Past the opening laps, which are a set coming out of the blankets and
+    # working up to temperature -- a real transient, and the thing an
+    # oscillation is easy to mistake for.
+    settled = times[4:]
+    steps = [b - a for a, b in zip(settled, settled[1:])]
+    assert max(abs(s) for s in steps) < 1.0, f"lap times jump around: {settled}"
+
+    # And it degrades in one direction rather than sawtoothing.
+    signs = [1 if s > 0 else -1 for s in steps if abs(s) > 0.01]
+    alternations = sum(1 for a, b in zip(signs, signs[1:]) if a != b)
+    assert alternations <= 1, f"lap times alternate: {settled}"

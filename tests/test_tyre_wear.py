@@ -63,16 +63,35 @@ def test_a_softer_compound_wears_faster():
 # -- what makes it worse -----------------------------------------------------
 
 
-def test_overheating_accelerates_wear_sharply():
-    """Superlinear, which is what makes cooking a set a strategic disaster
-    rather than a small inefficiency."""
+def test_working_in_the_window_is_not_overheating():
+    """A tyre run inside its window is doing its job, not being abused.
+
+    It wears somewhat faster at the hot edge than at the optimum -- rubber does
+    not wear at one flat rate up to a cliff -- but only somewhat.  Charging the
+    whole excess from the optimum at the overheating exponent bills a compound
+    for being in the range it was built for, and it falls hardest on the softer
+    compounds because they naturally run nearest their own hot edge.
+    """
     optimal = MEDIUM.optimal_temperature
-    mild = _wear(surface_temperature=optimal + 10.0) / _wear()
-    severe = _wear(surface_temperature=optimal + 20.0) / _wear()
-    assert 1.0 < mild < severe
-    # The second ten degrees cost more than the first: that is what
-    # "superlinear" has to mean for a strategist to care about it.
-    assert severe - mild > mild - 1.0
+    window = MEDIUM.temperature_window
+    edge = _wear(surface_temperature=optimal + window) / _wear()
+    assert 1.0 < edge < 2.0, f"the hot edge of the window costs {edge:.2f}x"
+
+
+def test_overheating_accelerates_wear_sharply():
+    """Superlinear *above the window*, which is what makes cooking a set a
+    strategic disaster rather than a small inefficiency."""
+    optimal = MEDIUM.optimal_temperature
+    window = MEDIUM.temperature_window
+    edge = _wear(surface_temperature=optimal + window) / _wear()
+    mild = _wear(surface_temperature=optimal + window + 10.0) / _wear()
+    severe = _wear(surface_temperature=optimal + window + 20.0) / _wear()
+    assert edge < mild < severe
+    # The second ten degrees past the window cost more than the first: that is
+    # what "superlinear" has to mean for a strategist to care about it.
+    assert severe - mild > mild - edge
+    # And going over the window is in a different league from working in it.
+    assert mild - edge > 2.0 * (edge - 1.0)
 
 
 def test_a_cold_tyre_wears_at_the_reference_rate():
