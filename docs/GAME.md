@@ -181,6 +181,44 @@ Handled two ways, neither of which touches the physics. Long sessions run as
 **fraction of the race distance**, which is a shorter race rather than a
 cheaper one — a 25% grand prix is fourteen laps genuinely simulated.
 
+## The client
+
+React and TypeScript, and one rule: **the frontend never simulates anything.**
+Every number on every screen came from the backend, which got it from the race
+engine. There is no lap time computed in the browser and no championship
+recounted there.
+
+```
+frontend/src/
+  services/api.ts   the only place the client talks to the server
+  hooks/useGame     one game, held once, so no two screens disagree about it
+  types/api.ts      what the server sends
+  pages/            one per screen
+```
+
+Three things the client is careful about, each because getting it wrong is the
+usual way this kind of app goes bad.
+
+**Refusals keep their code.** Every no from the backend arrives as
+`{code, message}` — the phase machine says `InvalidGamePhase`, the economy says
+`InsufficientBudget` — and a screen with only the English string could not tell
+them apart. The code is carried through on the thrown error and shown with the
+message, so a refusal is information rather than a crash.
+
+**Long sessions are polled, not awaited.** Qualifying is two and a half minutes
+of simulation and a grand prix is ten. The server hands back a job and the
+client follows it, so the screen shows a race happening — lap by lap — rather
+than a spinner and a promise that may not settle.
+
+**One game, held once.** There is exactly one game on the server, so there is
+exactly one in the client, and every action refreshes it. That removes the whole
+class of bug where the dashboard says round four and the calendar says round
+five.
+
+The screens are almost entirely tables of numbers, so the type is chosen for
+reading them: tabular figures wherever a column has to line up, and a monospace
+face for anything meant to be compared down a column rather than read across.
+
 ## The data
 
 Nothing about the sport is in the code.
@@ -213,7 +251,7 @@ borrows the synthetic circuit closest to its character — named in
 | 1 | Game core: state, calendar, teams, drivers, standings, save/load | done |
 | 2 | Race engine integration: qualifying, race, championship update | done |
 | 3 | Management: R&D, upgrades, facilities, contracts, sponsors, AI teams | done |
-| 4 | Frontend | next |
-| 5 | SVG race visualisation | |
+| 4 | Frontend | done |
+| 5 | SVG race visualisation | next |
 | 6 | Advanced events | mostly already in the engine |
 | 7 | Polish, replay, season history | |

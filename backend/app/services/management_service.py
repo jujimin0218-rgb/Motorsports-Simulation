@@ -46,8 +46,11 @@ FACILITY_COST: dict[int, float] = {2: 14.0, 3: 24.0, 4: 40.0, 5: 65.0}
 def development_options(state: GameState, team_id: str) -> dict[str, Any]:
     """What this team could develop, and what it would get for it.
 
-    Shown per area at the team's actual banked research, so the player is
-    choosing between real options rather than reading a table of rates.
+    Two gains per area, and both are needed.  The one at the research actually
+    banked is the real option the player is choosing between.  The one at a
+    fixed hundred points is what makes the table mean anything to a team with
+    nothing in the bank -- otherwise every row reads zero and the ranking is
+    whatever order the areas happen to be declared in.
     """
     team = state.team(team_id)
     rules = state.rules.development
@@ -65,7 +68,10 @@ def development_options(state: GameState, team_id: str) -> dict[str, Any]:
                 "area": area,
                 "current": round(team.car.area(area), 4),
                 "gain_at_current_points": round(
-                    development.development_gain(team, area, points, rules), 5
+                    development.development_gain(team, area, points, rules), 6
+                ),
+                "gain_per_100": round(
+                    development.development_gain(team, area, 100.0, rules), 6
                 ),
                 "remaining_demand": round(demand[area], 4),
                 "efficiency": round(

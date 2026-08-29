@@ -20,6 +20,7 @@ __all__ = [
     "LoadRequest",
     "NewGameRequest",
     "SaveRequest",
+    "SettingsRequest",
     "SponsorRequest",
     "StrategyRequest",
 ]
@@ -106,6 +107,28 @@ class ContractOfferRequest(BaseModel):
 
 class SponsorRequest(BaseModel):
     sponsor_id: str
+
+
+class SettingsRequest(BaseModel):
+    """How the game is played.  Every field is optional; what is left out is
+    left alone."""
+
+    race_distance: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "The fraction of a full grand prix a race is run over.  Not an "
+            "approximation -- a quarter-distance race is a quarter of the laps, "
+            "genuinely simulated."
+        ),
+    )
+    difficulty: str | None = Field(
+        default=None, description="easy, normal or hard.  Changes how well the AI decides."
+    )
+    hazards: bool | None = Field(
+        default=None, description="Whether failures, contact and safety cars happen."
+    )
 
 
 class ErrorResponse(BaseModel):

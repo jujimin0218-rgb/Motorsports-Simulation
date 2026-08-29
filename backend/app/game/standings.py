@@ -13,7 +13,7 @@ What a position is worth is not decided here -- it comes from
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from .rules import Rules
 
@@ -157,12 +157,16 @@ class DriverStanding:
     dnfs: int
     starts: int
     best_finish: int
+    driver_name: str = ""
+    team_name: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "position": self.position,
             "driver": self.driver_id,
             "team": self.team_id,
+            "driver_name": self.driver_name or self.driver_id,
+            "team_name": self.team_name or self.team_id,
             "points": self.points,
             "wins": self.wins,
             "podiums": self.podiums,
@@ -186,11 +190,13 @@ class TeamStanding:
     dnfs: int
     starts: int
     best_finish: int
+    team_name: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "position": self.position,
             "team": self.team_id,
+            "team_name": self.team_name or self.team_id,
             "points": self.points,
             "wins": self.wins,
             "podiums": self.podiums,
@@ -217,6 +223,9 @@ class Standings:
         *,
         driver_ids: Sequence[str] = (),
         team_ids: Sequence[str] = (),
+        driver_names: Mapping[str, str] | None = None,
+        team_names: Mapping[str, str] | None = None,
+        driver_teams: Mapping[str, str] | None = None,
     ) -> Standings:
         """Build both tables.
 
@@ -224,10 +233,20 @@ class Standings:
         the championship, so a driver who has not scored still appears -- at
         the bottom, with zero, which is where a player expects to find them
         rather than missing entirely.
+
+        The name maps are optional and are carried onto the rows so that a
+        table can be drawn from this alone.  Without them a client has to join
+        the standings against the team and driver lists to put a name on a row,
+        and every client would have to do it the same way.
         """
+        names_of_drivers = driver_names or {}
+        names_of_teams = team_names or {}
         driver_tallies: dict[str, _Tally] = {d: _Tally() for d in driver_ids}
         team_tallies: dict[str, _Tally] = {t: _Tally() for t in team_ids}
-        driver_team: dict[str, str] = {}
+        # Seeded from who currently drives for whom, so a table drawn before
+        # anybody has raced still says which car each driver is in; a result
+        # then overwrites it with the team they actually raced for.
+        driver_team: dict[str, str] = dict(driver_teams or {})
 
         for outcome in outcomes:
             driver_tallies.setdefault(outcome.driver_id, _Tally()).add(outcome, rules)
@@ -246,12 +265,21 @@ class Standings:
                     position=index,
                     driver_id=driver_id,
                     team_id=driver_team.get(driver_id, ""),
+                    driver_name=names_of_drivers.get(driver_id, driver_id),
+                    team_name=names_of_teams.get(
+                        driver_team.get(driver_id, ""), ""
+                    ),
                     **tally.as_dict(),
                 )
                 for index, (driver_id, tally) in enumerate(ordered_drivers, start=1)
             ),
             teams=tuple(
-                TeamStanding(position=index, team_id=team_id, **tally.as_dict())
+                TeamStanding(
+                    position=index,
+                    team_id=team_id,
+                    team_name=names_of_teams.get(team_id, team_id),
+                    **tally.as_dict(),
+                )
                 for index, (team_id, tally) in enumerate(ordered_teams, start=1)
             ),
         )

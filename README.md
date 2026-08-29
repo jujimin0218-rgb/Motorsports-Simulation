@@ -124,7 +124,7 @@ React + TypeScript
 | `backend/app/services/` | save/load and the operations a round goes through |
 | `backend/app/adapters/` | the seam where a team's car becomes a `VehicleSpec` |
 | `data/` | teams, drivers, engines, circuits, calendar, rules — all of it JSON |
-| `frontend/` | the React client |
+| `frontend/` | the React client — never simulates anything |
 
 Nothing about the sport is written into the code. What a win is worth, how long
 a season is, which circuits are on it and what each one asks of a car are all in
@@ -134,7 +134,8 @@ a season is, which circuits are on it and what each one asks of a car are all in
 python backend/scripts/phase1_demo.py       # new game -> calendar -> season -> save -> load
 python backend/scripts/phase2_demo.py       # a whole round on the engine, through the API
 python backend/scripts/calibrate_spread.py  # what the grid's ratings are worth, in seconds
-uvicorn app.main:app --reload --app-dir backend
+uvicorn app.main:app --reload --app-dir backend   # the API on :8000
+npm --prefix frontend install && npm --prefix frontend run dev   # the client on :5173
 pytest backend/tests                        # the game's own suite
 ```
 

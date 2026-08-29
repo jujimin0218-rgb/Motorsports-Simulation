@@ -241,8 +241,21 @@ class GameState:
         return Standings.compute(
             self.outcomes,
             self.rules,
-            driver_ids=[d for d in self.drivers if not self.drivers[d].retired],
+            # Only drivers with a seat are in the championship.  A free agent
+            # who has not raced is not last in the standings, they are not in
+            # them -- and one who *has* raced this season stays, because the
+            # outcomes put them there.
+            driver_ids=[
+                d
+                for d, profile in self.drivers.items()
+                if profile.team is not None and not profile.retired
+            ],
             team_ids=list(self.teams),
+            driver_names={d: p.name for d, p in self.drivers.items()},
+            team_names={t: team.name for t, team in self.teams.items()},
+            driver_teams={
+                d: p.team for d, p in self.drivers.items() if p.team is not None
+            },
         )
 
     def outcomes_for_round(self, number: int) -> list[RaceOutcome]:

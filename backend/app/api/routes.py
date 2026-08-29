@@ -24,6 +24,7 @@ from ..schemas.common import (
     LoadRequest,
     NewGameRequest,
     SaveRequest,
+    SettingsRequest,
     SponsorRequest,
 )
 from ..services.game_service import GameService
@@ -101,6 +102,17 @@ def read_season(service: GameService = Depends(get_service)) -> dict[str, Any]:
         "complete": state.season_complete,
         "settings": state.settings.to_dict(),
     }
+
+
+@router.patch("/season/settings", summary="How this game is played")
+def update_settings(
+    request: SettingsRequest, service: GameService = Depends(get_service)
+) -> dict[str, Any]:
+    return service.update_settings(
+        race_distance=request.race_distance,
+        difficulty=request.difficulty,
+        hazards=request.hazards,
+    )
 
 
 @router.get("/calendar")

@@ -166,6 +166,7 @@ class GameService:
                     **state.driver(d).to_dict(),
                     "championship_position": standings.driver_position(d),
                     "market_value": state.driver(d).market_value,
+                    "overall": round(state.driver(d).overall, 4),
                 }
                 for d in player.drivers
             ],
@@ -281,6 +282,33 @@ class GameService:
             report = round_service.run_development(self.state)
             self._touch()
             return report.to_dict()
+
+    def update_settings(
+        self,
+        *,
+        race_distance: float | None = None,
+        difficulty: str | None = None,
+        hazards: bool | None = None,
+    ) -> dict[str, Any]:
+        """Change how the game is played.
+
+        The race distance takes effect from the next race rather than
+        retroactively: a round already run stays the length it was run at, so
+        the season's results stay the season's results.
+        """
+        from ..game.settings import Difficulty
+
+        with self._lock:
+            settings = self.state.settings
+            if race_distance is not None:
+                settings.race_distance = race_distance
+                settings.__post_init__()
+            if difficulty is not None:
+                settings.difficulty = Difficulty(difficulty)
+            if hazards is not None:
+                settings.hazards = hazards
+            self._touch()
+            return settings.to_dict()
 
     def next_round(self) -> dict[str, Any]:
         return round_service.advance_to_next_round(self.state).to_dict()
