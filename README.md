@@ -131,9 +131,31 @@ a season is, which circuits are on it and what each one asks of a car are all in
 `data/`, and swapping that directory swaps the game.
 
 ```bash
-python backend/scripts/phase1_demo.py   # new game -> calendar -> season -> save -> load
-pytest backend/tests                    # the game's own suite
+python backend/scripts/phase1_demo.py       # new game -> calendar -> season -> save -> load
+python backend/scripts/phase2_demo.py       # a whole round on the engine, through the API
+python backend/scripts/calibrate_spread.py  # what the grid's ratings are worth, in seconds
+uvicorn app.main:app --reload --app-dir backend
+pytest backend/tests                        # the game's own suite
 ```
+
+### What a race costs
+
+The engine simulates every car on every lap, which is what makes its answers
+worth having and also what makes them expensive. Measured, twenty cars:
+
+| | |
+|---|---|
+| qualifying, three segments | 2.6 min |
+| a 57-lap grand prix | 10.4 min |
+| a full 22-round season | about 4.8 hours |
+
+Two things follow, and neither of them is an approximation of the physics.
+Qualifying and races run as **background jobs** and the client polls, because
+holding an HTTP connection open for ten minutes would be a lie about what is
+happening. And a season can be run at a **fraction of the race distance**, the
+way every game in this genre offers — a 25% race is fourteen laps genuinely
+simulated, with real fuel, real tyre wear and real pit stops. It is a shorter
+race, not a cheaper one.
 
 The teams, drivers and engine suppliers that ship with it are fictional.
 Inventing performance figures and then attaching a real person's name to them

@@ -78,7 +78,11 @@ def start_round(state: GameState) -> RoundReport:
     return RoundReport(
         entry.number,
         entry.phase,
-        {"circuit": circuit.to_dict(), "laps": entry.laps},
+        {
+            "circuit": circuit.to_dict(),
+            "laps": state.laps_for(entry.number),
+            "full_distance_laps": entry.laps,
+        },
     )
 
 
@@ -149,12 +153,20 @@ def _qualifying_summary(
     return rows
 
 
-def run_race(state: GameState, *, hazards: bool = True) -> RoundReport:
+def run_race(
+    state: GameState,
+    *,
+    hazards: bool = True,
+    on_lap: Any = None,
+) -> RoundReport:
     """Run the grand prix, score it, and file it.
 
     Three things come out of one call to the engine and each goes somewhere
     different: the championship gets the outcomes, the replay gets the engine's
     result whole, and the player gets the summary.
+
+    ``on_lap`` is the engine's own per-lap callback, passed straight through --
+    which is how a job reports progress on something that takes minutes.
     """
     entry = _current(state)
     entry.require(RoundPhase.STRATEGY)
@@ -163,7 +175,12 @@ def run_race(state: GameState, *, hazards: bool = True) -> RoundReport:
 
     grid_numbers = _grid_car_numbers(state, entry)
     result, field = session_runner.run_race(
-        state, entry.number, grid=grid_numbers, hazards=hazards
+        state,
+        entry.number,
+        grid=grid_numbers,
+        hazards=hazards and state.settings.hazards,
+        laps=state.laps_for(entry.number),
+        on_lap=on_lap,
     )
     pole = grid_numbers[0] if grid_numbers else None
     outcomes = session_runner.outcomes_from(result, field, entry.number, pole=pole)

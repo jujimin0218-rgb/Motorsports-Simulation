@@ -27,3 +27,29 @@ def game() -> GameState:
 def store() -> SaveStore:
     with SaveStore(":memory:") as opened:
         yield opened
+
+
+@pytest.fixture
+def small_game() -> GameState:
+    """A four-team, eight-car grid.
+
+    The engine simulates every car on every lap, so a full field over a full
+    race distance is minutes of work.  Cutting the grid rather than the physics
+    keeps the tests honest about what they are testing: the same engine, the
+    same adapter, fewer cars.
+    """
+    state = new_game(player_team="harrow", seed=20260101)
+    keep = ["argent", "scuderia_lucente", "cobalt", "harrow"]
+    state.teams = {tid: state.teams[tid] for tid in keep}
+    for profile in state.drivers.values():
+        if profile.team not in keep:
+            profile.team = None
+            profile.contract = None
+    state.drivers = {
+        did: profile
+        for did, profile in state.drivers.items()
+        if profile.team in keep or profile.is_free_agent
+    }
+    for entry in state.calendar.rounds:
+        entry.laps = 2
+    return state

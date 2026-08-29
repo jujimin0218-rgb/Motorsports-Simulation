@@ -28,6 +28,7 @@ from .errors import UnknownEntity
 from .people import DriverProfile
 from .rng import GameRng
 from .rules import Rules
+from .settings import GameSettings
 from .standings import RaceOutcome, Standings
 from .team import Team
 
@@ -86,6 +87,7 @@ class GameState:
     player_team: str
     calendar: Calendar
     rules: Rules = field(default_factory=Rules)
+    settings: GameSettings = field(default_factory=GameSettings)
     teams: dict[str, Team] = field(default_factory=dict)
     drivers: dict[str, DriverProfile] = field(default_factory=dict)
     engines: dict[str, EngineSupplier] = field(default_factory=dict)
@@ -159,6 +161,13 @@ class GameState:
     def round(self, number: int) -> Round:
         return self.calendar.round(number)
 
+    def laps_for(self, number: int) -> int:
+        """How long this round's race actually is.
+
+        The calendar holds the full grand prix distance; the settings decide
+        what fraction of it this game is run over."""
+        return self.settings.laps_for(self.round(number).laps)
+
     def circuit_for(self, number: int) -> Circuit:
         return self.calendar.circuit_for(number)
 
@@ -226,6 +235,7 @@ class GameState:
             "player_team": self.player_team,
             "created_at": self.created_at,
             "rules": self.rules.to_dict(),
+            "settings": self.settings.to_dict(),
             "calendar": self.calendar.to_dict(),
             "teams": {tid: team.to_dict() for tid, team in self.teams.items()},
             "drivers": {did: d.to_dict() for did, d in self.drivers.items()},
@@ -249,6 +259,7 @@ class GameState:
             player_team=str(data["player_team"]),
             calendar=Calendar.from_dict(data["calendar"]),
             rules=Rules.from_dict(data.get("rules", {})),
+            settings=GameSettings.from_dict(data.get("settings", {})),
             teams={
                 tid: Team.from_dict(entry)
                 for tid, entry in data.get("teams", {}).items()
