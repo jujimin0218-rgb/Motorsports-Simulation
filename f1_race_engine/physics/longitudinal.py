@@ -39,11 +39,12 @@ from ..core.interpolation import clamp
 from ..core.units import MetresPerSecondSquared, Newtons
 from ..tyres.state import TyreState
 from ..vehicle.model import Vehicle
-from .grip import AxleLoads, normal_loads, slope_angle
+from .grip import AxleLoads, normal_loads, normal_loads_core, road_trigonometry
 
 __all__ = [
     "LongitudinalForces",
     "braking_limited_force",
+    "longitudinal_acceleration",
     "longitudinal_forces",
     "max_acceleration",
     "max_deceleration",
@@ -105,6 +106,8 @@ def traction_limited_force(
     headwind: float = 0.0,
     downforce_factor: float = 1.0,
     ceiling: float | None = None,
+    downforce: float | None = None,
+    road_trig: tuple[float, float, float] | None = None,
 ) -> Newtons:
     """Maximum drive force the rear tyres can transmit, N.
 
@@ -132,46 +135,55 @@ def traction_limited_force(
     config = vehicle.config
     tyres = tyre_state or TyreState()
     compound = tyres.compound
-    air_speed = max(speed + headwind, 0.0)
-    downforce = downforce_factor * vehicle.aero.downforce(
-        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
-    )
+    if downforce is None:
+        air_speed = max(speed + headwind, 0.0)
+        downforce = downforce_factor * vehicle.aero.downforce(
+            air_speed, air_density, vehicle.wing_level, drs_open=drs_open
+        )
     balance = vehicle.spec.aero.aero_balance_front
 
     acceleration = 0.0
     force = 0.0
     tolerance = config.powertrain.traction_solver_tolerance
+    # Everything the loop does not change, looked up once: it runs up to a
+    # dozen times per query and the query runs once per segment per pass.
+    mass_properties = vehicle.mass
+    tyre_model = vehicle.tyre_model
+    gravity = config.physics.gravity
+    transfer_enabled = config.powertrain.longitudinal_load_transfer
+    exponent = config.tyres.combined_grip_exponent
+    lateral_used = abs(lateral_force_used)
+    cos_pitch, cos_bank, sin_bank = road_trig or road_trigonometry(gradient, banking)
     for _ in range(config.powertrain.traction_solver_iterations):
-        loads = normal_loads(
-            vehicle.mass,
+        total_load, _front, rear_load, _w, _b, _t = normal_loads_core(
+            mass_properties,
             mass,
-            downforce=downforce,
-            downforce_balance_front=balance,
-            gradient=gradient,
-            banking=banking,
-            lateral_acceleration=lateral_acceleration,
-            longitudinal_acceleration=acceleration,
-            gravity=_gravity(config),
-            enable_load_transfer=config.powertrain.longitudinal_load_transfer,
+            downforce,
+            balance,
+            cos_pitch,
+            cos_bank,
+            sin_bank,
+            lateral_acceleration,
+            acceleration,
+            gravity,
+            transfer_enabled,
         )
-        rear_limit = vehicle.tyre_model.grip_limit(
-            compound, loads.rear, tyres=2, state=tyres, surface_grip=surface_grip,
+        rear_capacity = tyre_model.grip_capacity(
+            compound, rear_load, tyres=2, state=tyres, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
         )
         # How much of the car's total friction circle cornering is already
         # spending.  Evaluated on the same lumped basis as the lateral model.
-        total_limit = vehicle.tyre_model.grip_limit(
-            compound, loads.total, state=tyres, surface_grip=surface_grip,
-            water_depth=water_depth, speed=speed,
-        )
-        lateral_used = abs(lateral_force_used)
-        if total_limit.capacity > 0.0 and lateral_used > 0.0:
-            exponent = config.tyres.combined_grip_exponent
-            utilisation = min(lateral_used / total_limit.capacity, 1.0)
-            reserve = (1.0 - utilisation**exponent) ** (1.0 / exponent)
-            available = rear_limit.capacity * reserve
-        else:
-            available = rear_limit.capacity
+        available = rear_capacity
+        if lateral_used > 0.0:
+            total_capacity = tyre_model.grip_capacity(
+                compound, total_load, state=tyres, surface_grip=surface_grip,
+                water_depth=water_depth, speed=speed,
+            )
+            if total_capacity > 0.0:
+                utilisation = min(lateral_used / total_capacity, 1.0)
+                reserve = (1.0 - utilisation**exponent) ** (1.0 / exponent)
+                available = rear_capacity * reserve
         if ceiling is not None and available >= ceiling:
             return ceiling
         settled = abs(available - force) <= tolerance * max(available, 1.0)
@@ -198,6 +210,8 @@ def braking_limited_force(
     water_depth: float = 0.0,
     headwind: float = 0.0,
     downforce_factor: float = 1.0,
+    downforce: float | None = None,
+    road_trig: tuple[float, float, float] | None = None,
 ) -> Newtons:
     """Maximum retarding force the tyres can transmit, N.
 
@@ -228,10 +242,11 @@ def braking_limited_force(
     config = vehicle.config
     tyres = tyre_state or TyreState()
     compound = tyres.compound
-    air_speed = max(speed + headwind, 0.0)
-    downforce = downforce_factor * vehicle.aero.downforce(
-        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
-    )
+    if downforce is None:
+        air_speed = max(speed + headwind, 0.0)
+        downforce = downforce_factor * vehicle.aero.downforce(
+            air_speed, air_density, vehicle.wing_level, drs_open=drs_open
+        )
     bias = vehicle.brake_bias_front
     transfer_enabled = config.powertrain.longitudinal_load_transfer
 
@@ -240,34 +255,41 @@ def braking_limited_force(
     # between the axles.  That keeps the solve to a handful of friction
     # lookups, which matters: this runs for every segment of every backward
     # pass of every lap of every car.
-    base = normal_loads(
-        vehicle.mass,
+    mass_properties = vehicle.mass
+    cos_pitch, cos_bank, sin_bank = road_trig or road_trigonometry(gradient, banking)
+    base_total, base_front, base_rear, _w, _b, _t = normal_loads_core(
+        mass_properties,
         mass,
-        downforce=downforce,
-        downforce_balance_front=vehicle.spec.aero.aero_balance_front,
-        gradient=gradient,
-        banking=banking,
-        lateral_acceleration=lateral_acceleration,
-        longitudinal_acceleration=0.0,
-        gravity=_gravity(config),
-        enable_load_transfer=False,
+        downforce,
+        vehicle.spec.aero.aero_balance_front,
+        cos_pitch,
+        cos_bank,
+        sin_bank,
+        lateral_acceleration,
+        0.0,
+        config.physics.gravity,
+        False,
     )
 
+    tyre_model = vehicle.tyre_model
+    cg_height = mass_properties.cg_height
+    wheelbase = mass_properties.wheelbase
+
     def axle_capacity(load: float) -> float:
-        return vehicle.tyre_model.grip_limit(
+        return tyre_model.grip_capacity(
             compound, load, tyres=2, state=tyres, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
-        ).capacity
+        )
 
     # Load transfer moves grip between the axles but not the total, so the
     # cornering reserve is the same on every pass and is computed once.
     reserve = 1.0
     lateral_used = abs(lateral_force_used)
     if lateral_used > 0.0:
-        total_capacity = vehicle.tyre_model.grip_limit(
-            compound, base.total, state=tyres, surface_grip=surface_grip,
+        total_capacity = tyre_model.grip_capacity(
+            compound, base_total, state=tyres, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
-        ).capacity
+        )
         if total_capacity <= 0.0:
             return 0.0
         exponent = config.tyres.combined_grip_exponent
@@ -276,13 +298,17 @@ def braking_limited_force(
         if reserve <= 0.0:
             return 0.0
 
+    # The same expression MassProperties.load_transfer evaluates, in the same
+    # order, so the answer is bit for bit the one the method gives -- floating
+    # point multiplication does not associate, and a solver that runs to a
+    # tolerance is exactly where that would show.
     def front_branch(deceleration: float) -> float:
-        shift = vehicle.mass.load_transfer(deceleration, mass)
-        return axle_capacity(max(base.front + shift, 0.0)) * reserve / bias
+        shift = mass * deceleration * cg_height / wheelbase
+        return axle_capacity(max(base_front + shift, 0.0)) * reserve / bias
 
     def rear_branch(deceleration: float) -> float:
-        shift = vehicle.mass.load_transfer(deceleration, mass)
-        return axle_capacity(max(base.rear - shift, 0.0)) * reserve / (1.0 - bias)
+        shift = mass * deceleration * cg_height / wheelbase
+        return axle_capacity(max(base_rear - shift, 0.0)) * reserve / (1.0 - bias)
 
     if not transfer_enabled:
         limits = []
@@ -392,23 +418,124 @@ def longitudinal_forces(
     applied, so asking for more than the tyres can deliver simply yields the
     tyres' answer.
     """
+    (
+        drive,
+        drag,
+        rolling,
+        gradient_force,
+        brake_force,
+        net,
+        car_mass,
+        load_values,
+        downforce,
+    ) = _resolve_longitudinal(
+        vehicle, speed, air_density, mass, throttle, brake, gradient, banking,
+        tyre_state, surface_grip, lateral_acceleration, lateral_force_used,
+        drs_open, ers_power, water_depth, headwind, downforce_factor, drag_factor,
+    )
+    total, front, rear, weight_component, banking_component, transfer = load_values
+    return LongitudinalForces(
+        drive=drive,
+        drag=drag,
+        rolling_resistance=rolling,
+        gradient=gradient_force,
+        brake=brake_force,
+        net=net,
+        acceleration=net / car_mass,
+        loads=AxleLoads(
+            total=total,
+            front=front,
+            rear=rear,
+            weight_component=weight_component,
+            downforce=downforce,
+            banking_component=banking_component,
+            transfer=transfer,
+        ),
+    )
+
+
+def longitudinal_acceleration(
+    vehicle: Vehicle,
+    speed: float,
+    air_density: float,
+    *,
+    mass: float | None = None,
+    throttle: float = 0.0,
+    brake: float = 0.0,
+    gradient: float = 0.0,
+    banking: float = 0.0,
+    tyre_state: TyreState | None = None,
+    surface_grip: float = 1.0,
+    lateral_acceleration: float = 0.0,
+    lateral_force_used: float = 0.0,
+    drs_open: bool = False,
+    ers_power: float = 0.0,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
+    downforce_factor: float = 1.0,
+    drag_factor: float = 1.0,
+) -> MetresPerSecondSquared:
+    """Net longitudinal acceleration alone, m/s^2.
+
+    The same force balance :func:`longitudinal_forces` resolves -- it is the
+    same code -- returning only the number the speed profile actually reads.
+    The profile asks this question tens of thousands of times a lap and throws
+    the breakdown away every time, and two frozen dataclasses per question is a
+    real share of the cost of a lap.
+    """
+    net, car_mass = _resolve_longitudinal(
+        vehicle, speed, air_density, mass, throttle, brake, gradient, banking,
+        tyre_state, surface_grip, lateral_acceleration, lateral_force_used,
+        drs_open, ers_power, water_depth, headwind, downforce_factor, drag_factor,
+    )[5:7]
+    return net / car_mass
+
+
+def _resolve_longitudinal(
+    vehicle: Vehicle,
+    speed: float,
+    air_density: float,
+    mass: float | None,
+    throttle: float,
+    brake: float,
+    gradient: float,
+    banking: float,
+    tyre_state: TyreState | None,
+    surface_grip: float,
+    lateral_acceleration: float,
+    lateral_force_used: float,
+    drs_open: bool,
+    ers_power: float,
+    water_depth: float,
+    headwind: float,
+    downforce_factor: float,
+    drag_factor: float,
+) -> tuple[
+    float, float, float, float, float, float, float,
+    tuple[float, float, float, float, float, float], float,
+]:
+    """The force balance itself, as plain numbers.
+
+    Positional arguments and a tuple result: this is the innermost thing in the
+    engine and it is called once per corrector step per segment per pass.
+    """
     config = vehicle.config
-    gravity = _gravity(config)
+    gravity = config.physics.gravity
     car_mass = vehicle.total_mass() if mass is None else mass
     tyres = tyre_state or TyreState()
     throttle = clamp(throttle, 0.0, 1.0)
     brake = clamp(brake, 0.0, 1.0)
 
     air_speed = max(speed + headwind, 0.0)
-    downforce = downforce_factor * vehicle.aero.downforce(
+    raw_downforce, raw_drag = vehicle.aero.downforce_and_drag(
         air_speed, air_density, vehicle.wing_level, drs_open=drs_open
     )
-    drag = drag_factor * vehicle.aero.drag(
-        air_speed, air_density, vehicle.wing_level, drs_open=drs_open
-    )
+    downforce = downforce_factor * raw_downforce
+    drag = drag_factor * raw_drag
 
-    pitch = slope_angle(gradient)
-    gradient_force = -car_mass * gravity * math.sin(pitch)
+    trig = road_trigonometry(gradient, banking)
+    cos_pitch, cos_bank, sin_bank = trig
+    gradient_force = -car_mass * gravity * math.sin(math.atan(gradient))
 
     drive = 0.0
     if throttle > 0.0:
@@ -432,27 +559,30 @@ def longitudinal_forces(
             headwind=headwind,
             downforce_factor=downforce_factor,
             ceiling=powertrain,
+            downforce=downforce,
+            road_trig=trig,
         )
         drive = min(powertrain, traction)
 
     # Load state used for rolling resistance and the braking limit.
-    loads = normal_loads(
+    load_values = normal_loads_core(
         vehicle.mass,
         car_mass,
-        downforce=downforce,
-        downforce_balance_front=vehicle.spec.aero.aero_balance_front,
-        gradient=gradient,
-        banking=banking,
-        lateral_acceleration=lateral_acceleration,
-        longitudinal_acceleration=drive / car_mass if drive else 0.0,
-        gravity=gravity,
-        enable_load_transfer=config.powertrain.longitudinal_load_transfer,
+        downforce,
+        vehicle.spec.aero.aero_balance_front,
+        cos_pitch,
+        cos_bank,
+        sin_bank,
+        lateral_acceleration,
+        drive / car_mass if drive else 0.0,
+        gravity,
+        config.powertrain.longitudinal_load_transfer,
     )
 
     rolling = 0.0
     if speed > config.physics.epsilon:
         rolling = vehicle.tyre_model.rolling_resistance_force(
-            tyres.compound, loads.total
+            tyres.compound, load_values[0]
         )
 
     brake_force = 0.0
@@ -472,19 +602,15 @@ def longitudinal_forces(
             water_depth=water_depth,
             headwind=headwind,
             downforce_factor=downforce_factor,
+            downforce=downforce,
+            road_trig=trig,
         )
         brake_force = min(vehicle.brakes.brake_force(brake), grip_limit)
 
     net = drive - drag - rolling - brake_force + gradient_force
-    return LongitudinalForces(
-        drive=drive,
-        drag=drag,
-        rolling_resistance=rolling,
-        gradient=gradient_force,
-        brake=brake_force,
-        net=net,
-        acceleration=net / car_mass,
-        loads=loads,
+    return (
+        drive, drag, rolling, gradient_force, brake_force, net, car_mass,
+        load_values, downforce,
     )
 
 

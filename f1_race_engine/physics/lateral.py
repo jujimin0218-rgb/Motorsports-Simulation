@@ -31,7 +31,7 @@ from typing import Any
 from ..core.units import MetresPerSecond, MetresPerSecondSquared, Newtons
 from ..tyres.state import TyreState
 from ..vehicle.model import Vehicle
-from .grip import lateral_transfer_factor, normal_loads, slope_angle
+from .grip import lateral_transfer_factor, normal_loads_core, road_trigonometry
 
 __all__ = [
     "LateralCapability",
@@ -78,7 +78,7 @@ class LateralCapability:
         }
 
 
-def lateral_capability(
+def _resolve_lateral(
     vehicle: Vehicle,
     speed: float,
     air_density: float,
@@ -94,8 +94,16 @@ def lateral_capability(
     water_depth: float = 0.0,
     headwind: float = 0.0,
     downforce_factor: float = 1.0,
-) -> LateralCapability:
-    """Maximum lateral acceleration available at ``speed``.
+) -> tuple[float, float, float, float]:
+    """``(lateral acceleration, lateral force, total load, downforce)``.
+
+    The cornering calculation itself.  :func:`lateral_capability` wraps it up
+    for a caller who wants the whole picture and
+    :func:`max_lateral_acceleration` takes the first number and nothing else --
+    which is what the corner-speed bisection asks for, ten times a corner, and
+    it has no use for either the friction coefficient or a dataclass to hold it.
+
+    Maximum lateral acceleration available at ``speed``.
 
     ``curvature`` is used only for the banking geometry -- whether the banking
     is helping or hurting -- not to decide the answer.
@@ -125,34 +133,42 @@ def lateral_capability(
     )
     load_sensitivity = tyres.compound.load_sensitivity
 
+    # The rest of what the loop does not change.  Gravity along a banked
+    # surface contributes to turning the car, and neither it nor the bank's
+    # cosine depends on the acceleration being settled.
+    mass_properties = vehicle.mass
+    tyre_model = vehicle.tyre_model
+    balance = vehicle.spec.aero.aero_balance_front
+    compound = tyres.compound
+    cos_pitch, cos_bank, sin_bank = road_trigonometry(gradient, helpful_bank)
+    gravity_assist = car_mass * gravity * cos_pitch * sin_bank
+    longitudinal_used = abs(longitudinal_force_used)
+
     # Estimate the cornering acceleration to evaluate the banking term, then
     # settle it: the banking contribution to load depends on it.
     lateral_acceleration = required_lateral_acceleration(speed, curvature)
     for _ in range(4):
-        loads = normal_loads(
-            vehicle.mass,
+        total_load, front_load, rear_load, _w, _b, _t = normal_loads_core(
+            mass_properties,
             car_mass,
-            downforce=downforce,
-            downforce_balance_front=vehicle.spec.aero.aero_balance_front,
-            gradient=gradient,
-            banking=helpful_bank,
-            lateral_acceleration=lateral_acceleration,
-            longitudinal_acceleration=0.0,
-            gravity=gravity,
-            enable_load_transfer=False,
+            downforce,
+            balance,
+            cos_pitch,
+            cos_bank,
+            sin_bank,
+            lateral_acceleration,
+            0.0,
+            gravity,
+            False,
         )
-        limit = vehicle.tyre_model.grip_limit(
-            tyres.compound, loads.total, state=tyres, surface_grip=surface_grip,
+        capacity = tyre_model.grip_capacity(
+            compound, total_load, state=tyres, surface_grip=surface_grip,
             water_depth=water_depth, speed=speed,
         )
-        available_force = vehicle.tyre_model.available_lateral(
-            limit, abs(longitudinal_force_used)
+        available_force = tyre_model.remaining_from_capacity(
+            capacity, longitudinal_used
         )
-        # Gravity along a banked surface contributes to turning the car.
-        gravity_assist = (
-            car_mass * gravity * math.cos(slope_angle(gradient)) * math.sin(helpful_bank)
-        )
-        horizontal_force = available_force * math.cos(helpful_bank) + gravity_assist
+        horizontal_force = available_force * cos_bank + gravity_assist
         new_acceleration = max(horizontal_force, 0.0) / car_mass
         if abs(new_acceleration - lateral_acceleration) < 1e-6:
             lateral_acceleration = new_acceleration
@@ -171,23 +187,66 @@ def lateral_capability(
     # solver that runs for every segment of every lap.
     if transfers:
         factor = lateral_transfer_factor(
-            loads.total,
+            total_load,
             abs(lateral_acceleration) * transfer_per_unit,
             load_sensitivity,
-            front_load=loads.front,
-            rear_load=loads.rear,
+            front_load=front_load,
+            rear_load=rear_load,
             roll_stiffness_front=config.suspension.roll_stiffness_front,
         )
         available_force *= factor
-        horizontal_force = available_force * math.cos(helpful_bank) + gravity_assist
+        horizontal_force = available_force * cos_bank + gravity_assist
         lateral_acceleration = max(horizontal_force, 0.0) / car_mass
 
+    return lateral_acceleration, available_force, total_load, downforce
+
+
+def lateral_capability(
+    vehicle: Vehicle,
+    speed: float,
+    air_density: float,
+    *,
+    mass: float | None = None,
+    tyre_state: TyreState | None = None,
+    surface_grip: float = 1.0,
+    banking: float = 0.0,
+    gradient: float = 0.0,
+    curvature: float = 0.0,
+    longitudinal_force_used: float = 0.0,
+    drs_open: bool = False,
+    water_depth: float = 0.0,
+    headwind: float = 0.0,
+    downforce_factor: float = 1.0,
+) -> LateralCapability:
+    """Maximum lateral acceleration available at ``speed``, with its workings."""
+    acceleration, force, total_load, downforce = _resolve_lateral(
+        vehicle,
+        speed,
+        air_density,
+        mass=mass,
+        tyre_state=tyre_state,
+        surface_grip=surface_grip,
+        banking=banking,
+        gradient=gradient,
+        curvature=curvature,
+        longitudinal_force_used=longitudinal_force_used,
+        drs_open=drs_open,
+        water_depth=water_depth,
+        headwind=headwind,
+        downforce_factor=downforce_factor,
+    )
+    tyres = tyre_state or TyreState()
     return LateralCapability(
         speed=speed,
-        normal_load=loads.total,
-        friction_coefficient=limit.friction_coefficient,
-        lateral_force=available_force,
-        lateral_acceleration=lateral_acceleration,
+        normal_load=total_load,
+        # Asked for once, on the settled load, rather than carried through
+        # every pass of the settling loop: only the answer needs it.
+        friction_coefficient=vehicle.tyre_model.friction_coefficient(
+            tyres.compound, total_load, state=tyres, surface_grip=surface_grip,
+            water_depth=water_depth, speed=speed,
+        ),
+        lateral_force=force,
+        lateral_acceleration=acceleration,
         downforce=downforce,
     )
 
@@ -196,7 +255,7 @@ def max_lateral_acceleration(
     vehicle: Vehicle, speed: float, air_density: float, **kwargs: Any
 ) -> MetresPerSecondSquared:
     """Peak lateral acceleration available at ``speed``, m/s^2."""
-    return lateral_capability(vehicle, speed, air_density, **kwargs).lateral_acceleration
+    return _resolve_lateral(vehicle, speed, air_density, **kwargs)[0]
 
 
 def corner_speed_limit(
@@ -236,7 +295,7 @@ def corner_speed_limit(
 
     def excess(speed: float) -> float:
         """Demand minus supply.  Positive means the corner is too fast."""
-        capability = lateral_capability(
+        available = _resolve_lateral(
             vehicle,
             speed,
             air_density,
@@ -251,8 +310,8 @@ def corner_speed_limit(
             water_depth=water_depth,
             headwind=headwind,
             downforce_factor=downforce_factor,
-        )
-        return required_lateral_acceleration(speed, curvature) - capability.lateral_acceleration
+        )[0]
+        return required_lateral_acceleration(speed, curvature) - available
 
     if excess(max_speed) <= 0.0:
         return max_speed

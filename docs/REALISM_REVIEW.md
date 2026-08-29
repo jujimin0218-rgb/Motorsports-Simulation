@@ -573,6 +573,66 @@ have, and both are bugs rather than driving.
 
 ---
 
+## Making it twice as fast without changing a single answer
+
+Optimisation on a simulator is only worth anything if the simulator still says
+the same thing afterwards, so the rule here was strict: **every answer bit for
+bit identical**. Ninety of them — the limit lap for three cars at two wing
+levels on three circuits on three compounds, plus four laps of a driven stint
+and the tyre state it ends on — were recorded to full precision first and
+re-checked after every change. All ninety matched at every step.
+
+That rules out the usual tricks. `cos(atan(g))` is `1/sqrt(1+g²)` in
+mathematics and not in floating point; `m·a·h/L` and `a·(m·h/L)` differ in the
+last bit, and a solver that runs to a tolerance is exactly where the last bit
+shows. Both were tried and both were reverted. What was left is the honest
+kind of speed: doing the same arithmetic fewer times.
+
+| | before | after | |
+|---|---|---|---|
+| speed profile | 758 ms | 361 ms | **2.10×** |
+| driven lap | 841 ms | 424 ms | **1.98×** |
+
+Where it came from, largest first:
+
+**Work thrown away.** The speed profile calls the longitudinal balance 43,000
+times a lap and reads one number off the result — but the result was a frozen
+dataclass wrapping another frozen dataclass. The same was true of cornering:
+the corner-speed bisection asked ten times a corner for a `LateralCapability`
+and took the acceleration, having paid for a friction-coefficient lookup it
+never read. Both are now a core returning plain floats with the dataclass built
+only for callers who want it, which is the same split `normal_loads` got.
+
+**The same question asked three times.** `longitudinal_forces` computed the
+downforce, then the traction solver recomputed it from the same speed and wing,
+then the braking solver recomputed it again. Likewise the road's trigonometry:
+every solver settles a loop against a *fixed* piece of road, so `cos(pitch)`,
+`cos(bank)` and `sin(bank)` are worth one evaluation per query rather than one
+per pass. Both are computed once and handed down.
+
+**Constants recomputed in loops.** Gravity, the aero balance, the mass
+properties, the tyre model, the combined-grip exponent and the cornering
+reserve were all being looked up inside solver iterations that could not change
+them.
+
+**A wing that does not move.** `ClA` and `CdA` depend on the wing level and
+whether DRS is open, and on nothing else, so the whole engine only ever needs
+two pairs of numbers per car — and was recomputing them 165,000 times a lap
+through a `lerp` and a `clamp`. They are now cached on the aero model, and the
+force balance takes both from one dynamic pressure instead of two.
+
+**Three properties made into attributes.** `Vehicle.config`, `.mass` and
+`.wing_level` are fixed for the life of a vehicle — `with_setup` builds a new
+one — and were reached through a property several hundred thousand times a lap.
+They are now bound in the constructor, like the four models beside them already
+were.
+
+Nothing here is a physics change and nothing here is an approximation. The
+tests that pin the numbers are the same tests, and they pass on the same
+numbers.
+
+---
+
 ## Running it
 
 ```bash

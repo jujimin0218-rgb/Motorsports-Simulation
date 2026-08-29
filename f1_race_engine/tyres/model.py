@@ -167,6 +167,53 @@ class TyreModel:
             capacity=coefficient * load,
         )
 
+    def grip_capacity(
+        self,
+        compound: TyreCompound,
+        normal_load: float,
+        *,
+        tyres: int = 4,
+        state: TyreState | None = None,
+        surface_grip: float = 1.0,
+        water_depth: float = 0.0,
+        speed: float = 0.0,
+    ) -> float:
+        """The radius of the friction circle alone, N.
+
+        Exactly ``grip_limit(...).capacity``, computed without building the
+        :class:`GripLimit` around it.  The solvers ask this question a few
+        hundred thousand times a lap and throw the other two fields away every
+        time, and a frozen dataclass is not free to construct.
+        """
+        if tyres < 1:
+            raise ValueError(f"tyres must be at least 1, got {tyres}")
+        load = normal_load
+        if load < 0.0:
+            load = 0.0
+        reference = load
+        floor = self._config.min_normal_load
+        if reference < floor:
+            reference = floor
+
+        # The compound's load-sensitivity law, written out rather than called.
+        # Same expression, same order, same answer -- but this is the innermost
+        # line in the engine and two levels of call around one power operation
+        # is most of its cost.
+        reference *= 4.0 / tyres
+        sensitivity = compound.load_sensitivity
+        if reference <= 0.0 or sensitivity == 0.0:
+            coefficient = compound.peak_friction
+        else:
+            coefficient = compound.peak_friction * (
+                reference / compound.reference_load
+            ) ** (-sensitivity)
+
+        if state is not None:
+            coefficient *= state.grip
+        if water_depth > 0.0:
+            coefficient *= wet_grip_factor(compound, water_depth, speed, self._wet)
+        return coefficient * surface_grip * load
+
     def rolling_resistance_force(
         self, compound: TyreCompound, normal_load: float
     ) -> float:
@@ -174,6 +221,16 @@ class TyreModel:
         return compound.rolling_resistance * max(normal_load, 0.0)
 
     # -- combined grip -------------------------------------------------------
+
+    def remaining_from_capacity(self, capacity: float, used: float) -> float:
+        """What is left of a friction circle of radius ``capacity``, N.
+
+        The same answer as :meth:`available_lateral` and
+        :meth:`available_longitudinal` -- the circle does not care which axis
+        the force is on -- taken straight from the radius, so a caller working
+        in capacities need not build a :class:`GripLimit` to ask.
+        """
+        return _remaining(capacity, used, self._config.combined_grip_exponent)
 
     def available_lateral(self, limit: GripLimit, longitudinal_used: float) -> float:
         return limit.available_lateral(

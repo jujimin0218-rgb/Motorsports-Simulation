@@ -88,7 +88,24 @@ class Vehicle:
     this one, so several setups of the same car can be evaluated side by side.
     """
 
-    __slots__ = ("_spec", "_setup", "_config", "aero", "power_unit", "brakes", "tyre_model")
+    __slots__ = (
+        "_spec",
+        "_setup",
+        "aero",
+        "power_unit",
+        "brakes",
+        "tyre_model",
+        "config",
+        "mass",
+        "wing_level",
+    )
+    """The models and the three most-asked-for pieces of the specification are
+    bound once, in the constructor, rather than reached through a property.
+
+    Every one of them is fixed for the life of the vehicle -- ``with_setup``
+    and ``with_spec`` build a new one -- and the solvers read them on the order
+    of a hundred thousand times a lap, where the cost of a property call is not
+    nothing."""
 
     def __init__(
         self,
@@ -98,11 +115,13 @@ class Vehicle:
     ) -> None:
         self._spec = spec
         self._setup = setup or VehicleSetup()
-        self._config = config or SimulationConfig()
-        self.aero = AeroModel(spec.aero, self._config.aero)
-        self.power_unit = PowerUnit(spec.power_unit, self._config.powertrain)
+        self.config = config or SimulationConfig()
+        self.mass = spec.mass
+        self.wing_level = self._setup.wing_level
+        self.aero = AeroModel(spec.aero, self.config.aero)
+        self.power_unit = PowerUnit(spec.power_unit, self.config.powertrain)
         self.brakes = BrakeSystem(spec.brakes)
-        self.tyre_model = TyreModel(self._config.tyres, self._config.wet)
+        self.tyre_model = TyreModel(self.config.tyres, self.config.wet)
 
     # -- identity ------------------------------------------------------------
 
@@ -115,22 +134,10 @@ class Vehicle:
         return self._setup
 
     @property
-    def config(self) -> SimulationConfig:
-        return self._config
-
-    @property
     def name(self) -> str:
         return self._spec.name
 
-    @property
-    def mass(self) -> MassProperties:
-        return self._spec.mass
-
     # -- derived -------------------------------------------------------------
-
-    @property
-    def wing_level(self) -> float:
-        return self._setup.wing_level
 
     @property
     def brake_bias_front(self) -> float:
@@ -157,14 +164,14 @@ class Vehicle:
 
     def with_setup(self, setup: VehicleSetup) -> Vehicle:
         """The same car, run differently."""
-        return Vehicle(self._spec, setup, self._config)
+        return Vehicle(self._spec, setup, self.config)
 
     def with_wing(self, wing_level: float) -> Vehicle:
         return self.with_setup(self._setup.with_wing(wing_level))
 
     def with_spec(self, spec: VehicleSpec) -> Vehicle:
         """A different car, run the same way -- for A/B comparisons."""
-        return Vehicle(spec, self._setup, self._config)
+        return Vehicle(spec, self._setup, self.config)
 
     def to_dict(self) -> dict[str, Any]:
         return {

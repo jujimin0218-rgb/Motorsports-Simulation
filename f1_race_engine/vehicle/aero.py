@@ -161,13 +161,31 @@ class AeroForces:
 class AeroModel:
     """Evaluates aerodynamic forces for a given platform and setup."""
 
-    __slots__ = ("_properties", "_config")
+    __slots__ = ("_properties", "_config", "_areas")
 
     def __init__(
         self, properties: AeroProperties, config: AeroConfig | None = None
     ) -> None:
         self._properties = properties
         self._config = config or AeroConfig()
+        # A car's wing does not move.  The two areas depend on the wing level
+        # and whether DRS is open and on nothing else, so the whole engine only
+        # ever asks for two pairs of numbers and it asks a hundred thousand
+        # times a lap.
+        self._areas: dict[tuple[float, bool], tuple[float, float]] = {}
+
+    def _area_pair(self, wing_level: float, drs_open: bool) -> tuple[float, float]:
+        key = (wing_level, drs_open)
+        pair = self._areas.get(key)
+        if pair is None:
+            lift = self._properties.downforce_area(wing_level)
+            drag = self._properties.drag_area(wing_level)
+            if drs_open:
+                lift *= 1.0 - self._config.drs_downforce_loss
+                drag *= 1.0 - self._config.drs_drag_reduction
+            pair = (lift, drag)
+            self._areas[key] = pair
+        return pair
 
     @property
     def properties(self) -> AeroProperties:
@@ -178,16 +196,22 @@ class AeroModel:
         return self._config
 
     def downforce_area(self, wing_level: float, *, drs_open: bool = False) -> float:
-        area = self._properties.downforce_area(wing_level)
-        if drs_open:
-            area *= 1.0 - self._config.drs_downforce_loss
-        return area
+        return self._area_pair(wing_level, drs_open)[0]
 
     def drag_area(self, wing_level: float, *, drs_open: bool = False) -> float:
-        area = self._properties.drag_area(wing_level)
-        if drs_open:
-            area *= 1.0 - self._config.drs_drag_reduction
-        return area
+        return self._area_pair(wing_level, drs_open)[1]
+
+    def downforce_and_drag(
+        self, speed: float, air_density: float, wing_level: float, *, drs_open: bool = False
+    ) -> tuple[Newtons, Newtons]:
+        """Both forces from one dynamic pressure.
+
+        The force balance needs the pair every time it is evaluated, and asking
+        for them separately computes ``0.5 rho v^2`` twice.
+        """
+        lift_area, drag_area = self._area_pair(wing_level, drs_open)
+        dynamic_pressure = 0.5 * air_density * speed * speed
+        return dynamic_pressure * lift_area, dynamic_pressure * drag_area
 
     def forces(
         self,
@@ -198,9 +222,10 @@ class AeroModel:
         drs_open: bool = False,
     ) -> AeroForces:
         """Downforce and drag at ``speed``, both proportional to ``v^2``."""
+        lift_area, drag_area = self._area_pair(wing_level, drs_open)
         dynamic_pressure = 0.5 * air_density * speed * speed
-        downforce = dynamic_pressure * self.downforce_area(wing_level, drs_open=drs_open)
-        drag = dynamic_pressure * self.drag_area(wing_level, drs_open=drs_open)
+        downforce = dynamic_pressure * lift_area
+        drag = dynamic_pressure * drag_area
         balance = self._properties.aero_balance_front
         return AeroForces(
             downforce=downforce,

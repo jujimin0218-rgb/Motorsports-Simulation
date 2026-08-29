@@ -493,3 +493,98 @@ def test_lifting_the_inside_wheels_is_the_end_of_it(car):
     lifted = lateral_transfer_factor(20_000.0, 10_000.0, 0.08)
     beyond = lateral_transfer_factor(20_000.0, 14_000.0, 0.08)
     assert lifted == pytest.approx(beyond)
+
+
+# -- the fast paths say the same thing as the slow ones ----------------------
+
+
+def test_the_lean_force_balance_matches_the_full_one(car, air_density):
+    """``longitudinal_acceleration`` exists only to skip building two frozen
+    dataclasses the speed profile throws away.  The moment it stops agreeing
+    with the balance it is a shortcut instead of a subset, so it is pinned.
+    """
+    from f1_race_engine.physics.longitudinal import (
+        longitudinal_acceleration,
+        longitudinal_forces,
+    )
+    from f1_race_engine.tyres import TyreState
+
+    tyres = TyreState()
+    for speed in (5.0, 30.0, 60.0, 90.0):
+        for throttle, brake in ((1.0, 0.0), (0.0, 1.0), (0.5, 0.0)):
+            for gradient, banking in ((0.0, 0.0), (0.05, 0.0), (-0.03, 0.06)):
+                kwargs = dict(
+                    throttle=throttle,
+                    brake=brake,
+                    gradient=gradient,
+                    banking=banking,
+                    tyre_state=tyres,
+                    lateral_acceleration=8.0,
+                    lateral_force_used=6_000.0,
+                )
+                full = longitudinal_forces(car, speed, air_density, **kwargs)
+                lean = longitudinal_acceleration(car, speed, air_density, **kwargs)
+                assert lean == full.acceleration
+
+
+def test_the_capacity_shortcut_matches_the_friction_circle(car):
+    """``grip_capacity`` is the radius of the circle ``grip_limit`` returns."""
+    from f1_race_engine.tyres import TyreState
+    from f1_race_engine.tyres.io import load_builtin_compounds
+
+    model = car.tyre_model
+    for compound in load_builtin_compounds("reference_2024"):
+        for state in (None, TyreState(compound=compound, wear=0.6)):
+            for load in (-5.0, 0.0, 1.0, 4_000.0, 18_000.0, 40_000.0):
+                for tyres in (2, 4):
+                    for water in (0.0, 0.003):
+                        full = model.grip_limit(
+                            compound, load, tyres=tyres, state=state,
+                            water_depth=water, speed=55.0,
+                        )
+                        lean = model.grip_capacity(
+                            compound, load, tyres=tyres, state=state,
+                            water_depth=water, speed=55.0,
+                        )
+                        assert lean == full.capacity
+
+
+def test_the_lean_cornering_answer_matches_the_full_one(car, air_density):
+    """``max_lateral_acceleration`` is the first field of the full answer."""
+    from f1_race_engine.physics.lateral import (
+        lateral_capability,
+        max_lateral_acceleration,
+    )
+
+    for speed in (20.0, 50.0, 85.0):
+        for curvature, banking in ((0.0, 0.0), (1 / 80.0, 0.0), (1 / 250.0, 0.05)):
+            kwargs = dict(curvature=curvature, banking=banking, gradient=0.02)
+            full = lateral_capability(car, speed, air_density, **kwargs)
+            lean = max_lateral_acceleration(car, speed, air_density, **kwargs)
+            assert lean == full.lateral_acceleration
+
+
+def test_normal_loads_is_its_own_core(car):
+    """The tuple form and the dataclass form are one calculation."""
+    from f1_race_engine.physics.grip import (
+        normal_loads,
+        normal_loads_core,
+        road_trigonometry,
+    )
+
+    for gradient, banking in ((0.0, 0.0), (0.04, 0.05), (-0.06, -0.02)):
+        for lateral, longitudinal in ((0.0, 0.0), (30.0, -15.0), (-12.0, 6.0)):
+            wrapped = normal_loads(
+                car.mass, 800.0, downforce=9_000.0, gradient=gradient,
+                banking=banking, lateral_acceleration=lateral,
+                longitudinal_acceleration=longitudinal,
+            )
+            cos_pitch, cos_bank, sin_bank = road_trigonometry(gradient, banking)
+            core = normal_loads_core(
+                car.mass, 800.0, 9_000.0, 0.44, cos_pitch, cos_bank, sin_bank,
+                lateral, longitudinal, 9.80665, True,
+            )
+            assert core[0] == wrapped.total
+            assert core[1] == wrapped.front
+            assert core[2] == wrapped.rear
+            assert core[5] == wrapped.transfer

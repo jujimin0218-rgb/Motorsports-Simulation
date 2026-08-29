@@ -35,6 +35,8 @@ __all__ = [
     "grip_limits",
     "lateral_transfer_factor",
     "normal_loads",
+    "normal_loads_core",
+    "road_trigonometry",
     "slope_angle",
 ]
 
@@ -138,6 +140,83 @@ class AxleLoads:
         }
 
 
+def road_trigonometry(gradient: float, banking: float) -> tuple[float, float, float]:
+    """``(cos pitch, cos bank, sin bank)`` for a piece of road.
+
+    Split out because every solver in the engine settles a loop against a
+    *fixed* piece of road: the gradient and banking under the car do not change
+    while the acceleration converges, so the three values are worth exactly one
+    evaluation per query rather than one per pass.
+    """
+    return math.cos(math.atan(gradient)), math.cos(banking), math.sin(banking)
+
+
+def normal_loads_core(
+    mass_properties: MassProperties,
+    mass: float,
+    downforce: Newtons,
+    downforce_balance_front: float,
+    cos_pitch: float,
+    cos_bank: float,
+    sin_bank: float,
+    lateral_acceleration: float,
+    longitudinal_acceleration: float,
+    gravity: float,
+    enable_load_transfer: bool,
+) -> tuple[float, float, float, float, float, float]:
+    """The load calculation itself, as a tuple of plain floats.
+
+    ``(total, front, rear, weight_component, banking_component, transfer)``.
+
+    The solvers that call this run it a few hundred thousand times per lap and
+    read three of the six numbers, so they take it in this form and skip
+    building a frozen dataclass they would immediately unpack.  Positional
+    arguments, and the road's trigonometry already evaluated by
+    :func:`road_trigonometry`, for the same reason.  :func:`normal_loads` is
+    the same calculation with an angle-shaped signature and the result wrapped
+    up, and is what everything outside the solvers uses.
+    """
+    weight_component = mass * gravity * cos_pitch * cos_bank
+
+    # A banked corner leans part of the cornering demand into the road.
+    banking_component = mass * lateral_acceleration * sin_bank
+
+    aero = downforce * cos_bank
+    total = weight_component + aero + banking_component
+    if total < 0.0:
+        total = 0.0
+
+    transfer = 0.0
+    if enable_load_transfer:
+        transfer = (
+            mass
+            * longitudinal_acceleration
+            * mass_properties.cg_height
+            / mass_properties.wheelbase
+        )
+
+    front_share = mass_properties.weight_distribution_front
+    rear_share = mass_properties.weight_distribution_rear
+    front = (
+        weight_component * front_share
+        + aero * downforce_balance_front
+        + banking_component * front_share
+        - transfer
+    )
+    rear = (
+        weight_component * rear_share
+        + aero * (1.0 - downforce_balance_front)
+        + banking_component * rear_share
+        + transfer
+    )
+    if front < 0.0:
+        front = 0.0
+    if rear < 0.0:
+        rear = 0.0
+
+    return total, front, rear, weight_component, banking_component, transfer
+
+
 def normal_loads(
     mass_properties: MassProperties,
     mass: float,
@@ -158,31 +237,22 @@ def normal_loads(
     corner banked the right way increases load and one banked the wrong way
     reduces it.
     """
-    pitch = slope_angle(gradient)
-    bank = banking
-
-    weight_component = mass * gravity * math.cos(pitch) * math.cos(bank)
-
-    # A banked corner leans part of the cornering demand into the road.
-    banking_component = mass * lateral_acceleration * math.sin(bank)
-
-    total = weight_component + downforce * math.cos(bank) + banking_component
-    total = max(total, 0.0)
-
-    transfer = 0.0
-    if enable_load_transfer:
-        transfer = mass_properties.load_transfer(longitudinal_acceleration, mass)
-
-    static_front = weight_component * mass_properties.weight_distribution_front
-    static_rear = weight_component * mass_properties.weight_distribution_rear
-    aero_front = downforce * math.cos(bank) * downforce_balance_front
-    aero_rear = downforce * math.cos(bank) * (1.0 - downforce_balance_front)
-    bank_front = banking_component * mass_properties.weight_distribution_front
-    bank_rear = banking_component * mass_properties.weight_distribution_rear
-
-    front = max(static_front + aero_front + bank_front - transfer, 0.0)
-    rear = max(static_rear + aero_rear + bank_rear + transfer, 0.0)
-
+    cos_pitch, cos_bank, sin_bank = road_trigonometry(gradient, banking)
+    total, front, rear, weight_component, banking_component, transfer = (
+        normal_loads_core(
+            mass_properties,
+            mass,
+            downforce,
+            downforce_balance_front,
+            cos_pitch,
+            cos_bank,
+            sin_bank,
+            lateral_acceleration,
+            longitudinal_acceleration,
+            gravity,
+            enable_load_transfer,
+        )
+    )
     return AxleLoads(
         total=total,
         front=front,

@@ -56,7 +56,7 @@ from ..track.surface import TrackConditions
 from ..tyres.state import TyreState
 from ..vehicle.model import Vehicle
 from .lateral import corner_speed_limit
-from .longitudinal import longitudinal_forces
+from .longitudinal import longitudinal_acceleration
 
 __all__ = [
     "PerformanceLimits",
@@ -400,7 +400,7 @@ def _capability(
     lateral_acceleration = speed * speed * abs(curvature)
     lateral_force = mass * lateral_acceleration
     utilisation = limits.braking if braking else limits.traction
-    forces = longitudinal_forces(
+    acceleration = longitudinal_acceleration(
         vehicle,
         speed,
         air_density,
@@ -420,7 +420,7 @@ def _capability(
         drag_factor=drag_factor,
         drs_open=drs_open,
     )
-    return -forces.acceleration if braking else forces.acceleration
+    return -acceleration if braking else acceleration
 
 
 def _step(
