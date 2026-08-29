@@ -14,99 +14,204 @@
   "layout": [
     {
       "type": "straight",
-      "length": 1262.38,
+      "length": 754.3693279532595,
       "name": "Start/finish straight"
     },
     {
       "type": "corner",
-      "radius": 40,
-      "angle": 90,
-      "direction": "left",
+      "radius": 40.0,
+      "angle": 96.33802816901408,
+      "direction": "right",
       "name": "Turn 1",
       "corner_id": 1
     },
     {
       "type": "straight",
-      "length": 117.0,
-      "name": "Link 1"
+      "length": 52.45349856397777,
+      "name": "Turn 1 exit"
     },
     {
       "type": "corner",
-      "radius": 200,
-      "angle": 60,
+      "radius": 130.0,
+      "angle": 60.84507042253521,
       "direction": "left",
-      "name": "Turn 2",
+      "name": "Fast Left",
       "corner_id": 2
     },
     {
       "type": "straight",
-      "length": 204.94,
-      "name": "Esses approach"
+      "length": 46.8272274112969,
+      "name": "Link 1"
     },
     {
       "type": "corner",
-      "radius": 180,
-      "angle": 45,
-      "direction": "right",
-      "name": "Turn 3",
+      "radius": 90.0,
+      "angle": 65.91549295774648,
+      "direction": "left",
+      "name": "Second Left",
       "corner_id": 3
     },
     {
       "type": "straight",
-      "length": 111.88,
-      "name": "Esses exit"
+      "length": 264.45339586332864,
+      "name": "Hairpin approach"
     },
     {
       "type": "corner",
-      "radius": 90,
-      "angle": 75,
-      "direction": "left",
-      "name": "Turn 4",
+      "radius": 28.0,
+      "angle": 101.40845070422534,
+      "direction": "right",
+      "name": "Hairpin",
       "corner_id": 4
     },
     {
       "type": "straight",
-      "length": 714.12,
-      "name": "Back straight"
+      "length": 34.75056541260408,
+      "name": "Hairpin exit"
     },
     {
       "type": "corner",
-      "radius": 350,
-      "angle": 45,
-      "direction": "left",
+      "radius": 60.0,
+      "angle": 70.98591549295774,
+      "direction": "right",
       "name": "Turn 5",
       "corner_id": 5
     },
     {
       "type": "straight",
-      "length": 522.71,
-      "name": "Hairpin approach"
+      "length": 82.24149516297376,
+      "name": "Esses approach"
     },
     {
       "type": "corner",
-      "radius": 25,
-      "angle": 90,
+      "radius": 210.0,
+      "angle": 55.774647887323944,
       "direction": "left",
-      "name": "Turn 6 (Hairpin)",
+      "name": "Esses 1",
       "corner_id": 6
     },
     {
       "type": "straight",
-      "length": 349.98,
-      "name": "Hairpin exit"
+      "length": 37.72415517764232,
+      "name": "Esses link 1"
     },
     {
       "type": "corner",
-      "radius": 150,
-      "angle": 45,
-      "direction": "left",
-      "name": "Turn 7",
+      "radius": 190.0,
+      "angle": 50.70422535211267,
+      "direction": "right",
+      "name": "Esses 2",
       "corner_id": 7
     },
     {
       "type": "straight",
-      "length": 312.08,
-      "name": "Final link"
+      "length": 44.62885868932261,
+      "name": "Esses link 2"
+    },
+    {
+      "type": "corner",
+      "radius": 110.0,
+      "angle": 60.84507042253521,
+      "direction": "left",
+      "name": "Esses 3",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": "Back straight"
+    },
+    {
+      "type": "corner",
+      "radius": 22.0,
+      "angle": 126.76056338028168,
+      "direction": "right",
+      "name": "Back Hairpin",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 288.9236495885275,
+      "name": "Turn 10 approach"
+    },
+    {
+      "type": "corner",
+      "radius": 65.0,
+      "angle": 76.05633802816901,
+      "direction": "right",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 54.10493914924187,
+      "name": "Turn 10 link"
+    },
+    {
+      "type": "corner",
+      "radius": 55.0,
+      "angle": 70.98591549295774,
+      "direction": "left",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "straight",
+      "length": 604.2960655079424,
+      "name": "Stadium approach"
+    },
+    {
+      "type": "corner",
+      "radius": 50.0,
+      "angle": 60.84507042253521,
+      "direction": "right",
+      "name": "Stadium 1",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 64.10500388996917,
+      "name": "Stadium link"
+    },
+    {
+      "type": "corner",
+      "radius": 45.0,
+      "angle": 70.98591549295774,
+      "direction": "left",
+      "name": "Stadium 2",
+      "corner_id": 13
+    },
+    {
+      "type": "straight",
+      "length": 348.9920697524147,
+      "name": "Final complex approach"
+    },
+    {
+      "type": "corner",
+      "radius": 35.0,
+      "angle": 106.47887323943662,
+      "direction": "right",
+      "name": "Final Complex",
+      "corner_id": 14
+    },
+    {
+      "type": "straight",
+      "length": 58.51890184597908,
+      "name": "Final complex link"
+    },
+    {
+      "type": "corner",
+      "radius": 120.0,
+      "angle": 55.774647887323944,
+      "direction": "right",
+      "name": "Last Corner",
+      "corner_id": 15,
+      "radius_end": 200.0
+    },
+    {
+      "type": "straight",
+      "length": 165.43843791111806,
+      "name": "Pit straight"
     }
   ],
   "elevation": {
@@ -116,35 +221,35 @@
         0.0
       ],
       [
-        700.0,
+        696.9,
         -6.0
       ],
       [
-        1262.0,
+        1244.5,
         -12.0
       ],
       [
-        1970.0,
+        1991.2,
         8.0
       ],
       [
-        2460.0,
+        2439.2,
         24.0
       ],
       [
-        3170.0,
+        3185.9,
         10.0
       ],
       [
-        4090.0,
+        4082.0,
         -8.0
       ],
       [
-        4500.0,
+        4480.2,
         -4.0
       ],
       [
-        4978.341364708182,
+        4978.0,
         0.0
       ]
     ],
@@ -157,39 +262,39 @@
         0.0
       ],
       [
-        1300.0,
+        1294.3,
         0.0
       ],
       [
-        1616.0,
+        1593.0,
         2.0
       ],
       [
-        1900.0,
+        1891.6,
         0.0
       ],
       [
-        2075.0,
+        2090.8,
         -1.5
       ],
       [
-        2250.0,
+        2240.1,
         0.0
       ],
       [
-        3170.0,
+        3185.9,
         0.0
       ],
       [
-        3370.0,
+        3385.0,
         4.0
       ],
       [
-        3570.0,
+        3584.2,
         0.0
       ],
       [
-        4978.341364708182,
+        4978.0,
         0.0
       ]
     ],
@@ -198,16 +303,16 @@
   "surface": {
     "regions": [
       {
-        "start": 1767.9,
-        "end": 2289.7,
+        "start": 1767.2,
+        "end": 2289.9,
         "surface_type": "abrasive_asphalt",
         "name": "Esses (original 1998 surface)",
         "grip": 0.98,
         "roughness": 0.75
       },
       {
-        "start": 2457.0,
-        "end": 3171.1,
+        "start": 2459.1,
+        "end": 3171.0,
         "surface_type": "smooth_asphalt",
         "name": "Back straight (resurfaced)",
         "grip": 1.02,
@@ -222,31 +327,31 @@
         15.0
       ],
       [
-        1200.0,
+        1194.7,
         15.0
       ],
       [
-        1400.0,
+        1393.8,
         13.0
       ],
       [
-        4000.0,
+        3982.4,
         13.0
       ],
       [
-        4092.0,
+        4082.0,
         10.5
       ],
       [
-        4200.0,
+        4181.5,
         10.5
       ],
       [
-        4400.0,
+        4380.6,
         13.0
       ],
       [
-        4978.341364708182,
+        4978.0,
         15.0
       ]
     ],
@@ -255,38 +360,38 @@
   "kerbs": {
     "regions": [
       {
-        "start": 1262.4,
-        "end": 1347.2,
+        "start": 1264.4,
+        "end": 1349.0,
         "kerb": "medium"
       },
       {
-        "start": 1464.2,
-        "end": 1767.9,
+        "start": 1463.5,
+        "end": 1767.2,
         "kerb": "medium"
       },
       {
-        "start": 1972.8,
-        "end": 2177.8,
+        "start": 1971.3,
+        "end": 2175.4,
         "kerb": "medium"
       },
       {
-        "start": 2289.7,
-        "end": 2457.0,
+        "start": 2289.9,
+        "end": 2459.1,
         "kerb": "high"
       },
       {
-        "start": 3171.1,
-        "end": 3569.7,
+        "start": 3171.0,
+        "end": 3569.2,
         "kerb": "low"
       },
       {
-        "start": 4092.4,
-        "end": 4145.5,
+        "start": 4091.9,
+        "end": 4146.7,
         "kerb": "high"
       },
       {
-        "start": 4495.4,
-        "end": 4666.3,
+        "start": 4495.1,
+        "end": 4664.4,
         "kerb": "medium"
       }
     ]
@@ -296,30 +401,33 @@
       {
         "index": 0,
         "name": "Start/finish straight",
-        "detection_distance": 4550.0,
-        "activation_start": 60.0,
-        "activation_end": 1180.0,
-        "length": 1120.0
+        "detection_distance": 4549.9,
+        "activation_start": 59.7,
+        "activation_end": 746.7,
+        "length": 687.0,
+        "lap_length": 4978.0
       },
       {
         "index": 1,
         "name": "Back straight",
-        "detection_distance": 2300.0,
-        "activation_start": 2520.0,
-        "activation_end": 3120.0,
-        "length": 600.0
+        "detection_distance": 2299.8,
+        "activation_start": 2518.9,
+        "activation_end": 3121.2,
+        "length": 602.2999999999997,
+        "lap_length": 4978.0
       }
     ]
   },
   "sectors": {
     "boundaries": [
-      1767.9,
-      3569.7
+      1767.2,
+      3569.2
     ]
   },
   "metadata": {
     "purpose": "Phase 1 reference circuit for engine development and tests",
     "geometry_confidence": "synthetic",
-    "notes": "Not a real circuit. Designed to exercise every part of the track model: two long straights, high/medium/low-speed corners, one right-hander among the lefts, elevation change, banking, two surface types and two DRS zones. Straight lengths were solved so the plan-view geometry closes exactly."
+    "character": "every corner speed represented, balanced setup",
+    "notes": "Not a real circuit. Designed to exercise every part of the track model: two long straights, high/medium/low-speed corners, a corner that opens out, elevation change, banking, two surface types and two DRS zones. Corner density and full-throttle share are held inside the range the Formula 1 calendar spans; generated by tools/design_circuits.py."
   }
 }

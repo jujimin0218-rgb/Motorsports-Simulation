@@ -1,7 +1,7 @@
 # Realism Review — measuring the engine against the real thing
 
-**Status: three defects fixed, one capability added, one gap left open and
-named.** A pass over the Phase 1–9 engine looking for places where the model
+**Status: two passes done. Six defects fixed, two capabilities added, two gaps
+left open and named.** A pass over the Phase 1–9 engine looking for places where the model
 disagrees with a real Formula 1 car, done by measuring the engine and putting
 the numbers next to published ones rather than by reading the code and forming
 opinions.
@@ -147,6 +147,144 @@ calibration target.
 
 ---
 
+## Second pass: the reference circuits were not representative
+
+The first pass stopped at the physics.  Measuring the *outputs* -- fuel effect,
+compound choice, the setup the circuit wants -- found three more things, and the
+first of them explained most of the other two.
+
+### 4. The synthetic circuits were nothing like real ones
+
+Every calibration the engine does is measured on three shipped circuits, and
+against the range the calendar occupies they were a long way outside it:
+
+```
+                          corners/km   average speed
+  power circuit                 1.0        302 km/h
+  proving ground                1.4        266 km/h
+  street circuit                4.8        145 km/h
+
+  Monza                         1.9        264 km/h
+  Silverstone                   3.1        245 km/h
+  Monaco                        5.7        171 km/h
+```
+
+The power circuit averaged 302 km/h, faster than anything in Formula 1, with a
+corner every kilometre.  A lap that is nine tenths straight line barely uses
+the tyres, and that quietly distorted everything measured on it: fuel looked
+cheap at 0.010 s/kg against the 0.024-0.041 teams use, and the same tyre step
+was worth 0.31 s on one circuit and 1.90 s on another -- a six-fold spread
+where the real one is about two-fold.
+
+None of that was a physics bug.  It is what the physics correctly says about
+laps no real circuit resembles.  `tools/design_circuits.py` regenerates all
+three inside the range real circuits occupy, and gates them on it.  The gate is
+geometry only -- corner density, average speed, minimum speed -- because the
+obvious fourth measure, share of the lap at full throttle, turns out to be a
+property of the *driver model* rather than of the road: the Phase 4 controller
+follows the speed profile exactly, so where the profile is flat it holds a
+maintenance throttle while a real driver squirts and lifts.  Same lap time,
+different pedal trace.  Gating a circuit on it would be tuning the road to
+suit the driver.
+
+One convention had to be pinned down on the way.  A radius in this data is the
+radius the *car* drives, not the road's centreline: the engine has no
+racing-line model, so its cornering speeds are calibrated against the line
+rather than the road.  The check is that they come out right -- Suzuka's 130R
+is a 130 m corner taken at 290 km/h, and asked about a 130 m radius the engine
+answers 292.
+
+### 5. Every circuit wanted maximum wing
+
+With realistic corner content the setup search collapsed: all three circuits
+wanted the biggest wing available, including the one built to reward low drag.
+The cause was the aero calibration.  Drag was anchored at the low-downforce end
+and left to follow at the high end, which put a Monaco package at ``CdA 1.45``
+where published figures say 1.6-1.8.  Downforce was nearly free, so more of it
+always won.
+
+Re-anchored at both ends -- ``ClA 3.6 -> CdA 0.92`` and ``ClA 6.2 -> CdA 1.75``
+-- and the trade comes back:
+
+```
+  before   L/D 3.79 -> 4.28 (rising)     every circuit wants maximum wing
+  after    L/D 3.91 -> 3.54 (falling)    power circuit minimum, street maximum,
+                                         reference circuit an interior optimum
+```
+
+### 6. The engine never ran out of gears
+
+Terminal velocity came out at 371 km/h, which nothing on the grid reaches, and
+0-300 km/h took 7.9 s against a real 8.4-10.6.  Top gear is a fixed ratio, so
+past a certain road speed the crank is on the limiter and there is no more
+drive whatever the drag says -- and that limit was missing.
+
+With it (`PowerUnitProperties.rev_limit_speed`, 353 km/h):
+
+| | before | after | real |
+|---|---|---|---|
+| terminal velocity, low wing | 371 km/h | 353 km/h | ~350 (gear limited) |
+| 0-100 km/h | 2.23 s | 2.65 s | ~2.6 s |
+| 0-200 km/h | 4.17 s | 4.90 s | ~4.6-4.8 s |
+| 0-300 km/h | 7.87 s | 8.94 s | ~8.4-10.6 s |
+
+It also produced a behaviour nobody wrote down: at minimum wing the car is
+already on the limiter, so **DRS stops adding top speed** and only gets the car
+there sooner.  That is exactly what happens at Monza.
+
+### What the circuits fixed, measured
+
+| | before | after | real |
+|---|---|---|---|
+| fuel effect | 0.010-0.020 s/kg | 0.022-0.030 s/kg | 0.024-0.041 |
+| compound step S->M | 0.31-1.90 s | 0.60-0.81 s | 0.5-0.7 |
+| compound step S->H | 0.66-4.05 s | 1.23-1.66 s | 1.0-1.4 |
+| degradation, medium | -- | 0.13 s/lap | 0.08-0.12 |
+| degradation, hard | -- | 0.08 s/lap | 0.05-0.08 |
+
+The tyre numbers moved twice.  Narrowing the compound grip steps to match the
+published lap-time offsets went too far at first, because a softer tyre gives
+some of its raw grip back by running hotter -- so the *raw* step has to be set
+against the *on-track* step, which is a clean 20:1 relationship in this model
+and is how it is now calibrated.
+
+Still off: a soft degrades at 0.30 s/lap where a real one does 0.12-0.20, so it
+stops being the quicker tyre after about three laps rather than eight to
+fifteen.  The ratio between compounds is right and the medium and hard land in
+range; it is the soft's thermal penalty that is too steep, and it belongs with
+the tyre thermal model rather than with the wear curve.
+
+### What was measured and found to be a limit rather than a bug
+
+**A marginal pass is knife-edge, and that is not a defect.**  Running the same
+two-car race at five track resolutions, the winner changed:
+
+```
+  pace 0.86 vs 0.97   158 segs: no pass   223: pass   312: no pass   439: pass
+  pace 0.80 vs 1.00   passes at four resolutions out of five
+  pace 0.74 vs 1.00   passes at every resolution
+```
+
+The physics underneath is resolution-independent -- lap times converge to a
+hundredth of a second -- and a decisive pace advantage always gets through.
+What flips is a *marginal* pass, where a hundredth of a second at a detection
+point decides whether DRS is available on the following lap.  Real races are
+chaotic in exactly that way, so the finding is not that the model is wrong but
+that a test built on a marginal pass measures the knife edge rather than the
+overtaking model.  The overtaking tests now use a decisive gap and say so.
+
+**Track width is dead data.**  `track_width` is carried through the definition,
+the builder, the segments and the report, and nothing in `physics/` reads it --
+the same shape of defect as the brake bias, still open.  It cannot simply be
+wired in: a racing line flattens a 90-degree corner on a 9 m road to nearly
+twice its centreline radius, and the engine's cornering speeds are calibrated
+against the radius the car takes rather than the road's centreline.  Adding a
+racing-line model means moving the grip calibration with it, which is Phase 12
+work.  Until then the circuits state racing-line radii, and
+`tools/design_circuits.py` says so at the top.
+
+---
+
 ## The gap that is still open: real circuits
 
 Project rule 10 asks for Monza, Monaco, Silverstone, Spa, Suzuka and Bahrain as
@@ -197,6 +335,7 @@ run on every invocation.
 ```bash
 pytest
 
-python tools/author_circuits.py            # the three drafts and their verdicts
+python tools/design_circuits.py            # the synthetic circuits and their character
+python tools/author_circuits.py            # the real-circuit drafts and their verdicts
 python examples/08_lap_time.py --validate  # the physics checks, per car
 ```

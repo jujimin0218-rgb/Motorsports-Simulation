@@ -404,7 +404,7 @@ class Track:
     @property
     def min_radius(self) -> Metres:
         return min(
-            (segment.corner_radius for segment in self.segments if segment.is_corner),
+            (segment.tightest_radius for segment in self.segments if segment.is_corner),
             default=math.inf,
         )
 

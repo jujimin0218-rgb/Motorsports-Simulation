@@ -50,11 +50,21 @@ class AeroProperties:
     max_downforce_area: float = 6.2
     """ClA, m^2, at the highest wing setting (a Monaco package)."""
 
-    zero_lift_drag_area: float = 0.696
-    """CdA_0, m^2 -- drag that does not come from making downforce."""
+    zero_lift_drag_area: float = 0.4978
+    """CdA_0, m^2 -- drag that does not come from making downforce.
 
-    induced_drag_factor: float = 0.0196
-    """``k`` in ``CdA = CdA_0 + k * ClA^2``, 1/m^2."""
+    Wheels, bodywork and cooling.  It is about half the drag of a low-downforce
+    car and a quarter of a high-downforce one, which is why adding wing costs
+    proportionally more the more of it there already is."""
+
+    induced_drag_factor: float = 0.03258
+    """``k`` in ``CdA = CdA_0 + k * ClA^2``, 1/m^2.
+
+    Calibrated so the pair land on published figures at both ends of the range:
+    a Monza package at ``ClA 3.6`` comes out at ``CdA 0.92``, and a Monaco one
+    at ``ClA 6.2`` at ``CdA 1.75``.  Getting the high-downforce end right is
+    what makes the wing choice a real decision -- with too little drag up
+    there, downforce is nearly free and every circuit wants maximum wing."""
 
     aero_balance_front: float = 0.44
     """Fraction of downforce acting on the front axle."""
@@ -89,13 +99,12 @@ class AeroProperties:
     def efficiency(self, wing_level: float) -> float:
         """Lift-to-drag ratio, ``ClA / CdA``.
 
-        Not the thing that makes the wing choice a trade, and worth being clear
-        about: because a large part of an F1 car's drag comes from the wheels
-        and bodywork rather than from the wings, ``L/D`` stays roughly flat
-        across the usable wing range and can even rise slightly.  What actually
-        costs is the *marginal* drag of the last bit of downforce,
-        ``dCdA/dClA = 2 k ClA``, which grows with every wing level -- so the
-        trade is real, it just does not show up as falling efficiency.
+        Falls across most of the wing range, gently: a low-downforce package
+        sits near 3.9 and a high-downforce one near 3.5.  The fall is shallow
+        because a large part of an F1 car's drag comes from the wheels and
+        bodywork rather than from the wings, so what really decides the wing
+        choice is the *marginal* drag of the last bit of downforce,
+        ``dCdA/dClA = 2 k ClA``, which grows with every wing level.
         """
         return self.downforce_area(wing_level) / self.drag_area(wing_level)
 

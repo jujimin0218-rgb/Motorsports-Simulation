@@ -930,8 +930,13 @@ class TyreWearConfig(ConfigNode):
     """How much a driver's tyre management can change the wear rate.  A perfect
     manager wears at ``1 - management_range`` of the reference."""
 
-    grip_loss_at_full_wear: float = 0.22
-    """Grip lost when the tread is completely gone."""
+    grip_loss_at_full_wear: float = 0.14
+    """Grip lost when the tread is completely gone.
+
+    Calibrated against the degradation teams quote rather than guessed: a
+    medium loses about 0.10 s a lap over a stint, a hard 0.06 and a soft 0.20.
+    This one number scales all three, so it is set from the medium and the
+    others follow from how much harder they work and how hot they run."""
 
     grip_loss_exponent: float = 1.6
     """Above 1, so a tyre holds up and then falls away rather than fading

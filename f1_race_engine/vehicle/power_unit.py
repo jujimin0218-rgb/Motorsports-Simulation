@@ -13,10 +13,27 @@ every car has:
 
     F_drive(v) = min( T_wheel_max / r_wheel ,  P_max * eta / v )
 
-That shape is right, and it is what the acceleration model needs.  What it does
-*not* yet resolve is individual gears and the engine's torque curve: Phase 12
-replaces ``peak_wheel_torque`` with real ratios and a real curve, behind this
-same method.
+There is a third limit, and leaving it out is what made the car quicker than a
+real one at the top end: **the engine runs out of revs**.  Top gear is a fixed
+ratio, so beyond a certain road speed the crank is on the limiter and there is
+no more drive whatever the drag says.  Without it a Formula 1 car's terminal
+velocity comes out around 370 km/h, which no car on the grid reaches, and the
+last stretch of every long straight is spent accelerating where a real car is
+sitting on the limiter at constant speed.
+
+.. code-block:: text
+
+    F_drive(v) = 0                          for v > v_rev_limit
+                 min( T_wheel_max / r_wheel ,  P_max * eta / v )   otherwise
+
+That single number changes more than top speed.  A car pinned on the limiter is
+no longer accelerating, so it stops caring what it weighs -- which is why fuel
+costs less per lap at a circuit with long straights than at one without, the
+way it does in the sport.
+
+What is still *not* resolved is individual gears and the engine's torque curve:
+Phase 12 replaces ``peak_wheel_torque`` and ``rev_limit_speed`` with real ratios
+and a real curve, behind this same method.
 
 ERS is deliberately absent.  It is a separate energy system with its own state,
 harvesting and deployment limits (project rule 24), and it arrives in Phase 5 as
@@ -30,7 +47,7 @@ from typing import Any
 
 from ..core.config import PowertrainConfig
 from ..core.errors import ConfigError
-from ..core.units import Metres, Newtons, Watts
+from ..core.units import Metres, MetresPerSecond, Newtons, Watts
 
 __all__ = ["PowerUnitProperties", "PowerUnit"]
 
@@ -52,6 +69,13 @@ class PowerUnitProperties:
     wheel_radius: Metres = 0.36
     """Loaded rear wheel radius, m."""
 
+    rev_limit_speed: MetresPerSecond = 98.0
+    """Road speed at the rev limit in top gear, m/s.
+
+    353 km/h, which is where a Formula 1 car geared for a low-drag circuit runs
+    out of engine.  Above it the drive force is zero: the car is on the
+    limiter, and only drag decides what happens next."""
+
     def __post_init__(self) -> None:
         if self.max_power <= 0.0:
             raise ConfigError("max_power must be positive")
@@ -59,6 +83,8 @@ class PowerUnitProperties:
             raise ConfigError("peak_wheel_torque must be positive")
         if self.wheel_radius <= 0.0:
             raise ConfigError("wheel_radius must be positive")
+        if self.rev_limit_speed <= 0.0:
+            raise ConfigError("rev_limit_speed must be positive")
 
     @property
     def max_tractive_force(self) -> Newtons:
@@ -70,6 +96,7 @@ class PowerUnitProperties:
             "max_power": self.max_power,
             "peak_wheel_torque": self.peak_wheel_torque,
             "wheel_radius": self.wheel_radius,
+            "rev_limit_speed": self.rev_limit_speed,
         }
 
     @classmethod
@@ -113,6 +140,8 @@ class PowerUnit:
         :mod:`f1_race_engine.physics.longitudinal`.
         """
         if throttle <= 0.0:
+            return 0.0
+        if speed >= self._properties.rev_limit_speed:
             return 0.0
         effective_speed = max(speed, self._config.min_tractive_speed)
         power_limited = self.wheel_power / effective_speed

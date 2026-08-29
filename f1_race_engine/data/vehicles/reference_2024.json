@@ -11,8 +11,8 @@
   "aero": {
     "min_downforce_area": 3.6,
     "max_downforce_area": 6.2,
-    "zero_lift_drag_area": 0.696,
-    "induced_drag_factor": 0.0196,
+    "zero_lift_drag_area": 0.4978,
+    "induced_drag_factor": 0.03258,
     "aero_balance_front": 0.44
   },
   "power_unit": {

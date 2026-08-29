@@ -32,8 +32,13 @@ __all__ = ["REFERENCE_F1", "VehicleBenchmark", "benchmark_vehicle", "format_benc
 
 #: Published figures for a current-generation F1 car, for comparison only.
 #: Never used as an input to the model.
+#:
+#: The top-speed range is for a car in the **medium-downforce trim** this
+#: benchmark runs, not the low-drag package the speed-trap headlines come from:
+#: those are Monza and Baku figures and a car set up for Silverstone is 20-30
+#: km/h short of them.
 REFERENCE_F1: dict[str, tuple[float, float]] = {
-    "top_speed_kph": (320.0, 360.0),
+    "top_speed_kph": (305.0, 345.0),
     "zero_to_100_kph": (2.4, 3.0),
     "zero_to_200_kph": (4.4, 5.6),
     "zero_to_300_kph": (9.5, 12.5),

@@ -59,7 +59,11 @@ def test_proving_ground_exercises_the_whole_model(proving_ground):
     assert mix["low_speed"] >= 1
     assert mix["medium_speed"] >= 1
     assert mix["high_speed"] >= 1
-    assert report["composition"]["longest_straight"] > 1000.0
+    # Long enough to matter, expressed against the lap rather than as a round
+    # number: Monza's main straight is 19% of its lap and Silverstone's Hangar
+    # Straight 13% of its.  A reference circuit needs one the car can reach top
+    # speed on, or DRS and the tow have nothing to work with.
+    assert report["composition"]["longest_straight"] > 0.12 * proving_ground.length
     assert report["corners"]["by_direction"]["right"] >= 1
     assert report["corners"]["by_direction"]["left"] >= 1
     assert report["elevation"]["range"] > 10.0
@@ -84,8 +88,13 @@ def test_circuits_differ_in_character():
 
     power_mix = track_report(power)["corners"]["by_speed_class"]
     street_mix = track_report(street)["corners"]["by_speed_class"]
-    assert power_mix["high_speed"] > 0 and power_mix["low_speed"] == 0
-    assert street_mix["low_speed"] > 0 and street_mix["high_speed"] == 0
+    # What separates them is the fast end, not the slow one.  A power circuit
+    # is allowed slow corners -- Monza is the fastest circuit in Formula 1 and
+    # the Rettifilo chicane is among the slowest corners on the calendar.  What
+    # a street circuit cannot have is anywhere to go quickly.
+    assert power_mix["high_speed"] > 0
+    assert street_mix["high_speed"] == 0
+    assert street_mix["low_speed"] > 0
 
     # A street circuit is narrower, which will drive overtaking difficulty.
     assert min(s.track_width for s in street.segments) < min(

@@ -107,6 +107,14 @@ class TrackDefaults:
     kerb: KerbType = KerbType.NONE
 
     def __post_init__(self) -> None:
+        # Accept the strings these fields serialise to as well as the enums, so
+        # that a definition written in Python and one loaded from JSON are the
+        # same object.  Without this a string survives construction and only
+        # fails later, on the way back out to disk.
+        if not isinstance(self.surface_type, SurfaceType):
+            object.__setattr__(self, "surface_type", SurfaceType(self.surface_type))
+        if not isinstance(self.kerb, KerbType):
+            object.__setattr__(self, "kerb", KerbType(self.kerb))
         if self.transition_factor < 0.0:
             raise TrackBuildError("transition_factor must be non-negative")
         if self.min_transition_length < 0.0:

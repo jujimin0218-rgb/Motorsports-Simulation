@@ -231,8 +231,8 @@ def summarise_corners(
         )
         entry["length"] = float(entry["length"]) + segment.length
         entry["turn_angle"] = float(entry["turn_angle"]) + segment.heading_change
-        if segment.corner_radius < float(entry["min_radius"]):
-            entry["min_radius"] = segment.corner_radius
+        if segment.tightest_radius < float(entry["min_radius"]):
+            entry["min_radius"] = segment.tightest_radius
     for entry in corners.values():
         radius = float(entry["min_radius"])
         entry["speed_class"] = classify_corner(radius).value

@@ -113,7 +113,11 @@ def test_curvature_integral_is_resolution_independent(tracks):
     """Turning is the integral of curvature; quadrature must not bias it."""
     for track in tracks:
         total = math.fsum(s.curvature * s.length for s in track.segments)
-        assert math.degrees(total) == pytest.approx(360.0, abs=1e-9)
+        # One whole lap of turning, in whichever direction the circuit runs.
+        assert math.degrees(total) == pytest.approx(
+            360.0 * track.turn_count, abs=1e-9
+        )
+        assert abs(track.turn_count) == pytest.approx(1.0, abs=1e-9)
 
 
 def test_elevation_closes_at_every_resolution(tracks):

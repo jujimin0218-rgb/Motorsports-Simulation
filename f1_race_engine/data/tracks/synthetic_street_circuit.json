@@ -14,216 +14,250 @@
   "layout": [
     {
       "type": "straight",
-      "length": 501.28264405309346,
+      "length": 20.0,
       "name": "Start/finish straight"
     },
     {
       "type": "corner",
-      "radius": 20,
-      "angle": 90,
+      "radius": 40.0,
+      "angle": 81.0,
       "direction": "right",
       "name": "Turn 1",
       "corner_id": 1
     },
     {
       "type": "straight",
-      "length": 151.73652151945285,
-      "name": "Harbour link"
+      "length": 27.08667181703695,
+      "name": "Turn 1 exit"
     },
     {
       "type": "corner",
-      "radius": 28,
-      "angle": 95,
+      "radius": 45.0,
+      "angle": 72.0,
       "direction": "left",
       "name": "Turn 2",
       "corner_id": 2
     },
     {
       "type": "straight",
-      "length": 100.01025001306284,
-      "name": "Seafront"
+      "length": 31.3361213345201,
+      "name": "Harbour link"
     },
     {
       "type": "corner",
-      "radius": 45,
-      "angle": 75,
-      "direction": "left",
+      "radius": 42.0,
+      "angle": 76.5,
+      "direction": "right",
       "name": "Turn 3",
       "corner_id": 3
     },
     {
       "type": "straight",
-      "length": 35.0,
-      "name": "Casino link"
+      "length": 24.91108575948755,
+      "name": "Hairpin approach"
     },
     {
       "type": "corner",
-      "radius": 18,
-      "angle": 85,
+      "radius": 11.0,
+      "angle": 153.0,
       "direction": "right",
-      "name": "Turn 4",
+      "name": "Grand Hotel Hairpin",
       "corner_id": 4
     },
     {
       "type": "straight",
-      "length": 105.52351512041673,
-      "name": "Hill climb"
+      "length": 241.93764486092917,
+      "name": "Hairpin exit"
     },
     {
       "type": "corner",
-      "radius": 60,
-      "angle": 60,
+      "radius": 65.0,
+      "angle": 54.0,
       "direction": "left",
       "name": "Turn 5",
       "corner_id": 5
     },
     {
       "type": "straight",
-      "length": 35.0,
-      "name": "Tunnel approach"
+      "length": 61.31780499120216,
+      "name": "Link 2"
     },
     {
       "type": "corner",
-      "radius": 90,
-      "angle": 55,
-      "direction": "left",
+      "radius": 38.0,
+      "angle": 85.5,
+      "direction": "right",
       "name": "Turn 6",
       "corner_id": 6
     },
     {
       "type": "straight",
-      "length": 35.0,
-      "name": "Tunnel exit"
+      "length": 56.20761564848118,
+      "name": "Tunnel approach"
     },
     {
       "type": "corner",
-      "radius": 22,
-      "angle": 80,
-      "direction": "right",
-      "name": "Turn 7",
+      "radius": 100.0,
+      "angle": 67.5,
+      "direction": "left",
+      "name": "Tunnel Entry",
       "corner_id": 7
     },
     {
       "type": "straight",
-      "length": 48.58190164414695,
-      "name": "Chicane link"
+      "length": 463.39793756744734,
+      "name": "Tunnel"
     },
     {
       "type": "corner",
-      "radius": 32,
-      "angle": 90,
-      "direction": "left",
-      "name": "Turn 8",
+      "radius": 45.0,
+      "angle": 99.0,
+      "direction": "right",
+      "name": "Chicane",
       "corner_id": 8
     },
     {
       "type": "straight",
-      "length": 69.79250351426559,
-      "name": "Swimming pool"
+      "length": 42.87326783028186,
+      "name": "Chicane exit"
     },
     {
       "type": "corner",
-      "radius": 75,
-      "angle": 60,
+      "radius": 120.0,
+      "angle": 36.0,
       "direction": "left",
-      "name": "Turn 9",
+      "name": "Waterfront Kink",
       "corner_id": 9
     },
     {
       "type": "straight",
-      "length": 58.391051220137335,
-      "name": "Pool exit"
+      "length": 217.6722851571095,
+      "name": "Waterfront"
     },
     {
       "type": "corner",
-      "radius": 19,
-      "angle": 85,
+      "radius": 20.0,
+      "angle": 144.0,
       "direction": "right",
-      "name": "Turn 10",
+      "name": "Second Hairpin",
       "corner_id": 10
     },
     {
       "type": "straight",
-      "length": 35.0,
-      "name": "Rascasse approach"
+      "length": 24.290726971376458,
+      "name": "Second hairpin exit"
     },
     {
       "type": "corner",
-      "radius": 38,
-      "angle": 60,
+      "radius": 70.0,
+      "angle": 49.5,
       "direction": "left",
       "name": "Turn 11",
       "corner_id": 11
     },
     {
       "type": "straight",
-      "length": 172.899529191591,
-      "name": "Old town"
+      "length": 32.76302620831489,
+      "name": "Link 3"
     },
     {
       "type": "corner",
-      "radius": 50,
-      "angle": 70,
-      "direction": "left",
+      "radius": 42.0,
+      "angle": 81.0,
+      "direction": "right",
       "name": "Turn 12",
       "corner_id": 12
     },
     {
       "type": "straight",
-      "length": 123.57830311256131,
-      "name": "Hairpin link"
+      "length": 27.086671817036947,
+      "name": "Link 4"
     },
     {
       "type": "corner",
-      "radius": 26,
-      "angle": 80,
-      "direction": "right",
+      "radius": 60.0,
+      "angle": 58.5,
+      "direction": "left",
       "name": "Turn 13",
       "corner_id": 13
     },
     {
       "type": "straight",
-      "length": 102.45506400567015,
-      "name": "Waterfront"
+      "length": 30.180448596650393,
+      "name": "Swimming pool approach"
     },
     {
       "type": "corner",
-      "radius": 42,
-      "angle": 55,
-      "direction": "left",
-      "name": "Turn 14",
+      "radius": 50.0,
+      "angle": 76.5,
+      "direction": "right",
+      "name": "Pool 1",
       "corner_id": 14
     },
     {
       "type": "straight",
-      "length": 311.9171815178486,
-      "name": "Final sweep"
+      "length": 27.97770649968011,
+      "name": "Pool link 1"
     },
     {
       "type": "corner",
-      "radius": 65,
-      "angle": 60,
+      "radius": 110.0,
+      "angle": 63.0,
       "direction": "left",
-      "name": "Turn 15",
+      "name": "Pool 2",
       "corner_id": 15
     },
     {
       "type": "straight",
-      "length": 254.129353018214,
-      "name": "Pit approach"
+      "length": 29.06863394595846,
+      "name": "Pool link 2"
     },
     {
       "type": "corner",
-      "radius": 30,
-      "angle": 100,
-      "direction": "left",
-      "name": "Turn 16",
+      "radius": 48.0,
+      "angle": 90.0,
+      "direction": "right",
+      "name": "Pool 3",
       "corner_id": 16
     },
     {
       "type": "straight",
-      "length": 82.72488209261181,
-      "name": "Pit exit straight"
+      "length": 27.29627138318537,
+      "name": "Pool exit"
+    },
+    {
+      "type": "corner",
+      "radius": 42.0,
+      "angle": 81.0,
+      "direction": "left",
+      "name": "Pool 4",
+      "corner_id": 17
+    },
+    {
+      "type": "straight",
+      "length": 27.082983431913803,
+      "name": "Final approach"
+    },
+    {
+      "type": "corner",
+      "radius": 85.0,
+      "angle": 40.5,
+      "direction": "right",
+      "name": "Turn 18",
+      "corner_id": 18
+    },
+    {
+      "type": "straight",
+      "length": 28.033310861524,
+      "name": "Final link"
+    },
+    {
+      "type": "corner",
+      "radius": 110.0,
+      "angle": 85.5,
+      "direction": "left",
+      "name": "Final Corner",
+      "corner_id": 19
     }
   ],
   "elevation": {
@@ -233,19 +267,19 @@
         0.0
       ],
       [
-        600.0,
+        603.0,
         20.0
       ],
       [
-        1400.0,
+        1407.0,
         34.0
       ],
       [
-        2200.0,
+        2211.0,
         14.0
       ],
       [
-        2900.0,
+        2914.5,
         -3.0
       ],
       [
@@ -269,15 +303,15 @@
         11.0
       ],
       [
-        400.0,
+        402.0,
         9.5
       ],
       [
-        2600.0,
+        2613.0,
         8.5
       ],
       [
-        3100.0,
+        3115.5,
         9.5
       ],
       [
@@ -295,10 +329,11 @@
       {
         "index": 0,
         "name": "Start/finish straight",
-        "detection_distance": 3230.0,
-        "activation_start": 50.0,
-        "activation_end": 330.0,
-        "length": 280.0
+        "detection_distance": 3199.2,
+        "activation_start": 50.2,
+        "activation_end": 385.2,
+        "length": 335.0,
+        "lap_length": 3350.0
       }
     ]
   },
@@ -312,6 +347,6 @@
     "purpose": "Grip- and traction-limited reference circuit",
     "geometry_confidence": "synthetic",
     "character": "short, tight, narrow, low average speed, heavy elevation change",
-    "notes": "Not a real circuit. Sits at the mechanical-grip end of the character range, opposite the power circuit."
+    "notes": "Not a real circuit. Sits at the mechanical-grip end of the character range: two hairpins, nineteen corners in 3.35 km, and one DRS zone that barely pays. Corner density and full-throttle share are held inside the range the Formula 1 calendar spans; generated by tools/design_circuits.py."
   }
 }

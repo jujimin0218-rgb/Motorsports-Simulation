@@ -145,7 +145,16 @@ def test_absurdly_grippy_car_fails_the_envelope(car, ambient):
     assert any("lateral" in i.message for i in errors)
 
 
-def test_dragless_car_fails_the_top_speed_envelope(car, ambient):
+def test_a_dragless_car_is_caught(car, ambient):
+    """A car with almost no drag must not validate.
+
+    It is no longer the *top speed* envelope that catches it, and that is the
+    rev limit doing its job: a real car runs out of gear long before it runs
+    out of drag, so removing the drag no longer sends the top speed anywhere
+    absurd.  What gives it away instead is the relationships -- adding power
+    stops buying top speed once the engine is on the limiter, and wing stops
+    costing any.
+    """
     slippery = car.with_spec(
         replace(
             car.spec,
@@ -155,7 +164,9 @@ def test_dragless_car_fails_the_top_speed_envelope(car, ambient):
         )
     )
     report = validate_vehicle(slippery, ambient)
-    assert "performance_envelope" in _codes(report, Severity.ERROR)
+    codes = _codes(report, Severity.ERROR)
+    assert codes, "a car with no drag validated cleanly"
+    assert {"power_top_speed", "wing_trade_off"} & codes
 
 
 def test_wing_with_no_drag_cost_is_caught(car, ambient):

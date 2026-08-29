@@ -177,11 +177,33 @@ def test_low_speed_is_torque_limited_and_high_speed_power_limited():
 
 
 def test_power_limited_force_falls_as_one_over_speed():
+    """Between the torque limit and the rev limit, ``F = P / v``.
+
+    Both samples have to sit inside that band: below it the torque limit caps
+    the force flat, and above it the engine is on the limiter and there is no
+    force at all.
+    """
     unit = PowerUnit(PowerUnitProperties())
+    low = unit.torque_limit_speed * 1.2
     high = unit.torque_limit_speed * 2.0
-    assert unit.tractive_force(high * 2.0) == pytest.approx(
-        unit.tractive_force(high) / 2.0
+    assert high < unit.properties.rev_limit_speed
+    assert unit.tractive_force(high) == pytest.approx(
+        unit.tractive_force(low) * low / high
     )
+
+
+def test_there_is_no_drive_past_the_rev_limit():
+    """Top gear is a fixed ratio, so the engine runs out of revs.
+
+    Without it the car keeps pulling to a terminal velocity no Formula 1 car
+    reaches, and never settles at a constant speed on a long straight the way a
+    real one does.
+    """
+    unit = PowerUnit(PowerUnitProperties())
+    limit = unit.properties.rev_limit_speed
+    assert unit.tractive_force(limit * 0.99) > 0.0
+    assert unit.tractive_force(limit) == 0.0
+    assert unit.tractive_force(limit * 1.1) == 0.0
 
 
 def test_throttle_scales_the_demand():

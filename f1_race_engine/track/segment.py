@@ -173,8 +173,22 @@ class TrackSegment:
 
     @property
     def corner_radius(self) -> Metres:
-        """Unsigned radius, m.  ``inf`` on a straight."""
+        """Unsigned mean radius, m.  ``inf`` on a straight."""
         return abs(self.radius)
+
+    @property
+    def tightest_radius(self) -> Metres:
+        """Smallest radius reached anywhere inside the segment, m.
+
+        Curvature is linear across a segment, so its extreme is at one end.
+        Taking it from the ends rather than the midpoint is what makes a
+        corner's minimum radius a fact about the *geometry* instead of about
+        where the sampling happened to land: the peak curvature of a corner
+        that changes radius sits exactly on an element boundary, and every
+        element boundary is a segment boundary.
+        """
+        peak = max(abs(self.curvature_start), abs(self.curvature_end))
+        return radius_from_curvature(peak)
 
     @property
     def curvature_change(self) -> Curvature:
