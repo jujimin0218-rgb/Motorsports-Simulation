@@ -6,7 +6,7 @@ vehicle dynamics, tyre behaviour, strategy, and multi-car racing.
 Lap times are the **result** of simulating a car covering a real distance-based
 track model — never a random draw, and never a per-track correction.
 
-**Status: Phases 1–10 complete.** Core infrastructure, the track model, a car
+**Status: the race engine is complete (Phases 1–12).** Core infrastructure, the track model, a car
 whose behaviour comes out of a real force balance, a lap time that is the
 integral of a speed profile, a driver who steps that car around the circuit,
 consumables that change underneath all of it, a whole race weekend — weather
@@ -95,6 +95,53 @@ want to trade fidelity for time.
 
 The engine core has **no third-party dependencies**. matplotlib is an optional
 extra used only for debug plots.
+
+## The season management game
+
+On top of the engine there is a Formula 1 season management game: you run a
+team for a season, sign the drivers, spend the research, set the strategy, and
+the races are simulated by the engine below rather than by dice.
+
+The one rule that shapes everything about it: **the game does not simulate
+races.** It builds the inputs, hands them to the race engine, and reads the
+result back. There is no second, simpler race model anywhere in it.
+
+```
+React + TypeScript
+      |
+   FastAPI
+      |
+ Game services  (season, money, research, contracts)
+      |
+  Race adapter
+      |
+  f1_race_engine     <- the physics, untouched
+```
+
+| | |
+|---|---|
+| `backend/app/game/` | the game itself — state, rules, calendar, teams, drivers |
+| `backend/app/services/` | save/load and the operations a round goes through |
+| `backend/app/adapters/` | the seam where a team's car becomes a `VehicleSpec` |
+| `data/` | teams, drivers, engines, circuits, calendar, rules — all of it JSON |
+| `frontend/` | the React client |
+
+Nothing about the sport is written into the code. What a win is worth, how long
+a season is, which circuits are on it and what each one asks of a car are all in
+`data/`, and swapping that directory swaps the game.
+
+```bash
+python backend/scripts/phase1_demo.py   # new game -> calendar -> season -> save -> load
+pytest backend/tests                    # the game's own suite
+```
+
+The teams, drivers and engine suppliers that ship with it are fictional.
+Inventing performance figures and then attaching a real person's name to them
+would be presenting made-up data as fact, so the shipped set is invented on
+purpose and every file is plain JSON for anyone who wants to replace it. The
+circuits are real, and their lengths, corner counts and race distances are the
+published ones.
+
 
 ## Documentation
 

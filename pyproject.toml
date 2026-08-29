@@ -22,5 +22,9 @@ include = ["f1_race_engine*"]
 "f1_race_engine.data" = ["tracks/*.json", "vehicles/*.json", "tyres/*.json", "drivers/*.json"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# The race engine's tests and the game's, run together: the game is built on
+# the engine, so a change that breaks the engine has to fail the game's suite
+# too rather than being found later.
+testpaths = ["tests", "backend/tests"]
+pythonpath = ["backend"]
 addopts = "-q"
