@@ -718,8 +718,14 @@ class TyreConfig(ConfigNode):
 class PowertrainConfig(ConfigNode):
     """Powertrain and traction model parameters."""
 
-    drivetrain_efficiency: float = 0.95
-    """Fraction of crank power that reaches the road."""
+    drivetrain_efficiency: float = 0.97
+    """Fraction of crank power that reaches the road, mechanically.
+
+    Gearbox and final drive friction only.  The other loss a drivetrain has --
+    the time with no drive at all while a gear is changed -- is charged where
+    it is actually paid, in :class:`~f1_race_engine.vehicle.gearbox.Gearbox`,
+    because it costs a short gear a real share of itself and a top gear held
+    down a straight nothing."""
 
     min_tractive_speed: float = 1.0
     """Speed floor, m/s, when converting power to force (``F = P / v``).
@@ -1307,6 +1313,297 @@ class DriverConfig(ConfigNode):
 
 
 @dataclass(frozen=True)
+class SuspensionConfig(ConfigNode):
+    """How the car carries load across itself.
+
+    The lateral counterpart of the longitudinal transfer the powertrain section
+    owns, and it matters for the same reason: friction coefficient falls with
+    load, so **splitting** a given load unevenly across four tyres buys less
+    grip than sharing it evenly.  Cornering therefore costs the car grip simply
+    by loading the outside of it, and the cost grows with lateral acceleration.
+
+    That is what makes a wide car with a low centre of gravity corner better
+    than a narrow tall one carrying the same downforce, and it is why roll
+    stiffness is a setup decision rather than a comfort one.
+    """
+
+    lateral_load_transfer: bool = True
+    """Whether cornering moves load onto the outside tyres.
+
+    On, because leaving it out overstates cornering grip by a couple of percent
+    at 4 g and rather more beyond that, and because with it out the car's track
+    width and centre-of-gravity height do nothing at all."""
+
+    roll_stiffness_front: float = 0.55
+    """Share of the lateral transfer taken by the front axle.
+
+    Above the static weight distribution, which is what gives a car mild
+    understeer at the limit -- the safe balance every road-legal and most
+    racing setups are built around.  Carried here because it is what an
+    anti-roll bar change actually alters, for the balance model that comes
+    with the rest of Phase 12."""
+
+    def validate(self) -> None:
+        require_range(
+            "suspension.roll_stiffness_front", self.roll_stiffness_front, 0.2, 0.8
+        )
+
+
+@dataclass(frozen=True)
+class ReliabilityConfig(ConfigNode):
+    """What breaks, and how often (project rule 35).
+
+    Failures are a **hazard per unit distance**, never a per-lap coin flip.
+    That distinction is the whole model: a rate per kilometre gives the same
+    expected number of failures whether it is evaluated once a lap or once a
+    metre, and it makes a long circuit genuinely harder on a car than a short
+    one without anything saying so.
+
+    The rates below are per 1000 km and sum to about 0.22, which over a 305 km
+    race is a 6.5% chance of a mechanical retirement per car -- roughly half of
+    Formula 1's total retirement rate, the other half being contact.  The
+    split between systems follows where modern failures actually happen: the
+    power unit is the biggest single contributor by a distance.
+    """
+
+    power_unit_rate: float = 0.092
+    """Power unit failures per 1000 km."""
+
+    gearbox_rate: float = 0.040
+    hydraulics_rate: float = 0.033
+    cooling_rate: float = 0.024
+    brake_rate: float = 0.020
+    suspension_rate: float = 0.013
+
+    stress_exponent: float = 2.0
+    """How sharply a hazard rises with how hard the system is being worked.
+
+    Above one, so a power unit run at its limit is far more likely to let go
+    than one being managed -- which is what makes turning the engine down a
+    real decision rather than a slower one."""
+
+    max_stress_factor: float = 4.0
+    """Ceiling on the stress multiplier, so a pathological input cannot make a
+    failure certain."""
+
+    reference_ambient: float = 25.0
+    """Air temperature, degC, the cooling hazard is quoted at."""
+
+    cooling_sensitivity: float = 0.06
+    """Extra cooling hazard per degree above the reference.  Hot races break
+    more cars, and the effect is large: 15 degrees nearly doubles it."""
+
+    stops_on_circuit_share: float = 0.50
+    """Share of failures that leave the car where it has to be recovered.
+
+    A driver warned that something is going is usually able to get the car to a
+    safe place; sometimes there is no warning, or nowhere to go.  Which of
+    those happened is what decides whether a failure is a footnote or the thing
+    that reshuffles the race, so it is drawn rather than assumed."""
+
+    reference_fuel_per_km: float = 0.33
+    """Fuel a reference lap burns per kilometre, kg.  What the power unit's
+    stress is measured against, so a car turned down genuinely lasts longer."""
+
+    reference_harvest_per_km: float = 550_000.0
+    """Energy a reference lap recovers per kilometre, J.  Recovery happens
+    under braking, so it is the honest proxy for how hard the brakes are being
+    worked -- and it makes a heavy-braking circuit harder on them."""
+
+    def validate(self) -> None:
+        for name in (
+            "power_unit_rate", "gearbox_rate", "hydraulics_rate",
+            "cooling_rate", "brake_rate", "suspension_rate",
+        ):
+            require_non_negative(f"reliability.{name}", getattr(self, name))
+        require_positive("reliability.stress_exponent", self.stress_exponent)
+        require_range("reliability.max_stress_factor", self.max_stress_factor, 1.0, 20.0)
+        require_non_negative(
+            "reliability.cooling_sensitivity", self.cooling_sensitivity
+        )
+        require_range(
+            "reliability.stops_on_circuit_share", self.stops_on_circuit_share, 0.0, 1.0
+        )
+        require_positive(
+            "reliability.reference_fuel_per_km", self.reference_fuel_per_km
+        )
+        require_positive(
+            "reliability.reference_harvest_per_km", self.reference_harvest_per_km
+        )
+
+
+@dataclass(frozen=True)
+class IncidentConfig(ConfigNode):
+    """Contact, spins and what they cost.
+
+    Calibrated against Formula 1's retirement split: about 4% of car-races end
+    in contact and rather more end in damage that costs time without ending the
+    race.  Contact is a hazard *per lap spent fighting somebody*, not per lap,
+    because a car in clean air does not hit anybody.
+    """
+
+    combat_contact_rate: float = 0.0115
+    """Chance of contact per lap spent within fighting distance of another car.
+
+    Set from the outcome rather than guessed: a car spends about eleven laps of
+    a race fighting somebody, two thirds of contact ends a race, and Formula 1
+    loses about 6% of its starters to contact.  That fixes this number."""
+
+    combat_gap: float = 1.2
+    """Time gap, s, inside which two cars count as fighting."""
+
+    first_lap_multiplier: float = 6.0
+    """How much more likely contact is on the opening lap.
+
+    Twenty cars arriving at the first corner together is where a
+    disproportionate share of a season's contact happens, and no amount of
+    per-lap averaging reproduces that."""
+
+    racecraft_range: float = 0.7
+    """How much a driver's racecraft and risk management can change the odds.
+    A perfect pair is ``1 - racecraft_range`` as likely to make contact."""
+
+    spin_rate: float = 0.35
+    """Chance that a driver mistake bad enough to cost real time becomes a spin
+    or an excursion rather than just a scruffy corner."""
+
+    retirement_share: float = 0.30
+    """Share of contacts that end a car's race outright."""
+
+    blocking_share: float = 0.35
+    """Share of contacts that leave a car or debris where it has to be
+    recovered -- which is what brings out a flag."""
+
+    debris_share: float = 0.60
+    """Share of contact a car drives away from that still leaves debris.
+
+    A front wing shed at speed has to be picked up whether or not its owner
+    retired, and that is the most common reason a modern race is neutralised."""
+
+    damage_drag_penalty: float = 0.18
+    """Drag area added by a damaged front wing, as a fraction."""
+
+    damage_downforce_loss: float = 0.22
+    """Downforce lost with a damaged front wing, as a fraction."""
+
+    def validate(self) -> None:
+        require_non_negative("incidents.combat_contact_rate", self.combat_contact_rate)
+        require_positive("incidents.combat_gap", self.combat_gap)
+        require_range("incidents.first_lap_multiplier", self.first_lap_multiplier, 1.0, 40.0)
+        require_range("incidents.racecraft_range", self.racecraft_range, 0.0, 0.95)
+        require_range("incidents.spin_rate", self.spin_rate, 0.0, 1.0)
+        require_range("incidents.retirement_share", self.retirement_share, 0.0, 1.0)
+        require_range("incidents.blocking_share", self.blocking_share, 0.0, 1.0)
+        require_range("incidents.debris_share", self.debris_share, 0.0, 1.0)
+        require_non_negative(
+            "incidents.damage_drag_penalty", self.damage_drag_penalty
+        )
+        require_range(
+            "incidents.damage_downforce_loss", self.damage_downforce_loss, 0.0, 1.0
+        )
+
+
+@dataclass(frozen=True)
+class RaceControlConfig(ConfigNode):
+    """When the race is neutralised, and what that does to it.
+
+    Nothing here decides *whether* something happens -- incidents do that.
+    This is only what race control does about one, and the shares below are
+    what it does in practice: most stopped cars are recovered under a local
+    yellow, a good many need a virtual safety car, fewer need the real one, and
+    a handful of races a season are stopped altogether.
+    """
+
+    vsc_share: float = 0.35
+    """Share of recoverable incidents that bring out a virtual safety car."""
+
+    safety_car_share: float = 0.29
+    """Share that bring out the safety car itself."""
+
+    red_flag_share: float = 0.09
+    """Share that stop the race.
+
+    The three shares are set from how often a season sees each: with about one
+    and a half cars a race stopping somewhere they have to be recovered from,
+    these give a safety car in a little over 40% of races, a virtual one in
+    half, and a red flag in one in seven -- which is what the calendar does.
+    What is left over is recovered under a local yellow, which is the most
+    common answer of all."""
+
+    vsc_laps: tuple[int, int] = (1, 3)
+    """Shortest and longest a virtual safety car lasts, laps."""
+
+    safety_car_laps: tuple[int, int] = (3, 6)
+
+    safety_car_pace: float = 1.55
+    """Lap time behind the safety car, as a multiple of a green lap.
+
+    A safety car lap is not a slow racing lap; it is a different activity.
+    1.55 is where a modern Formula 1 safety car lap sits."""
+
+    vsc_pace: float = 1.38
+    """Lap time under a virtual safety car, as a multiple of a green lap.
+    Race control sets a delta the drivers must stay above; this is it."""
+
+    safety_car_pit_saving: float = 0.55
+    """Share of a green-flag stop's cost that disappears under the safety car.
+
+    The reason a safety car reshuffles a race: the road the pit lane replaces
+    is being covered slowly, so replacing it costs much less."""
+
+    vsc_pit_saving: float = 0.40
+
+    tyre_work_share: float = 0.45
+    """Share of a racing lap's tyre work a car behind the safety car still does.
+
+    Not zero, and that matters: a driver behind the safety car weaves and
+    brakes precisely to keep temperature in the tyres, because a restart on
+    cold ones is where races are lost.  Coasting the whole neutralisation
+    instead leaves the field so cold that the first green lap is thirty seconds
+    off the pace, which is not what a restart looks like."""
+
+    bunching_gap: float = 1.1
+    """Gap, s, the field is compressed to behind the safety car."""
+
+    restart_gap: float = 0.6
+    """Extra gap, s, per position at the restart, before racing resumes."""
+
+    minimum_green_laps: int = 2
+    """Laps of green running before another neutralisation can start, so one
+    incident does not produce a cascade of overlapping flags."""
+
+    red_flag_restart_laps: int = 1
+    """Laps run behind the safety car after a red-flag restart."""
+
+    def validate(self) -> None:
+        total = self.vsc_share + self.safety_car_share + self.red_flag_share
+        if total > 1.0:
+            raise ConfigError(
+                f"race_control shares sum to {total:.2f}; they are shares of one "
+                f"incident and cannot exceed 1.0"
+            )
+        for name in ("vsc_share", "safety_car_share", "red_flag_share"):
+            require_range(f"race_control.{name}", getattr(self, name), 0.0, 1.0)
+        for name in ("vsc_laps", "safety_car_laps"):
+            low, high = getattr(self, name)
+            if low < 1 or high < low:
+                raise ConfigError(f"race_control.{name} must be an increasing pair of positive laps")
+        require_range("race_control.safety_car_pace", self.safety_car_pace, 1.0, 3.0)
+        require_range("race_control.vsc_pace", self.vsc_pace, 1.0, 3.0)
+        require_range(
+            "race_control.safety_car_pit_saving", self.safety_car_pit_saving, 0.0, 1.0
+        )
+        require_range("race_control.vsc_pit_saving", self.vsc_pit_saving, 0.0, 1.0)
+        require_range("race_control.tyre_work_share", self.tyre_work_share, 0.0, 1.0)
+        require_positive("race_control.bunching_gap", self.bunching_gap)
+        require_non_negative("race_control.restart_gap", self.restart_gap)
+        if self.minimum_green_laps < 0:
+            raise ConfigError("race_control.minimum_green_laps must not be negative")
+        if self.red_flag_restart_laps < 0:
+            raise ConfigError("race_control.red_flag_restart_laps must not be negative")
+
+
+@dataclass(frozen=True)
 class PhysicsValidationConfig(ConfigNode):
     """Bounds for the automatic physics sanity checks (project rule 39).
 
@@ -1397,6 +1694,10 @@ class SimulationConfig(ConfigNode):
     overtaking: OvertakingConfig = field(default_factory=OvertakingConfig)
     fuel: FuelConfig = field(default_factory=FuelConfig)
     ers: ErsConfig = field(default_factory=ErsConfig)
+    suspension: SuspensionConfig = field(default_factory=SuspensionConfig)
+    reliability: ReliabilityConfig = field(default_factory=ReliabilityConfig)
+    incidents: IncidentConfig = field(default_factory=IncidentConfig)
+    race_control: RaceControlConfig = field(default_factory=RaceControlConfig)
     physics_validation: PhysicsValidationConfig = field(
         default_factory=PhysicsValidationConfig
     )

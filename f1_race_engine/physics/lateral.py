@@ -31,7 +31,7 @@ from typing import Any
 from ..core.units import MetresPerSecond, MetresPerSecondSquared, Newtons
 from ..tyres.state import TyreState
 from ..vehicle.model import Vehicle
-from .grip import normal_loads, slope_angle
+from .grip import lateral_transfer_factor, normal_loads, slope_angle
 
 __all__ = [
     "LateralCapability",
@@ -114,6 +114,17 @@ def lateral_capability(
     if curvature != 0.0 and banking != 0.0 and (banking * curvature) < 0.0:
         helpful_bank = -abs(banking)
 
+    # Everything about the load transfer that does not change while the
+    # cornering acceleration settles, worked out once: this loop runs inside a
+    # bisection that runs once per segment.
+    transfers = config.suspension.lateral_load_transfer
+    transfer_per_unit = (
+        car_mass * vehicle.mass.cg_height / vehicle.mass.track_width
+        if transfers
+        else 0.0
+    )
+    load_sensitivity = tyres.compound.load_sensitivity
+
     # Estimate the cornering acceleration to evaluate the banking term, then
     # settle it: the banking contribution to load depends on it.
     lateral_acceleration = required_lateral_acceleration(speed, curvature)
@@ -147,6 +158,24 @@ def lateral_capability(
             lateral_acceleration = new_acceleration
             break
         lateral_acceleration = new_acceleration
+
+    # Cornering loads the outside of the car, and a load split unevenly across
+    # four tyres buys less grip than the same load shared evenly.  So cornering
+    # costs grip simply by cornering, and the harder the car corners the more it
+    # costs -- which is what makes track width and centre-of-gravity height
+    # matter, and why they are on the car rather than in a lap-time correction.
+    #
+    # Charged once, on the settled answer, rather than inside the loop above.
+    # It is worth about one percent, so re-settling the loop around it would
+    # move the answer by a hundredth of that and cost half as much again in a
+    # solver that runs for every segment of every lap.
+    if transfers:
+        factor = lateral_transfer_factor(
+            loads.total, abs(lateral_acceleration) * transfer_per_unit, load_sensitivity
+        )
+        available_force *= factor
+        horizontal_force = available_force * math.cos(helpful_bank) + gravity_assist
+        lateral_acceleration = max(horizontal_force, 0.0) / car_mass
 
     return LateralCapability(
         speed=speed,

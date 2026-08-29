@@ -1,7 +1,8 @@
 # Realism Review — measuring the engine against the real thing
 
-**Status: three passes done. Nine defects fixed, two capabilities added, two
-gaps left open and named.** A pass over the Phase 1–9 engine looking for places where the model
+**Status: three passes done, then Phases 11 and 12. Nine defects fixed, two
+capabilities added, two gaps left open and named -- one of which Phase 12 has
+since closed.** A pass over the Phase 1–9 engine looking for places where the model
 disagrees with a real Formula 1 car, done by measuring the engine and putting
 the numbers next to published ones rather than by reading the code and forming
 opinions.
@@ -275,7 +276,9 @@ overtaking model.  The overtaking tests now use a decisive gap and say so.
 
 **Track width is dead data.**  `track_width` is carried through the definition,
 the builder, the segments and the report, and nothing in `physics/` reads it --
-the same shape of defect as the brake bias, still open.  It cannot simply be
+the same shape of defect as the brake bias.  Still open for the *circuit's*
+width; the *car's* track width became live in Phase 12, where lateral load
+transfer made it decide how much grip cornering costs.  It cannot simply be
 wired in: a racing line flattens a 90-degree corner on a 9 m road to nearly
 twice its centreline radius, and the engine's cornering speeds are calibrated
 against the radius the car takes rather than the road's centreline.  Adding a

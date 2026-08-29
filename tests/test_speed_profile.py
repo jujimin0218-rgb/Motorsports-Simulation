@@ -95,10 +95,23 @@ def test_braking_precedes_every_slow_corner(profile):
 
 
 def test_acceleration_follows_every_slow_corner(profile):
+    """The car gets away from the slowest point of the lap.
+
+    Looked for over the exit rather than at one node a fixed distance past the
+    apex: how long a corner holds its minimum is a fact about the circuit and
+    the sampling, and pinning the test to a node count tests those instead of
+    the physics.
+    """
     result, _, _ = profile
     slowest_index = min(range(len(result)), key=lambda i: result.speed[i])
-    after = (slowest_index + 5) % len(result)
-    assert result.speed[after] > result.speed[slowest_index]
+    exit_nodes = [(slowest_index + offset) % len(result) for offset in range(1, 40)]
+
+    assert all(
+        result.speed[i] >= result.speed[slowest_index] - 1e-9 for i in exit_nodes
+    ), "the car got slower after the slowest point of the lap"
+    assert any(result.speed[i] > result.speed[slowest_index] + 1e-6 for i in exit_nodes), (
+        "the car never accelerated away from the slowest corner"
+    )
 
 
 def test_profile_wraps_around_the_start_finish_line(profile):
@@ -180,11 +193,23 @@ def test_a_less_committed_driver_is_slower(profile):
 
 
 def test_weaker_braking_moves_the_braking_point_earlier(profile):
+    """A car that cannot stop as hard has to start stopping sooner.
+
+    Looked for over the whole approach rather than at one node: where the
+    braking zone begins depends on the circuit, and pinning it to a fixed
+    number of nodes before the apex tests the sampling instead of the physics.
+    """
     result, track, car = profile
     weak = compute_speed_profile(track, car, limits=PerformanceLimits(braking=0.85))
     slowest = min(range(len(result)), key=lambda i: result.speed[i])
-    approach = (slowest - 4) % len(result)
-    assert weak.speed[approach] < result.speed[approach]
+
+    approach = [(slowest - offset) % len(result) for offset in range(1, 40)]
+    assert all(weak.speed[i] <= result.speed[i] + 1e-9 for i in approach), (
+        "weaker braking made the car faster somewhere on the approach"
+    )
+    assert any(weak.speed[i] < result.speed[i] - 1e-6 for i in approach), (
+        "weaker braking changed nothing on the approach to the slowest corner"
+    )
 
 
 @pytest.mark.parametrize(

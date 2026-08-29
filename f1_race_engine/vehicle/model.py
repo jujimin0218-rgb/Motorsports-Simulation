@@ -177,7 +177,8 @@ class Vehicle:
                 "drag_area": self.drag_area(),
                 "aero_efficiency": self.aero_efficiency,
                 "wheel_power": self.power_unit.wheel_power,
-                "max_tractive_force": self._spec.power_unit.max_tractive_force,
+                "maximum_speed": self.power_unit.maximum_speed,
+                "gears": self._spec.power_unit.gearbox.gears,
             },
         }
 

@@ -13,6 +13,7 @@ from f1_race_engine.physics import (
     longitudinal_forces,
     max_acceleration,
     max_deceleration,
+    max_lateral_acceleration,
     normal_loads,
     required_lateral_acceleration,
     braking_limited_force,
@@ -376,3 +377,76 @@ def test_capability_export_is_plain_data(car, air_density):
     import json
 
     json.dumps(lateral_capability(car, 60.0, air_density).to_dict())
+
+
+# -- load across the car, not just along it ----------------------------------
+
+
+def test_cornering_costs_grip_by_loading_the_outside_of_the_car(car, air_density):
+    """The lateral counterpart of load transfer, and it works the same way.
+
+    Friction coefficient falls with load, so a given total load buys less grip
+    split unevenly across four tyres than shared evenly.  Cornering does
+    exactly that split, so cornering costs grip simply by cornering.
+    """
+    from dataclasses import replace
+
+    from f1_race_engine.core.config import default_config
+    from f1_race_engine.vehicle import Vehicle
+
+    config = default_config()
+    without = Vehicle(
+        car.spec,
+        car.setup,
+        config=replace(
+            config, suspension=replace(config.suspension, lateral_load_transfer=False)
+        ),
+    )
+    speed = kph_to_ms(250.0)
+    assert max_lateral_acceleration(car, speed, air_density) < max_lateral_acceleration(
+        without, speed, air_density
+    )
+
+
+def test_a_wider_car_corners_better_than_a_narrow_one(car, air_density):
+    """Transfer is ``m * a_y * h / track``, so the wider the car the less of it
+    there is -- which is why track width is on the car and not in a lap-time
+    correction."""
+    from dataclasses import replace
+
+    narrow = car.with_spec(replace(car.spec, mass=replace(car.spec.mass, track_width=1.4)))
+    wide = car.with_spec(replace(car.spec, mass=replace(car.spec.mass, track_width=1.8)))
+    speed = kph_to_ms(250.0)
+    assert max_lateral_acceleration(wide, speed, air_density) > max_lateral_acceleration(
+        narrow, speed, air_density
+    )
+
+
+def test_a_higher_centre_of_gravity_corners_worse(car, air_density):
+    from dataclasses import replace
+
+    low = car.with_spec(replace(car.spec, mass=replace(car.spec.mass, cg_height=0.25)))
+    high = car.with_spec(replace(car.spec, mass=replace(car.spec.mass, cg_height=0.42)))
+    speed = kph_to_ms(250.0)
+    assert max_lateral_acceleration(high, speed, air_density) < max_lateral_acceleration(
+        low, speed, air_density
+    )
+
+
+def test_the_transfer_costs_more_the_harder_the_car_corners(car, air_density):
+    """It is not a constant tax: the split widens with lateral acceleration."""
+    from f1_race_engine.physics.grip import lateral_transfer_factor
+
+    gentle = lateral_transfer_factor(20_000.0, 3_000.0, 0.08)
+    hard = lateral_transfer_factor(20_000.0, 9_000.0, 0.08)
+    assert 1.0 > gentle > hard
+
+
+def test_lifting_the_inside_wheels_is_the_end_of_it(car):
+    """Past the point where the inside wheels come up they carry nothing, and
+    the model reaches that by itself rather than by a special case."""
+    from f1_race_engine.physics.grip import lateral_transfer_factor
+
+    lifted = lateral_transfer_factor(20_000.0, 10_000.0, 0.08)
+    beyond = lateral_transfer_factor(20_000.0, 14_000.0, 0.08)
+    assert lifted == pytest.approx(beyond)

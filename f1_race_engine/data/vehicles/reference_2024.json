@@ -17,7 +17,6 @@
   },
   "power_unit": {
     "max_power": 560000.0,
-    "peak_wheel_torque": 4200.0,
     "wheel_radius": 0.36
   },
   "brakes": {

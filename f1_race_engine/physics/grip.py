@@ -30,7 +30,42 @@ from ..tyres.model import GripLimit, TyreModel
 from ..tyres.state import TyreState
 from ..vehicle.mass import MassProperties
 
-__all__ = ["AxleLoads", "normal_loads", "slope_angle", "grip_limits"]
+__all__ = [
+    "AxleLoads",
+    "grip_limits",
+    "lateral_transfer_factor",
+    "normal_loads",
+    "slope_angle",
+]
+
+
+def lateral_transfer_factor(
+    total_load: float,
+    transfer: float,
+    load_sensitivity: float,
+) -> float:
+    """Share of cornering grip left after load moves onto the outside tyres.
+
+    Friction coefficient falls with load, so a given total load buys less grip
+    split unevenly than shared evenly.  Cornering does exactly that split, and
+    the harder the car corners the worse it gets -- which is why a wide car
+    with a low centre of gravity corners better than a narrow tall one carrying
+    the same downforce.
+
+    ``capacity ~ N^(1 - k)`` per contact patch, so the factor is scale free and
+    depends only on how far the load has moved as a share of what each tyre was
+    carrying.  Past the point where the inside wheels lift they carry nothing
+    and stop contributing, which the model reaches by itself.
+    """
+    if total_load <= 0.0 or transfer <= 0.0 or load_sensitivity <= 0.0:
+        return 1.0
+    per_tyre = total_load / 4.0
+    # Load moved onto each outside tyre, as a share of what it was carrying.
+    shift = min(0.5 * transfer / per_tyre, 1.0)
+    exponent = 1.0 - load_sensitivity
+    outside = (1.0 + shift) ** exponent
+    inside = (1.0 - shift) ** exponent if shift < 1.0 else 0.0
+    return 0.5 * (outside + inside)
 
 
 def slope_angle(gradient: float) -> float:

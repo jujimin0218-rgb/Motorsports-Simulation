@@ -730,7 +730,12 @@ def check_launch_is_traction_limited(
             power_unit=replace(
                 vehicle.spec.power_unit,
                 max_power=vehicle.spec.power_unit.max_power * 1.5,
-                peak_wheel_torque=vehicle.spec.power_unit.peak_wheel_torque * 1.5,
+                gearbox=replace(
+                    vehicle.spec.power_unit.gearbox,
+                    ratios=tuple(
+                        r * 1.5 for r in vehicle.spec.power_unit.gearbox.ratios
+                    ),
+                ),
             ),
         )
     )

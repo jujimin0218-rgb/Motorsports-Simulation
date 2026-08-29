@@ -85,7 +85,7 @@ def plot_force_balance(
     axes.plot(kph, net, label="net", color="#009E73", linewidth=2)
     axes.axhline(0.0, color="#666", linewidth=0.8)
     axes.axvline(
-        ms_to_kph(vehicle.power_unit.torque_limit_speed),
+        ms_to_kph(vehicle.power_unit.peak_force_speed),
         color="#999", linestyle=":", linewidth=1,
         label="torque / power crossover",
     )

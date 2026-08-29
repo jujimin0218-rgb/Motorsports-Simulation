@@ -17,8 +17,19 @@
   },
   "power_unit": {
     "max_power": 602000.0,
-    "peak_wheel_torque": 4400.0,
-    "wheel_radius": 0.36
+    "wheel_radius": 0.36,
+    "gearbox": {
+      "ratios": [
+        15.6,
+        13.45,
+        11.61,
+        10.05,
+        8.71,
+        7.5,
+        6.5,
+        5.57
+      ]
+    }
   },
   "brakes": {
     "max_brake_force": 60000.0,

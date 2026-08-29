@@ -188,7 +188,7 @@ def test_unreachable_targets_are_reported_as_infinite(car):
         replace(
             car.spec,
             power_unit=replace(
-                car.spec.power_unit, max_power=60_000.0, peak_wheel_torque=900.0
+                car.spec.power_unit, max_power=60_000.0
             ),
         )
     )

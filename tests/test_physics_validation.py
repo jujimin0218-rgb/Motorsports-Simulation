@@ -198,7 +198,7 @@ def test_report_raises_the_physics_error(car):
         replace(
             car.spec,
             power_unit=replace(
-                car.spec.power_unit, max_power=90_000.0, peak_wheel_torque=1200.0
+                car.spec.power_unit, max_power=90_000.0
             ),
         )
     )

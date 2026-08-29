@@ -13,27 +13,30 @@ every car has:
 
     F_drive(v) = min( T_wheel_max / r_wheel ,  P_max * eta / v )
 
-There is a third limit, and leaving it out is what made the car quicker than a
-real one at the top end: **the engine runs out of revs**.  Top gear is a fixed
-ratio, so beyond a certain road speed the crank is on the limiter and there is
-no more drive whatever the drag says.  Without it a Formula 1 car's terminal
-velocity comes out around 370 km/h, which no car on the grid reaches, and the
-last stretch of every long straight is spent accelerating where a real car is
-sitting on the limiter at constant speed.
+Both of those regimes are really the same thing seen through a gearbox, and
+Phase 12 replaces the stand-in with the real one.  A power unit makes its power
+over a narrow band of crank speed; the gear set is how a car that has to go
+from 60 km/h to 350 km/h keeps it there.  So:
 
 .. code-block:: text
 
-    F_drive(v) = 0                          for v > v_rev_limit
-                 min( T_wheel_max / r_wheel ,  P_max * eta / v )   otherwise
+    F_drive(v) = P(rpm(v, gear)) * eta / v,  over the gear that gives the most
 
-That single number changes more than top speed.  A car pinned on the limiter is
-no longer accelerating, so it stops caring what it weighs -- which is why fuel
-costs less per lap at a circuit with long straights than at one without, the
-way it does in the sport.
+with no drive at all past the ratio's limit, because the engine has run out of
+revolutions.  What was a flat torque cap and a hard speed ceiling is now the
+engine's own curve and the top gear, and three things follow that a single
+number could not give:
 
-What is still *not* resolved is individual gears and the engine's torque curve:
-Phase 12 replaces ``peak_wheel_torque`` and ``rev_limit_speed`` with real ratios
-and a real curve, behind this same method.
+* force is not flat within a gear -- it rises and falls as the engine climbs
+  its curve between shifts;
+* top speed is a gear rather than a balance of forces, which is why a Formula 1
+  car at Monza sits on the limiter instead of creeping towards a terminal
+  velocity;
+* shifting costs time, and it costs a short gear a real share of itself.
+
+The torque a driveshaft can take is no longer a limit here either.  It never
+was the thing stopping the car: what stops it off the line is the rear tyres,
+and that limit already exists in :mod:`f1_race_engine.physics.longitudinal`.
 
 ERS is deliberately absent.  It is a separate energy system with its own state,
 harvesting and deployment limits (project rule 24), and it arrives in Phase 5 as
@@ -42,12 +45,14 @@ an additive term here -- never as a lap-time bonus.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 from typing import Any
 
 from ..core.config import PowertrainConfig
 from ..core.errors import ConfigError
-from ..core.units import Metres, MetresPerSecond, Newtons, Watts
+from ..core.units import Metres, Newtons, Watts
+from .gearbox import Gearbox, GearboxProperties, GearSelection
 
 __all__ = ["PowerUnitProperties", "PowerUnit"]
 
@@ -60,64 +65,51 @@ class PowerUnitProperties:
     """Peak crank power, W.  About 750 hp for the internal combustion engine
     alone; the electric contribution is Phase 5."""
 
-    peak_wheel_torque: float = 4200.0
-    """Maximum torque deliverable at the wheels, Nm.
-
-    Stands in for the engine torque curve multiplied by the lowest usable gear
-    ratio.  Phase 12 replaces it with the real thing."""
-
     wheel_radius: Metres = 0.36
     """Loaded rear wheel radius, m."""
 
-    rev_limit_speed: MetresPerSecond = 98.0
-    """Road speed at the rev limit in top gear, m/s.
+    gearbox: GearboxProperties = field(default_factory=GearboxProperties)
+    """The gear set and the engine curve behind it.
 
-    353 km/h, which is where a Formula 1 car geared for a low-drag circuit runs
-    out of engine.  Above it the drive force is zero: the car is on the
-    limiter, and only drag decides what happens next."""
+    Geared long for a low-drag circuit and short for a street one, which is a
+    setup decision the model can express rather than a constant."""
 
     def __post_init__(self) -> None:
         if self.max_power <= 0.0:
             raise ConfigError("max_power must be positive")
-        if self.peak_wheel_torque <= 0.0:
-            raise ConfigError("peak_wheel_torque must be positive")
         if self.wheel_radius <= 0.0:
             raise ConfigError("wheel_radius must be positive")
-        if self.rev_limit_speed <= 0.0:
-            raise ConfigError("rev_limit_speed must be positive")
 
-    @property
-    def max_tractive_force(self) -> Newtons:
-        """Torque-limited ceiling on drive force, N."""
-        return self.peak_wheel_torque / self.wheel_radius
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "max_power": self.max_power,
-            "peak_wheel_torque": self.peak_wheel_torque,
             "wheel_radius": self.wheel_radius,
-            "rev_limit_speed": self.rev_limit_speed,
+            "gearbox": self.gearbox.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PowerUnitProperties:
-        known = set(cls.__slots__)
-        unknown = set(data) - known
+        payload = dict(data)
+        unknown = set(payload) - set(cls.__slots__)
         if unknown:
             raise ConfigError(f"unknown power unit key(s): {', '.join(sorted(unknown))}")
-        return cls(**data)
+        if "gearbox" in payload:
+            payload["gearbox"] = GearboxProperties.from_dict(payload["gearbox"])
+        return cls(**payload)
 
 
 class PowerUnit:
     """Delivers tractive force from the powertrain."""
 
-    __slots__ = ("_properties", "_config")
+    __slots__ = ("_properties", "_config", "_gearbox")
 
     def __init__(
         self, properties: PowerUnitProperties, config: PowertrainConfig | None = None
     ) -> None:
         self._properties = properties
         self._config = config or PowertrainConfig()
+        self._gearbox = Gearbox(properties.gearbox, properties.wheel_radius)
 
     @property
     def properties(self) -> PowerUnitProperties:
@@ -132,6 +124,11 @@ class PowerUnit:
         """Peak power reaching the road after drivetrain losses, W."""
         return self._properties.max_power * self._config.drivetrain_efficiency
 
+    @property
+    def gearbox(self) -> Gearbox:
+        """The gear set, ready to be asked what a road speed is worth."""
+        return self._gearbox
+
     def tractive_force(self, speed: float, *, throttle: float = 1.0) -> Newtons:
         """Drive force available at ``speed``, N, before the traction limit.
 
@@ -141,18 +138,36 @@ class PowerUnit:
         """
         if throttle <= 0.0:
             return 0.0
-        if speed >= self._properties.rev_limit_speed:
-            return 0.0
         effective_speed = max(speed, self._config.min_tractive_speed)
-        power_limited = self.wheel_power / effective_speed
-        torque_limited = self._properties.max_tractive_force
-        return min(torque_limited, power_limited) * min(throttle, 1.0)
+        return (
+            self._gearbox.tractive_force(effective_speed, self.wheel_power)
+            * min(throttle, 1.0)
+        )
+
+    def gear_at(self, speed: float) -> GearSelection:
+        """What gear the car is in at ``speed``, and what it is getting."""
+        return self._gearbox.select(
+            max(speed, self._config.min_tractive_speed), self.wheel_power
+        )
+
+    @property
+    def maximum_speed(self) -> float:
+        """Road speed on the limiter in top gear, m/s -- the car's ceiling."""
+        return self._gearbox.maximum_speed
 
     def power_at_speed(self, speed: float, *, throttle: float = 1.0) -> Watts:
         """Power actually delivered to the road at ``speed``, W."""
         return self.tractive_force(speed, throttle=throttle) * speed
 
     @property
-    def torque_limit_speed(self) -> float:
-        """Speed, m/s, where the power limit takes over from the torque limit."""
-        return self.wheel_power / self._properties.max_tractive_force
+    def peak_force_speed(self) -> float:
+        """Road speed, m/s, at which the car makes the most drive force.
+
+        Bottom gear on its power peak: the fastest the car can be while still
+        multiplying torque as hard as it can.
+        """
+        ratio = self._properties.gearbox.ratios[0]
+        return (
+            self._properties.gearbox.peak_power_rpm * 2.0 * math.pi / 60.0
+            * self._properties.wheel_radius / ratio
+        )

@@ -165,31 +165,38 @@ def test_impossible_aero_is_rejected(kwargs):
 # -- power unit --------------------------------------------------------------
 
 
-def test_low_speed_is_torque_limited_and_high_speed_power_limited():
-    unit = PowerUnit(PowerUnitProperties())
-    crossover = unit.torque_limit_speed
-    below = unit.tractive_force(crossover * 0.5)
-    at = unit.tractive_force(crossover * 0.99)
-    above = unit.tractive_force(crossover * 2.0)
-    assert below == pytest.approx(at, rel=1e-6)
-    assert above < at
-    assert above == pytest.approx(unit.wheel_power / (crossover * 2.0))
+def test_drive_force_peaks_low_down_and_falls_away():
+    """Bottom gear on the power peak is the most force the car ever makes.
 
-
-def test_power_limited_force_falls_as_one_over_speed():
-    """Between the torque limit and the rev limit, ``F = P / v``.
-
-    Both samples have to sit inside that band: below it the torque limit caps
-    the force flat, and above it the engine is on the limiter and there is no
-    force at all.
+    Above it force falls roughly as ``P / v``, which is why acceleration tails
+    off long before drag alone would explain it.
     """
     unit = PowerUnit(PowerUnitProperties())
-    low = unit.torque_limit_speed * 1.2
-    high = unit.torque_limit_speed * 2.0
-    assert high < unit.properties.rev_limit_speed
-    assert unit.tractive_force(high) == pytest.approx(
-        unit.tractive_force(low) * low / high
-    )
+    peak = unit.peak_force_speed
+    assert unit.tractive_force(peak) > unit.tractive_force(peak * 0.4)
+    assert unit.tractive_force(peak) > unit.tractive_force(peak * 2.0)
+    assert unit.tractive_force(peak * 3.0) < unit.tractive_force(peak * 2.0)
+
+
+def test_force_falls_faster_than_one_over_speed_at_the_top_of_a_gear():
+    """``F = P(rpm) / v``, and both terms are moving.
+
+    Late in top gear the engine is past its power peak and losing breathing as
+    the car gains speed, so force falls *faster* than ``1 / v``.  That is the
+    thing a flat power figure cannot say, and it is why a driver takes the next
+    gear rather than sitting on the limiter.
+    """
+    unit = PowerUnit(PowerUnitProperties())
+    low = 0.85 * unit.maximum_speed
+    high = 0.95 * unit.maximum_speed
+    assert unit.gear_at(low).gear == unit.gear_at(high).gear
+    assert unit.gear_at(high).rpm > unit.gear_at(low).rpm
+
+    ratio = unit.tractive_force(high) / unit.tractive_force(low)
+    power_ratio = unit.gear_at(high).power / unit.gear_at(low).power
+    assert power_ratio < 1.0, "the engine is past its peak up here"
+    assert ratio == pytest.approx(power_ratio * low / high, rel=1e-6)
+    assert ratio < low / high
 
 
 def test_there_is_no_drive_past_the_rev_limit():
@@ -200,9 +207,9 @@ def test_there_is_no_drive_past_the_rev_limit():
     real one does.
     """
     unit = PowerUnit(PowerUnitProperties())
-    limit = unit.properties.rev_limit_speed
+    limit = unit.maximum_speed
     assert unit.tractive_force(limit * 0.99) > 0.0
-    assert unit.tractive_force(limit) == 0.0
+    assert unit.tractive_force(limit * 1.01) == 0.0
     assert unit.tractive_force(limit * 1.1) == 0.0
 
 
@@ -217,7 +224,7 @@ def test_throttle_scales_the_demand():
 def test_zero_speed_does_not_divide_by_zero():
     unit = PowerUnit(PowerUnitProperties())
     assert math.isfinite(unit.tractive_force(0.0))
-    assert unit.tractive_force(0.0) == PowerUnitProperties().max_tractive_force
+    assert unit.tractive_force(0.0) > 0.0
 
 
 def test_drivetrain_efficiency_reduces_wheel_power():
@@ -227,7 +234,7 @@ def test_drivetrain_efficiency_reduces_wheel_power():
 
 
 @pytest.mark.parametrize(
-    "kwargs", [{"max_power": 0.0}, {"peak_wheel_torque": -1.0}, {"wheel_radius": 0.0}]
+    "kwargs", [{"max_power": 0.0}, {"wheel_radius": 0.0}, {"wheel_radius": -0.3}]
 )
 def test_impossible_power_unit_is_rejected(kwargs):
     with pytest.raises(ConfigError):

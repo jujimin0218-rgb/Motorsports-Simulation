@@ -79,6 +79,17 @@ class RaceEntry:
 
     pit_stops: list[PitStop] = field(default_factory=list)
 
+    damage: float = 0.0
+    """Aerodynamic damage carried, 0 (intact) to 1 (a wreck).
+
+    Not a lap-time penalty: it is applied to the car's own lift and drag areas,
+    so what it costs depends on the circuit -- a damaged front wing is worth
+    far more at Silverstone than at Monza, and that falls out rather than being
+    written down."""
+
+    retirement: Any = None
+    """The incident that ended this car's race, or ``None`` while it runs."""
+
     def __post_init__(self) -> None:
         if self.car_number <= 0:
             raise EntryError("car_number must be positive")
@@ -106,6 +117,11 @@ class RaceEntry:
             self.strategy.start_stint(compound)
 
     @property
+    def running(self) -> bool:
+        """Whether the car is still in the race."""
+        return self.retirement is None
+
+    @property
     def compound(self) -> str:
         return self.tyres.compound.code
 
@@ -121,6 +137,8 @@ class RaceEntry:
             "tyres": self.tyres.snapshot(),
             "energy": self.energy.snapshot(),
             "pit_stops": [stop.to_dict() for stop in self.pit_stops],
+            "damage": self.damage,
+            "retired": not self.running,
         }
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid

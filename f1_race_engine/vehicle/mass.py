@@ -45,6 +45,13 @@ class MassProperties:
     weight_distribution_front: float = 0.45
     """Fraction of static weight carried by the front axle."""
 
+    track_width: Metres = 1.60
+    """Distance between the wheel centres across the car, m.
+
+    What sets lateral load transfer, and the reason a wide car corners better
+    than a narrow one at the same centre-of-gravity height: transfer is
+    ``m * a_y * h_cg / track``, so the wider the car the less of it there is."""
+
     def __post_init__(self) -> None:
         if self.chassis_mass <= 0.0:
             raise ConfigError("chassis_mass must be positive")
@@ -54,6 +61,8 @@ class MassProperties:
             raise ConfigError("wheelbase must be positive")
         if self.cg_height < 0.0:
             raise ConfigError("cg_height must be non-negative")
+        if self.track_width <= 0.0:
+            raise ConfigError("track_width must be positive")
         if not 0.2 <= self.weight_distribution_front <= 0.8:
             raise ConfigError(
                 "weight_distribution_front must lie in [0.2, 0.8], got "
@@ -79,6 +88,19 @@ class MassProperties:
     def weight_distribution_rear(self) -> float:
         return 1.0 - self.weight_distribution_front
 
+    def lateral_load_transfer(
+        self, lateral_acceleration: float, mass: Kilograms
+    ) -> Newtons:
+        """Vertical load moved from the inside wheels to the outside ones, N.
+
+        Quasi-static, the same form as the longitudinal transfer and for the
+        same reason: ``dN = m * a_y * h_cg / track``.  Roll stiffness decides
+        how it splits front to rear, which is what a setup change to the
+        anti-roll bars actually does; that is Phase 12's suspension model and
+        this is the total it has to share out.
+        """
+        return mass * lateral_acceleration * self.cg_height / self.track_width
+
     def load_transfer(self, longitudinal_acceleration: float, mass: Kilograms) -> Newtons:
         """Vertical load moved from the front axle to the rear, N.
 
@@ -95,6 +117,7 @@ class MassProperties:
             "wheelbase": self.wheelbase,
             "cg_height": self.cg_height,
             "weight_distribution_front": self.weight_distribution_front,
+            "track_width": self.track_width,
         }
 
     @classmethod
