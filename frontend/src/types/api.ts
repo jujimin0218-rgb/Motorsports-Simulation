@@ -359,3 +359,54 @@ export interface ApiError {
   code: string
   message: string
 }
+
+
+// -- the circuit, drawn ------------------------------------------------------
+
+export interface TrackGeometry {
+  track: string
+  name: string
+  length: number
+  /** `[distance, x, y]` in metres, start line first. */
+  points: [number, number, number][]
+  /** `[minX, minY, maxX, maxY]` in metres. */
+  bounds: [number, number, number, number]
+  sectors: number[]
+  drs_zones: [number, number][]
+  corners: { id: number; name: string; distance: number; x: number; y: number; radius: number | null }[]
+  pit_entry: number
+  pit_exit: number
+  circuit: Circuit
+}
+
+export interface ReplayCar {
+  car_number: number
+  driver: string
+  team: string
+  driver_name: string
+  team_name: string
+  /** Distance covered in total, one entry every `interval` seconds. */
+  distances: number[]
+  stopped_at: number | null
+  retired: boolean
+}
+
+export interface ReplayEvent {
+  kind: 'incident' | 'flag' | 'overtake'
+  lap: number | null
+  car_number?: number
+  passed?: number
+  flag?: string
+  detail?: string
+}
+
+export interface Replay {
+  race_id: string
+  track: string
+  lap_length: number
+  laps: number
+  duration: number
+  interval: number
+  cars: ReplayCar[]
+  events: ReplayEvent[]
+}

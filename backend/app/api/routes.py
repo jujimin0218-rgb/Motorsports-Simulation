@@ -176,9 +176,22 @@ def next_round(service: GameService = Depends(get_service)) -> dict[str, Any]:
     return service.next_round()
 
 
-@router.get("/race/{race_id}", summary="A finished race, whole, for the replay")
+@router.get("/race/{race_id}", summary="A finished race, whole")
 def read_race(race_id: str, service: GameService = Depends(get_service)) -> dict[str, Any]:
     return service.race(race_id)
+
+
+@router.get("/race/{race_id}/replay", summary="Where every car was, every two seconds")
+def read_replay(race_id: str, service: GameService = Depends(get_service)) -> dict[str, Any]:
+    return service.replay(race_id)
+
+
+@router.get("/track", summary="The circuit a round is driven on, as a plan view")
+def read_track(
+    round: int | None = Query(default=None, description="Defaults to the current round."),
+    service: GameService = Depends(get_service),
+) -> dict[str, Any]:
+    return service.track_geometry(round)
 
 
 # -- jobs --------------------------------------------------------------------

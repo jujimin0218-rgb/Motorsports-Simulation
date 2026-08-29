@@ -24,6 +24,7 @@ from typing import Any
 
 from f1_race_engine.race import QualifyingResult, RaceResult
 
+from ..adapters import replay as replay_builder
 from ..adapters import session_runner
 from ..game import ai, development, finance
 from ..game.calendar import Round, RoundPhase
@@ -191,6 +192,25 @@ def run_race(
     race_id = f"{state.season}-{entry.number:02d}"
     entry.race_id = race_id
     state.race_archive[race_id] = _archive(result, field)
+    state.store_replay(
+        race_id,
+        replay_builder.build_replay(
+            result,
+            race_id=race_id,
+            lap_length=session_runner.track_for(
+                state.circuit_for(entry.number)
+            ).length,
+            labels={
+                item.car_number: {
+                    "driver": item.driver_id,
+                    "team": item.team_id,
+                    "driver_name": state.driver(item.driver_id).name,
+                    "team_name": state.team(item.team_id).name,
+                }
+                for item in field
+            },
+        ).to_dict(),
+    )
 
     entry.advance(RoundPhase.STRATEGY)  # -> race
     entry.advance(RoundPhase.RACE)  # -> result

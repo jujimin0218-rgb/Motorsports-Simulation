@@ -207,11 +207,38 @@ class GameService:
         ]
 
     def race(self, race_id: str) -> dict[str, Any]:
-        """The engine's own result, kept whole -- what a replay plays back."""
+        """The engine's own result, kept whole."""
         archive = self.state.race_archive.get(race_id)
         if archive is None:
             raise UnknownEntity(f"no race archived as {race_id!r}")
         return archive
+
+    def replay(self, race_id: str) -> dict[str, Any]:
+        """Where every car was, every couple of seconds."""
+        replay = self.state.replays.get(race_id)
+        if replay is None:
+            raise UnknownEntity(
+                f"no replay for {race_id!r}; races run before this build have "
+                "a result but no track to play back"
+            )
+        return replay
+
+    def track_geometry(self, round_number: int | None = None) -> dict[str, Any]:
+        """The circuit a round is driven on, as a plan view.
+
+        By round rather than by circuit id, because what matters to a client is
+        which engine circuit this round actually runs on -- the calendar's
+        circuit and the geometry underneath it are deliberately separate
+        things.
+        """
+        from ..adapters.geometry import build_geometry
+        from ..adapters.session_runner import track_for
+
+        state = self.state
+        number = round_number or state.current_round_number
+        circuit = state.circuit_for(min(number, len(state.calendar)))
+        geometry = build_geometry(track_for(circuit))
+        return {**geometry.to_dict(), "circuit": circuit.to_dict()}
 
     def history(self) -> list[dict[str, Any]]:
         return [record.to_dict() for record in self.state.history]

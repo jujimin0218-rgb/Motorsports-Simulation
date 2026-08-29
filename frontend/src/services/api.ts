@@ -25,11 +25,13 @@ import type {
   NegotiationAnswer,
   QualifyingReport,
   RaceReport,
+  Replay,
   SaveSummary,
   SelectableTeam,
   SponsorRow,
   Standings,
   TeamRow,
+  TrackGeometry,
   Upgrade,
 } from '../types/api'
 
@@ -142,6 +144,9 @@ export const api = {
   standings: () => get<Standings>('/api/standings'),
   history: () => get<Record<string, unknown>[]>('/api/history'),
   race: (raceId: string) => get<Record<string, unknown>>(`/api/race/${raceId}`),
+  replay: (raceId: string) => get<Replay>(`/api/race/${raceId}/replay`),
+  track: (round?: number) =>
+    get<TrackGeometry>(`/api/track${round ? `?round=${round}` : ''}`),
 
   // -- running a weekend ---------------------------------------------------
   startRound: () => post<Record<string, unknown>>('/api/round/start'),

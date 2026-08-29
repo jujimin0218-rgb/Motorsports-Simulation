@@ -34,11 +34,15 @@ from .settings import GameSettings
 from .standings import RaceOutcome, Standings
 from .team import Team
 
-__all__ = ["GameState", "SeasonRecord", "SAVE_VERSION"]
+__all__ = ["GameState", "REPLAY_HISTORY", "SeasonRecord", "SAVE_VERSION"]
 
 #: Bumped when the save format changes shape.  A loader that sees a version it
 #: does not know refuses rather than guessing.
 SAVE_VERSION = 1
+
+#: How many races keep their second-by-second replay.  See
+#: :attr:`GameState.replays` for why this is bounded at all.
+REPLAY_HISTORY = 5
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +106,22 @@ class GameState:
     Not used by the championship -- that only needs the outcomes above.  This
     is what a replay is played back from, and it is deliberately the engine's
     output rather than a summary of it."""
+
+    replays: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """Where every car was, every couple of seconds, per race.
+
+    Sampled from the engine's own timing tower when the race finishes, so a
+    saved game can play back its own history without the process that ran the
+    race still being alive.
+
+    Only the most recent :data:`REPLAY_HISTORY` are kept.  A full-distance race
+    with twenty cars is about a quarter of a megabyte of samples, the save is
+    one JSON document, and it is rewritten on every autosave -- so keeping a
+    whole season of them would mean rewriting five megabytes after every step of
+    every weekend.  The classification and the lap records of *every* race are
+    kept regardless, in :attr:`race_archive`; it is only the second-by-second
+    track that ages out.  Moving replays into their own table is the seam if
+    that ever needs to change."""
 
     upgrades: list[Upgrade] = field(default_factory=list)
     """Every project any team has commissioned this season, finished or not."""
@@ -261,6 +281,12 @@ class GameState:
     def outcomes_for_round(self, number: int) -> list[RaceOutcome]:
         return [o for o in self.outcomes if o.round_number == number]
 
+    def store_replay(self, race_id: str, replay: dict[str, Any]) -> None:
+        """File a replay, ageing out the oldest once there are too many."""
+        self.replays[race_id] = replay
+        while len(self.replays) > REPLAY_HISTORY:
+            self.replays.pop(next(iter(self.replays)))
+
     def record_outcomes(self, outcomes: Iterable[RaceOutcome]) -> None:
         """File a round's results, replacing anything already filed for it.
 
@@ -293,6 +319,7 @@ class GameState:
             "engines": {eid: e.to_dict() for eid, e in self.engines.items()},
             "outcomes": [o.to_dict() for o in self.outcomes],
             "race_archive": self.race_archive,
+            "replays": self.replays,
             "upgrades": [u.to_dict() for u in self.upgrades],
             "sponsor_deals": [d.to_dict() for d in self.sponsor_deals],
             "history": [record.to_dict() for record in self.history],
@@ -327,6 +354,7 @@ class GameState:
             },
             outcomes=[RaceOutcome.from_dict(o) for o in data.get("outcomes", [])],
             race_archive=dict(data.get("race_archive", {})),
+            replays=dict(data.get("replays", {})),
             upgrades=[Upgrade.from_dict(u) for u in data.get("upgrades", [])],
             sponsor_deals=[
                 SponsorDeal.from_dict(d) for d in data.get("sponsor_deals", [])
