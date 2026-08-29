@@ -287,3 +287,75 @@ def test_the_rates_land_where_formula_ones_do():
     assert 0.30 < safety_car < 0.55, f"safety car in {safety_car:.0%} of races"
     assert 0.35 < virtual < 0.65, f"virtual safety car in {virtual:.0%} of races"
     assert 0.06 < red < 0.22, f"red flag in {red:.0%} of races"
+
+
+# -- damage: the one direction it must never go ------------------------------
+
+
+def test_damage_never_makes_a_car_faster():
+    """The trap the aerodynamic model sets, and the reason it is worth a test.
+
+    Downforce and drag are not independent: ``CdA = CdA_0 + k ClA^2``, so
+    taking downforce area away takes induced drag away with it.  Model damage
+    as a smaller wing and a car leaves the barrier quicker than it arrived --
+    on a power circuit, spectacularly so, because a trimmed-out wing is exactly
+    what a power circuit wants.
+
+    A damaged wing is not a trimmed wing.  It is a bluff body with the flow
+    separated behind it: the downforce is gone and the drag is not.  So the
+    car must be slower everywhere, and slower in a straight line too.
+    """
+    from dataclasses import replace as _replace
+
+    from f1_race_engine.core.units import ms_to_kph
+    from f1_race_engine.physics.speed_profile import compute_speed_profile
+    from f1_race_engine.track.io import load_track
+    from f1_race_engine.vehicle import Vehicle, VehicleSetup
+    from f1_race_engine.vehicle.io import load_builtin_vehicle
+
+    cfg = default_config().incidents
+    spec = load_builtin_vehicle("reference_2024")
+    wing = 0.7
+
+    def hurt(level: float):
+        aero = spec.aero
+        kept = 1.0 - cfg.damage_downforce_loss * level
+        target = aero.drag_area(wing) * (1.0 + cfg.damage_drag_penalty * level)
+        induced = aero.induced_drag_factor * (aero.downforce_area(wing) * kept) ** 2
+        return Vehicle(
+            _replace(
+                spec,
+                aero=_replace(
+                    aero,
+                    min_downforce_area=aero.min_downforce_area * kept,
+                    max_downforce_area=aero.max_downforce_area * kept,
+                    zero_lift_drag_area=max(
+                        target - induced, aero.zero_lift_drag_area
+                    ),
+                ),
+            ),
+            VehicleSetup(wing_level=wing),
+        )
+
+    for name in ("synthetic_power_circuit", "synthetic_street_circuit"):
+        track = load_track(name)
+
+        def lap(car):
+            profile = compute_speed_profile(
+                track, car, mass=car.total_mass(40.0)
+            )
+            time = sum(l / s for l, s in zip(profile.length, profile.speed))
+            return time, profile.top_speed
+
+        intact_time, intact_top = lap(hurt(0.0))
+        previous = intact_time
+        for level in (0.3, 0.6, 1.0):
+            time, top = lap(hurt(level))
+            assert time > previous, f"{name}: damage {level} did not cost time"
+            assert top < intact_top, f"{name}: damage {level} raised top speed"
+            previous = time
+
+        # And the size is a damaged car's size: seconds, not tenths, and not
+        # so much that it could not reach the pits.
+        worst, _ = lap(hurt(1.0))
+        assert 1.5 < worst - intact_time < 8.0

@@ -442,6 +442,49 @@ def test_the_transfer_costs_more_the_harder_the_car_corners(car, air_density):
     assert 1.0 > gentle > hard
 
 
+def test_the_roll_bar_is_worth_most_where_it_matches_the_weight(car):
+    """The whole reason roll stiffness is a decision rather than a free choice.
+
+    The grip penalty is concave in how far the load has moved, so an axle
+    taking more than its share of the transfer loses more than the other end
+    gains back.  Total grip therefore peaks where the distribution matches the
+    load split, and falls away on both sides of it -- which is why stiffening
+    one end takes grip off that end rather than adding it to the car.
+    """
+    from f1_race_engine.physics.grip import lateral_transfer_factor
+
+    front, rear = 9_000.0, 11_000.0
+    matched = front / (front + rear)
+
+    def factor(share: float) -> float:
+        return lateral_transfer_factor(
+            front + rear,
+            6_000.0,
+            0.08,
+            front_load=front,
+            rear_load=rear,
+            roll_stiffness_front=share,
+        )
+
+    best = factor(matched)
+    assert factor(matched - 0.10) < best
+    assert factor(matched + 0.10) < best
+    assert factor(matched + 0.25) < factor(matched + 0.10)
+
+    # And with no distribution supplied the transfer splits evenly, which is
+    # what a car whose stiffness matches its weight does.
+    assert lateral_transfer_factor(20_000.0, 6_000.0, 0.08) == pytest.approx(
+        lateral_transfer_factor(
+            20_000.0,
+            6_000.0,
+            0.08,
+            front_load=10_000.0,
+            rear_load=10_000.0,
+            roll_stiffness_front=0.5,
+        )
+    )
+
+
 def test_lifting_the_inside_wheels_is_the_end_of_it(car):
     """Past the point where the inside wheels come up they carry nothing, and
     the model reaches that by itself rather than by a special case."""

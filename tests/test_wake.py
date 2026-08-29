@@ -44,10 +44,36 @@ def test_far_enough_back_is_clean_air():
     assert not wake_effect(3.0, config).in_traffic
 
 
-def test_the_downforce_loss_is_calibrated_to_what_the_sport_quotes():
-    """About a fifth gone at a second, about a third at half a second."""
-    assert 0.12 < wake_effect(1.0).downforce_loss < 0.25
-    assert 0.22 < wake_effect(0.5).downforce_loss < 0.40
+def test_the_downforce_loss_sits_between_the_two_figures_the_fia_published():
+    """A 2022 car lost 18% of its downforce at ten metres and 4% at twenty.
+
+    At racing speed those distances are roughly 0.15 s and 0.35 s of gap, and a
+    2024 car belongs between the two: the teams recovered much of the wake
+    performance the regulations took away, but not all of it.
+    """
+    assert 0.04 < wake_effect(0.15).downforce_loss < 0.18
+    assert 0.04 < wake_effect(0.35).downforce_loss < 0.18
+
+
+def test_following_costs_a_few_tenths_rather_than_a_few_seconds():
+    """The check that matters, because it is the one racing performs weekly.
+
+    Cars run in DRS trains: half a dozen of them nose to tail, lap after lap,
+    for a whole stint.  That is only possible if the dirty air costs a few
+    tenths a lap.  If it cost seconds the train would stretch out and break up
+    on its own within two laps, and it does not.
+    """
+    close = wake_effect(0.5).downforce_loss
+    train = wake_effect(1.0).downforce_loss
+
+    # Losing one per cent of downforce is worth 0.09-0.13 s a lap on the
+    # circuits here, measured; see docs/REALISM_REVIEW.md.
+    seconds_per_percent = 0.11
+    assert 0.3 < 100 * close * seconds_per_percent < 1.0
+    assert 0.1 < 100 * train * seconds_per_percent < 0.5
+
+    # And it has to fade: a car two seconds back is racing in clean air.
+    assert 100 * wake_effect(2.0).downforce_loss * seconds_per_percent < 0.15
 
 
 def test_the_tow_is_worth_a_tenth_or_so():

@@ -4,10 +4,11 @@ Two effects, opposite in sign, and both of them are the same hole in the air:
 
 **Dirty air.** A wing works by bending clean air.  Behind another car the air is
 already bent, slow and turbulent, so the wing makes less downforce -- and
-downforce is what a Formula 1 car corners on.  A car a second behind loses
-around a fifth of it, and a car half a second behind loses a third.  That is why
-following is hard and why "he was quicker but couldn't get past" is a sentence
-about aerodynamics rather than about drivers.
+downforce is what a Formula 1 car corners on.  A car half a second behind loses
+a few per cent of it, which is a few tenths of a lap; enough that following is
+work, not enough that the gap opens on its own.  That balance is the whole
+reason "he was quicker but couldn't get past" is a sentence about aerodynamics
+rather than about drivers, and it is also why DRS trains form.
 
 **The tow.** The same hole in the air is a hole: the following car has less air
 to push out of the way, so it has less drag.  On a straight that is worth

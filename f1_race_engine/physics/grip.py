@@ -39,10 +39,26 @@ __all__ = [
 ]
 
 
+def _axle_transfer_factor(shift: float, exponent: float) -> float:
+    """Grip left on one axle when load has moved across it by ``shift``.
+
+    ``shift`` is the load moved onto the outside tyre as a share of what it was
+    carrying, so 1.0 is the point where the inside wheel lifts.
+    """
+    shift = min(max(shift, 0.0), 1.0)
+    outside = (1.0 + shift) ** exponent
+    inside = (1.0 - shift) ** exponent if shift < 1.0 else 0.0
+    return 0.5 * (outside + inside)
+
+
 def lateral_transfer_factor(
     total_load: float,
     transfer: float,
     load_sensitivity: float,
+    *,
+    front_load: float | None = None,
+    rear_load: float | None = None,
+    roll_stiffness_front: float | None = None,
 ) -> float:
     """Share of cornering grip left after load moves onto the outside tyres.
 
@@ -56,16 +72,39 @@ def lateral_transfer_factor(
     depends only on how far the load has moved as a share of what each tyre was
     carrying.  Past the point where the inside wheels lift they carry nothing
     and stop contributing, which the model reaches by itself.
+
+    Given the axle loads and a roll stiffness distribution, the transfer is
+    split between the axles the way the springs and bars actually split it, and
+    each axle is charged for its own share.  That matters because the same
+    penalty is concave: an axle taking more than its share of the transfer
+    loses more grip than the other one gains back, so **any** distribution away
+    from the load split costs the car total grip.  Which is the real reason a
+    setup change at one end is felt as a balance change rather than as free
+    lap time, and why the stiff end is the end that lets go first.
     """
     if total_load <= 0.0 or transfer <= 0.0 or load_sensitivity <= 0.0:
         return 1.0
-    per_tyre = total_load / 4.0
-    # Load moved onto each outside tyre, as a share of what it was carrying.
-    shift = min(0.5 * transfer / per_tyre, 1.0)
     exponent = 1.0 - load_sensitivity
-    outside = (1.0 + shift) ** exponent
-    inside = (1.0 - shift) ** exponent if shift < 1.0 else 0.0
-    return 0.5 * (outside + inside)
+
+    if (
+        front_load is None
+        or rear_load is None
+        or roll_stiffness_front is None
+        or front_load <= 0.0
+        or rear_load <= 0.0
+    ):
+        # No distribution supplied: the transfer splits evenly, which is what
+        # a car whose roll stiffness matches its weight distribution does.
+        return _axle_transfer_factor(2.0 * transfer / total_load, exponent)
+
+    share = min(max(roll_stiffness_front, 0.0), 1.0)
+    front = _axle_transfer_factor(share * transfer / (front_load / 2.0), exponent)
+    rear = _axle_transfer_factor(
+        (1.0 - share) * transfer / (rear_load / 2.0), exponent
+    )
+    # Steady state: the axles corner together, so the car's capacity is the sum
+    # of theirs and the combination is weighted by the load each one carries.
+    return (front_load * front + rear_load * rear) / (front_load + rear_load)
 
 
 def slope_angle(gradient: float) -> float:

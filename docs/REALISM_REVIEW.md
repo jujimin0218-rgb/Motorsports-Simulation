@@ -418,6 +418,161 @@ run on every invocation.
 
 ---
 
+## Fourth pass: are the phases actually wired to each other?
+
+The first three passes asked whether each mechanism was right on its own. This
+one asks a different question: when an input changes, does the consequence
+travel all the way through the phases that are supposed to carry it, and does
+it arrive the right *size*?
+
+The method is the same as before. Change one input, measure the lap or the
+race at the other end, and compare against a published figure. A chain that is
+merely connected is not enough — a chain can be live and still be wrong by a
+factor of ten, and three of them were.
+
+### The chains that were already right
+
+Measured on `synthetic_proving_ground` unless stated, one input at a time:
+
+| chain | change | result |
+|---|---|---|
+| aero → lap | wing 0.3 / 1.0 | +0.55 s / −0.05 s |
+| power unit → lap | +10% power | −1.34 s |
+| gearbox → lap | 8% longer gears | +0.01 s here, +0.56 s where the car reaches the limiter |
+| chassis → lap | track 1.6→1.8 m / cg 0.30→0.42 m | −0.06 s / +0.38 s |
+| fuel → lap | +50 kg | +1.19 s (2.4 kg per tenth) |
+| compound → lap | S / H against M | −0.94 s / +0.18 s |
+| wear → lap | 80% worn | +3.26 s |
+| weather → lap | 5 °C / 40 °C / 8 m/s wind | −0.25 s / +0.19 s / −0.16 s |
+| evolution → lap | green to fully rubbered | −1.95 s |
+| rain → compound → lap | 0.6 mm → I, 2.0 mm → W | +25 s, +35 s |
+| driver → tyre | tyre management 0.94 vs 0.75 | 3.76 vs 4.15 %/lap wear |
+| ERS → budget | over a stint | 3.60 MJ deployed, 3.60 MJ recovered, store steady |
+| reliability → race | normal stress | 1.3 mechanical retirements per 20 cars |
+| neutralisation → strategy | green / VSC / safety car stop | 20.9 s / 12.5 s / 9.4 s |
+
+The last two are worth singling out because they are the ones with a number
+anyone can check. Formula 1 runs about one or one and a half mechanical
+retirements a race, and a stop worth twenty seconds under green is worth about
+twelve under a virtual safety car and about eight behind a real one. Neither
+figure is written down anywhere in the engine: the first falls out of six
+per-distance hazard rates, the second out of integrating the pit lane against
+a field that is lapping more slowly.
+
+The near-zero gearbox sensitivity was checked rather than assumed. On a circuit
+where the car reaches the rev limiter, 8% shorter gears cost 0.56 s and cap the
+top speed at exactly the gear ceiling; on the proving ground the car tops out
+at 300 km/h against a 350 km/h ceiling, so the gearing has nothing to do.
+
+### Three chains that were live but wrong by a lot
+
+**Tyre temperature was far too punishing away from the window.** Being 40 K
+cold cost 26.6 s a lap. A real out-lap on cold tyres costs 5–15 s. The falloff
+term was carrying the whole of it, so it was set from what being out of the
+window costs on the road rather than from a curve shape: `grip_falloff` 0.16 →
+0.10, which gives +1.2 s at 15 K cold, +2.3 s at 20 K and +12.4 s at 40 K.
+
+**Dirty air was worse than any real car's.** A car 0.8 s behind was losing
+1.92 s a lap. That cannot be true: cars run in DRS trains, half a dozen of them
+nose to tail for a whole stint, and at 1.92 s a lap the train would break up on
+its own within two laps. The downforce loss was a pre-2022 number. Recalibrated
+from the lap-time cost instead — losing one per cent of downforce is worth
+0.09–0.13 s a lap here, measured — `peak_downforce_loss` 0.50 → 0.13 and
+`downforce_scale` 0.90 → 0.70. That puts a following car between the two
+figures the FIA published for the ground-effect regulations (18% of downforce
+gone at ten metres, 4% at twenty) and leaves following worth a few tenths,
+which is what makes a train possible. The tow was already right: a car sitting
+right behind another gains 10–15 km/h, and a qualifying tow at a power circuit
+is worth three or four tenths.
+
+**Damage made a car faster.** Damage was modelled as a smaller wing. But
+`CdA = CdA₀ + k·ClA²`, so taking downforce area away takes induced drag away
+with it — and on a power circuit a trimmed-out wing is exactly what the car
+wants. A fully damaged car was 1.06 s *quicker* with 27 km/h more top speed. A
+broken wing is not a trimmed wing: it is a bluff body with the flow separated
+behind it, so the downforce is gone and the drag is not. The drag is now pinned
+to what the intact car had plus a penalty, with the zero-lift term absorbing
+whatever the smaller wing no longer induces. Damage now costs 1.0–4.7 s
+depending on level and circuit, and always costs top speed.
+
+### The chain that is genuinely missing, and why it was not faked
+
+Following costs lap time now, correctly. It does not cost the tyres, and in a
+real race it costs the tyres more than it costs the lap. Measured over eight
+laps on mediums:
+
+| | lap 1 → lap 8 | tread | wear |
+|---|---|---|---|
+| clean air | 1:29.30 → 1:30.25 | 105.1 °C | 3.64 %/lap |
+| 1.0 s behind | 1:29.46 → 1:30.38 | 104.8 °C | 3.60 %/lap |
+| 0.5 s behind | 1:29.60 → 1:30.50 | 104.6 °C | 3.56 %/lap |
+
+The lap-time column is right. The temperature column points the wrong way: a
+car in dirty air comes in *cooler*.
+
+The reason is structural rather than a wrong constant. Tread heat is modelled
+as `friction force × speed`, and in dirty air the car corners more slowly with
+less grip, so both terms fall. What actually overheats a tyre is the third term
+neither of them stands in for: **slip velocity**. A driver chasing somebody
+does not accept the slower corner — they arrive on the braking point they
+learned in clean air, the tyre goes past its limit, and the difference comes
+out as sliding and therefore as heat.
+
+That needs a slip model, which is the same thing the deferred slip-angle and
+yaw work needs, and it is why nothing was done about it here. The alternative
+was a tuned multiplier on tyre heat keyed to the wake, which would reproduce
+the table and break project rule 6 — a lap-time correction wearing a physics
+costume, and one that would then have to be re-tuned against every circuit.
+The honest state is a chain that carries the aerodynamics correctly and does
+not yet carry the thermal consequence, which is written down here rather than
+papered over.
+
+### One knob that was connected to nothing
+
+`suspension.roll_stiffness_front` was carried in the config and read by no
+code. A calibration parameter that changes nothing is a broken connection like
+any other, so it is now wired to the thing an anti-roll bar actually does: it
+splits the lateral load transfer between the axles, and each axle is charged
+for its own share.
+
+The result is the one a setup engineer would expect, and it was not put there
+by hand. The grip penalty is concave in how far the load has moved, so an axle
+taking more than its share loses more than the other end gains back — total
+grip therefore peaks exactly where the distribution matches the load split and
+falls away on both sides of it:
+
+| roll stiffness front | lap |
+|---|---|
+| 0.45 (matches the load split) | 1:29.915 |
+| 0.55 (the default, mild understeer) | +0.016 s |
+| 0.70 (stiff front) | +0.161 s |
+
+A bar is not free lap time, in other words, and the reason a team moves it
+anyway is the balance it buys — which is the part that needs the slip-angle
+model Phase 12 still does not have.
+
+### One contract that was wrong rather than one number
+
+`compute_lap_time` documented itself as "the lap the car is capable of", and a
+driven qualifying lap beat it by 1.5–1.8 s. Nothing was exceeding the tyres:
+the limit lap was computed with ERS shut, and there was no way to ask for it
+otherwise. Both halves are now fixed — the function takes `ers_power` and
+`drs_zones`, and the docstring says the default is the *chassis* limit and why
+(deployment is a decision, not a property, and the store holds one lap's worth
+of it). With ERS deployed the ordering is the one it should always have been:
+
+```
+chassis limit    1:29.40
+driven lap       1:26.84
+deployed limit   1:26.77
+```
+
+A test now pins that ordering. If the driven lap ever fell outside it, the
+driver would be either leaving ERS on the table or exceeding the grip the tyres
+have, and both are bugs rather than driving.
+
+---
+
 ## Running it
 
 ```bash

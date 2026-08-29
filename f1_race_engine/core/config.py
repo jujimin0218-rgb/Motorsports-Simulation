@@ -909,8 +909,15 @@ class TyreThermalConfig(ConfigNode):
     what a driver actually goes out on: how the tyre has been behaving, not
     what it read at one point on the road."""
 
-    grip_falloff: float = 0.16
-    """Grip lost at one window half-width away from the optimum."""
+    grip_falloff: float = 0.10
+    """Grip lost at one window half-width away from the optimum.
+
+    Set from what being out of the window costs on the road rather than
+    guessed: 15 K under is worth about a second and a quarter a lap, and the
+    40 K of a set straight out of the blankets about eleven -- which is an out
+    lap.
+    The loss grows with the square of the offset, so the first few degrees
+    cost almost nothing and the last few cost a great deal."""
 
     min_thermal_grip: float = 0.55
     """Floor on the temperature grip factor -- a stone-cold or destroyed tyre
@@ -1008,15 +1015,28 @@ class TyreWearConfig(ConfigNode):
 class WakeConfig(ConfigNode):
     """The air behind another car (rule 29).
 
-    Calibrated against the figures the sport quotes about itself: roughly a
-    fifth of the downforce gone at one second, a third at half a second, and a
-    tow worth about an eighth of the drag at half a second.
+    The downforce side is set from what following *costs on the road*, because
+    that is the thing anyone can check.  Losing one per cent of downforce is
+    worth 0.09-0.13 s a lap here depending on the circuit, and in a modern race
+    a car half a second behind loses something like half a second a lap while a
+    car a second behind loses two or three tenths.  Any bigger and a DRS train
+    could not form at all -- cars would drop out of the tow as fast as they
+    reached it -- and DRS trains are the defining feature of the era.
+
+    That lands between the two figures the FIA published for the ground-effect
+    regulations (a 2022 car losing 18% of its downforce at ten metres and 4% at
+    twenty), which is where a 2024 car belongs: the teams recovered much of the
+    wake performance the rules took away, but not all of it.
+
+    The tow is set from the other observable: a car sitting right behind another
+    gains 10-15 km/h on a long straight, and a qualifying tow at a power circuit
+    is worth three or four tenths.
     """
 
-    peak_downforce_loss: float = 0.50
+    peak_downforce_loss: float = 0.13
     """Downforce lost when running right behind another car."""
 
-    downforce_scale: float = 0.90
+    downforce_scale: float = 0.70
     """Time constant, s, of the dirty-air decay."""
 
     peak_drag_saving: float = 0.14
@@ -1036,9 +1056,10 @@ class WakeConfig(ConfigNode):
     range: float = 3.0
     """Gap, s, beyond which a car is in clean air."""
 
-    minimum_downforce: float = 0.45
+    minimum_downforce: float = 0.60
     """Floor on the downforce multiplier, so a car glued to a gearbox is
-    struggling rather than undriveable."""
+    struggling rather than undriveable.  The default peak never reaches it;
+    it is a guard on a hand-edited config, not part of the calibration."""
 
     def validate(self) -> None:
         require_range("wake.peak_downforce_loss", self.peak_downforce_loss, 0.0, 1.0)
@@ -1339,9 +1360,16 @@ class SuspensionConfig(ConfigNode):
 
     Above the static weight distribution, which is what gives a car mild
     understeer at the limit -- the safe balance every road-legal and most
-    racing setups are built around.  Carried here because it is what an
-    anti-roll bar change actually alters, for the balance model that comes
-    with the rest of Phase 12."""
+    racing setups are built around.  It is what an anti-roll bar change
+    actually alters, and it is charged for: the grip penalty is concave, so an
+    axle taking more than its share of the transfer loses more than the other
+    end gains back, and *any* distribution away from the load split costs the
+    car total grip.
+
+    Which is the useful result, because it says a bar is not free lap time.
+    Swinging it from a matched 0.45 to a stiff-front 0.70 costs 0.16 s a lap
+    here, and the reason a team does it anyway is the balance it buys -- the
+    part that needs the slip-angle model Phase 12 does not have yet."""
 
     def validate(self) -> None:
         require_range(

@@ -121,11 +121,27 @@ result by a hundredth of a percent.
 
 ## Not done, and why
 
-`suspension.roll_stiffness_front` is carried but not yet used: it is what an
-anti-roll bar change actually alters, and using it means a **balance** model —
-understeer and oversteer as a front-versus-rear grip split — which needs the
-tyre model to distinguish the two axles' slip. That is the same piece of work as
-slip angle and yaw, and half of it would be worse than none.
+`suspension.roll_stiffness_front` now splits the lateral load transfer between
+the axles, and each axle is charged for its own share. That much is honest
+steady-state physics and it produces the result a setup engineer would expect
+without being told to: because the grip penalty is concave in how far the load
+has moved, an axle taking more than its share loses more than the other end
+gains back, so total grip peaks where the distribution matches the load split
+and falls away on both sides. Swinging the bar from a matched 0.45 to a
+stiff-front 0.70 costs 0.16 s a lap.
+
+What is still missing is the half a team actually moves the bar *for*: the
+**balance** — understeer and oversteer as a front-versus-rear grip split, which
+needs the tyre model to distinguish the two axles' slip. That is the same piece
+of work as slip angle and yaw. So the model says what a bar costs and not yet
+what it buys, which is the honest half to have.
+
+The same gap is why dirty air does not reach the tyres. Following costs lap
+time correctly, but a car in another's wake comes back marginally *cooler*,
+because tread heat is `friction force × speed` and both fall when the car
+corners more slowly. Real overheating is slip velocity: a chasing driver keeps
+the braking point they learned in clean air and the tyre goes past its limit.
+The fourth pass in `docs/REALISM_REVIEW.md` has the measurement.
 
 Also deferred, for the same reason: ride height and its effect on the floor,
 the differential, and a transient tyre model. Each of them wants a car that

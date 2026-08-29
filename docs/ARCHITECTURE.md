@@ -544,7 +544,7 @@ A Unity or other 3D client consumes the same data over the same boundary.
 | 9 | Overtaking and defence | **done** |
 | 10 | Weather and environment | **done** |
 | 11 | Race events: SC, VSC, red flag, collisions, failures | **done** |
-| 12 | Advanced physics: gearbox, lateral weight transfer | **done**; slip angle, differential and ride height deferred, see `docs/PHASE12.md` |
+| 12 | Advanced physics: gearbox, lateral weight transfer, roll stiffness | **done**; slip angle, differential and ride height deferred, see `docs/PHASE12.md`. The slip model is what dirty air needs to reach the tyres — see the fourth pass in `docs/REALISM_REVIEW.md` |
 
 Each phase ends by running the code, running the tests, checking physics
 sanity, running the benchmark, and fixing what is wrong — **before** the next

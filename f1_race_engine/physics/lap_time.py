@@ -12,15 +12,26 @@ consistent by construction.  Using ``ds / v_mean`` instead would bias every
 braking zone.
 
 What comes out is the **limit lap**: a perfect driver, exactly on the tyre
-everywhere, with a fixed fuel load and fresh tyres.  That is the right Phase 3
-answer -- it is the lap the car is capable of.  Phase 4 adds the driver, whose
-imperfection and consistency move it, and Phase 5 adds the fuel burning off and
-the tyres going away underneath it.
+everywhere, with a fixed fuel load and fresh tyres.  Phase 4 adds the driver,
+whose imperfection and consistency move it, and Phase 5 adds the fuel burning
+off and the tyres going away underneath it.
+
+By default it is the *chassis* limit -- ERS not deployed and DRS shut -- because
+that is the Phase 3 question: what the car, its tyres and this circuit are worth
+before any of it is spent.  Deployment is not a property of the car, it is a
+decision, and it is one the car cannot make everywhere at once: the store holds
+a lap's worth and no more.
+
+So a Phase 5 qualifying lap legitimately beats this number, by three or four
+seconds, and that is the ERS.  Pass ``ers_power`` and ``drs_zones`` to get the
+other limit -- the one with everything deployed, which no car can sustain for a
+whole lap but which every lap is measured against.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -143,11 +154,18 @@ def compute_lap_time(
     conditions: TrackConditions | None = None,
     limits: PerformanceLimits | None = None,
     profile: SpeedProfile | None = None,
+    ers_power: float = 0.0,
+    drs_zones: Sequence[bool] | None = None,
     analyse_zones: bool = True,
 ) -> LapTimeResult:
     """Compute the limit lap for ``vehicle`` around ``track``.
 
     Pass ``profile`` to reuse one already computed; otherwise it is built here.
+
+    ``ers_power`` and ``drs_zones`` default to a shut car -- see the module
+    docstring for why the Phase 3 limit is the chassis limit rather than the
+    deployed one.  Both are ignored when ``profile`` is supplied, since that
+    profile already answers the question one way or the other.
     """
     conditions_ = ambient or AmbientConditions()
     car_mass = vehicle.total_mass() if mass is None else mass
@@ -160,6 +178,8 @@ def compute_lap_time(
         tyre_state=tyres,
         conditions=conditions,
         limits=limits,
+        ers_power=ers_power,
+        drs_zones=drs_zones,
     )
 
     count = len(speed_profile)

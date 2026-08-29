@@ -310,3 +310,54 @@ def test_reusing_a_profile_gives_the_same_lap(fast_track, reference_spec):
     first = compute_lap_time(fast_track, car)
     again = compute_lap_time(fast_track, car, profile=first.profile)
     assert again.lap_time == pytest.approx(first.lap_time)
+
+
+# -- what the limit lap is, and is not ---------------------------------------
+
+
+def test_the_default_limit_lap_is_the_chassis_limit(fast_track, reference_spec):
+    """ERS shut, DRS shut: what the car is worth before anything is spent.
+
+    Deployment is a decision rather than a property, and it is one the car
+    cannot make everywhere at once -- the store holds a lap's worth and no
+    more.  So Phase 3 answers the question without it, and says so.
+    """
+    car = Vehicle(reference_spec, MEDIUM_DOWNFORCE)
+    shut = compute_lap_time(fast_track, car)
+    deployed = compute_lap_time(
+        fast_track, car, ers_power=reference_spec.ers.max_deploy_power
+    )
+    assert deployed.lap_time < shut.lap_time
+
+    # And the difference is the size ERS actually is: seconds, not tenths.
+    assert 1.0 < shut.lap_time - deployed.lap_time < 6.0
+
+
+def test_a_driven_lap_lands_between_the_two_limits(fast_track, reference_spec):
+    """The ordering that says the phases are wired to each other correctly.
+
+    A real qualifying lap beats the chassis limit, because the driver deploys.
+    It does not beat the deployed limit, because nobody is perfect.  If either
+    half of that failed, a driver would be either leaving ERS on the table or
+    exceeding the grip the tyres have -- and both are bugs, not driving.
+    """
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.driver.io import load_builtin_driver
+    from f1_race_engine.simulation.lap import LapSimulator
+
+    car = Vehicle(reference_spec, MEDIUM_DOWNFORCE)
+    shut = compute_lap_time(fast_track, car, mass=car.total_mass(30.0))
+    deployed = compute_lap_time(
+        fast_track,
+        car,
+        mass=car.total_mass(30.0),
+        ers_power=reference_spec.ers.max_deploy_power,
+    )
+    driven = LapSimulator(
+        track=fast_track,
+        vehicle=car,
+        driver=load_builtin_driver("01_benchmark"),
+        rng=RngHub(5),
+    ).simulate(fuel_mass=30.0, qualifying=True, record_telemetry=False)
+
+    assert deployed.lap_time < driven.lap_time < shut.lap_time

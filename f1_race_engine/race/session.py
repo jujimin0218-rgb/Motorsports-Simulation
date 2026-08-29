@@ -717,10 +717,12 @@ class RaceSession:
     def _damage(self, incident: Incident) -> None:
         """Give a car the aerodynamics it has left.
 
-        Damage is not a lap-time penalty: the wing that is missing was making
-        downforce and costing drag, so what its loss is worth depends on the
-        circuit.  A broken front wing costs far more at Silverstone than at
-        Monza, and that falls out of running the car with less of it.
+        Damage is not a lap-time penalty.  The car is given the aerodynamics it
+        has left and the rest of the engine works out what that is worth, which
+        is why the same broken wing costs different amounts at different
+        circuits: the downforce it is no longer making is missed most where the
+        corners are fast, and the drag it is still making is felt most where the
+        straights are long.
         """
         from dataclasses import replace as _replace
 
@@ -729,16 +731,30 @@ class RaceSession:
         entry.damage = min(1.0, entry.damage + incident.damage)
         cfg = self.config.incidents
         aero = entry.vehicle.spec.aero
+
+        # A broken wing is not a trimmed wing.  Trimming a wing out takes away
+        # downforce *and* the induced drag that came with it, which is why a
+        # Monza package is quick in a straight line; if damage were modelled
+        # that way a car would leave the barrier faster than it arrived.  What
+        # a damaged wing actually is is a bluff body with the flow separated
+        # behind it: the downforce is gone and the drag is not.  So the drag
+        # is pinned to what the intact car had, plus a penalty, and the
+        # zero-lift term absorbs whatever the smaller wing no longer induces.
+        kept = 1.0 - cfg.damage_downforce_loss * entry.damage
+        wing = entry.vehicle.wing_level
+        intact_lift = aero.downforce_area(wing)
+        intact_drag = aero.drag_area(wing)
+        target_drag = intact_drag * (1.0 + cfg.damage_drag_penalty * entry.damage)
+        induced = aero.induced_drag_factor * (intact_lift * kept) ** 2
+        zero_lift = max(target_drag - induced, aero.zero_lift_drag_area)
+
         spec = _replace(
             entry.vehicle.spec,
             aero=_replace(
                 aero,
-                min_downforce_area=aero.min_downforce_area
-                * (1.0 - cfg.damage_downforce_loss * entry.damage),
-                max_downforce_area=aero.max_downforce_area
-                * (1.0 - cfg.damage_downforce_loss * entry.damage),
-                zero_lift_drag_area=aero.zero_lift_drag_area
-                * (1.0 + cfg.damage_drag_penalty * entry.damage),
+                min_downforce_area=aero.min_downforce_area * kept,
+                max_downforce_area=aero.max_downforce_area * kept,
+                zero_lift_drag_area=zero_lift,
             ),
         )
         damaged = entry.vehicle.with_spec(spec)

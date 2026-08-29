@@ -171,7 +171,12 @@ def lateral_capability(
     # solver that runs for every segment of every lap.
     if transfers:
         factor = lateral_transfer_factor(
-            loads.total, abs(lateral_acceleration) * transfer_per_unit, load_sensitivity
+            loads.total,
+            abs(lateral_acceleration) * transfer_per_unit,
+            load_sensitivity,
+            front_load=loads.front,
+            rear_load=loads.rear,
+            roll_stiffness_front=config.suspension.roll_stiffness_front,
         )
         available_force *= factor
         horizontal_force = available_force * math.cos(helpful_bank) + gravity_assist
