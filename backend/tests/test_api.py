@@ -210,3 +210,50 @@ def test_the_long_sessions_hand_back_a_job_rather_than_a_result(
     assert state["status"] == "done", state
     assert state["result"]["phase"] == "strategy"
     assert started.get("/api/season").json()["phase"] == "strategy"
+
+
+# -- the end of a season -----------------------------------------------------
+
+
+def test_a_season_cannot_be_settled_while_it_is_still_running(started: TestClient):
+    response = started.post("/api/season/close")
+    assert response.status_code == 409
+    assert response.json()["code"] == "InvalidGamePhase"
+
+
+def test_the_winter_cannot_be_taken_before_the_season_is_settled(
+    started: TestClient, service: GameService
+):
+    """Two calls rather than one, so a player can look at a finished
+    championship before committing to a grid that is about to change."""
+    for entry in service.state.calendar.rounds:
+        while not entry.is_complete:
+            entry.advance()
+
+    early = started.post("/api/season/next")
+    assert early.status_code == 409
+
+    settled = started.post("/api/season/close")
+    assert settled.status_code == 200
+    assert settled.json()["season"] == 2026
+
+    again = started.post("/api/season/close")
+    assert again.status_code == 409, "a season is settled once"
+
+    winter = started.post("/api/season/next")
+    assert winter.status_code == 200
+    assert winter.json()["season"] == 2027
+    assert started.get("/api/season").json()["current_round"] == 1
+
+
+def test_the_history_endpoint_fills_up(started: TestClient, service: GameService):
+    assert started.get("/api/history").json() == []
+    for entry in service.state.calendar.rounds:
+        while not entry.is_complete:
+            entry.advance()
+    started.post("/api/season/close")
+
+    history = started.get("/api/history").json()
+    assert len(history) == 1
+    assert history[0]["season"] == 2026
+    assert "standings" in history[0]

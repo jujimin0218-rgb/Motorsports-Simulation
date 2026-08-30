@@ -462,3 +462,41 @@ export interface Replay {
   cars: ReplayCar[]
   events: ReplayEvent[]
 }
+
+
+// -- the end of a season -----------------------------------------------------
+
+export interface SeasonRecord {
+  season: number
+  driver_champion: string
+  constructor_champion: string
+  player_team: string
+  player_team_position: number
+  standings: Standings
+  race_winners: string[]
+  pole_sitters: string[]
+}
+
+export interface SeasonSummary {
+  season: number
+  driver_champion: string
+  constructor_champion: string
+  player_position: number
+  settlements: Record<
+    string,
+    { team: string; lines: LedgerLine[]; income: number; spending: number; total: number }
+  >
+  retirements: string[]
+  record: SeasonRecord
+}
+
+export interface WinterReport {
+  season: number
+  rounds: number
+  rebased: Record<string, number>
+  reputations: Record<string, number>
+  drivers_aged: Record<string, number>
+  retired: string[]
+  contracts_expired: string[]
+  snapshot: GameSnapshot
+}

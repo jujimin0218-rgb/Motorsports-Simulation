@@ -171,6 +171,16 @@ def run_development(service: GameService = Depends(get_service)) -> dict[str, An
     return service.run_development()
 
 
+@router.post("/season/close", summary="Settle the year and file it in the history")
+def close_season(service: GameService = Depends(get_service)) -> dict[str, Any]:
+    return service.close_season()
+
+
+@router.post("/season/next", summary="The winter, and a new calendar")
+def next_season(service: GameService = Depends(get_service)) -> dict[str, Any]:
+    return service.start_next_season()
+
+
 @router.get("/round/next")
 def next_round(service: GameService = Depends(get_service)) -> dict[str, Any]:
     return service.next_round()

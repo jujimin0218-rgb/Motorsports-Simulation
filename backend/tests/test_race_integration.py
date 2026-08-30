@@ -85,12 +85,12 @@ def raced(request):
     for profile in state.drivers.values():
         if profile.team not in keep:
             profile.team = None
-    result, field = run_race(state, 1, laps=2, racing=True, hazards=True)
-    return state, result, field
+    result, field, weather = run_race(state, 1, laps=2, racing=True, hazards=True)
+    return state, result, field, weather
 
 
 def test_the_engine_produced_a_real_classification(raced):
-    state, result, field = raced
+    _state, result, _field, _weather = raced
     assert len(result.classification) == 8
     positions = [row.position for row in result.classification]
     assert positions == list(range(1, 9))
@@ -103,7 +103,7 @@ def test_the_engine_produced_a_real_classification(raced):
 
 
 def test_tyres_and_fuel_moved_because_a_race_was_actually_driven(raced):
-    _, result, _ = raced
+    _state, result, _field, _weather = raced
     for row in result.classification:
         if row.retired:
             continue
@@ -112,7 +112,7 @@ def test_tyres_and_fuel_moved_because_a_race_was_actually_driven(raced):
 
 
 def test_the_result_becomes_a_championship(raced):
-    state, result, field = raced
+    state, result, field, _weather = raced
     outcomes = outcomes_from(result, field, 1, pole=1)
     assert len(outcomes) == 8
     assert {o.driver_id for o in outcomes} == {item.driver_id for item in field}
@@ -130,7 +130,7 @@ def test_the_result_becomes_a_championship(raced):
 
 
 def test_exactly_one_fastest_lap_is_awarded(raced):
-    _, result, field = raced
+    _state, result, field, _weather = raced
     outcomes = outcomes_from(result, field, 1)
     assert sum(1 for o in outcomes if o.fastest_lap) <= 1
 
@@ -148,7 +148,7 @@ def test_the_same_seed_runs_the_same_race(small_game):
         for profile in state.drivers.values():
             if profile.team not in keep:
                 profile.team = None
-        result, field = run_race(state, 3, laps=2, racing=True, hazards=True)
+        result, _field, _weather = run_race(state, 3, laps=2, racing=True, hazards=True)
         return [
             (row.car_number, round(row.total_time, 9)) for row in result.classification
         ]

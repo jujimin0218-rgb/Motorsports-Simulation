@@ -30,10 +30,13 @@ import type {
   SaveSummary,
   SelectableTeam,
   SponsorRow,
+  SeasonRecord,
+  SeasonSummary,
   Standings,
   TeamRow,
   TrackGeometry,
   Upgrade,
+  WinterReport,
 } from '../types/api'
 
 export class ApiFailure extends Error {
@@ -143,7 +146,9 @@ export const api = {
   drivers: (freeAgents = false) =>
     get<DriverRow[]>(`/api/drivers${freeAgents ? '?free_agents=true' : ''}`),
   standings: () => get<Standings>('/api/standings'),
-  history: () => get<Record<string, unknown>[]>('/api/history'),
+  history: () => get<SeasonRecord[]>('/api/history'),
+  closeSeason: () => post<SeasonSummary>('/api/season/close'),
+  startNextSeason: () => post<WinterReport>('/api/season/next'),
   race: (raceId: string) => get<Record<string, unknown>>(`/api/race/${raceId}`),
   replay: (raceId: string) => get<Replay>(`/api/race/${raceId}/replay`),
   track: (round?: number) =>

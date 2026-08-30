@@ -361,6 +361,47 @@ class GameService:
             self._touch()
             return settings.to_dict()
 
+    # -- the winter ----------------------------------------------------------
+
+    def close_season(self) -> dict[str, Any]:
+        """Settle the year and write it into the history book.
+
+        Refused while there are rounds left, because a championship settled in
+        August is not a championship.
+        """
+        from ..game import season as season_module
+
+        with self._lock:
+            state = self.state
+            if not state.season_complete:
+                raise InvalidGamePhase(
+                    f"the {state.season} season still has round "
+                    f"{state.current_round_number} to run"
+                )
+            if any(record.season == state.season for record in state.history):
+                raise InvalidGamePhase(f"{state.season} has already been settled")
+            summary = season_module.close_season(state)
+            self._touch()
+            return summary.to_dict()
+
+    def start_next_season(self) -> dict[str, Any]:
+        """The winter: age, rebase, re-sign, and a new calendar."""
+        from ..game import season as season_module
+
+        with self._lock:
+            state = self.state
+            if not state.season_complete:
+                raise InvalidGamePhase(
+                    f"the {state.season} season is still running"
+                )
+            if not any(record.season == state.season for record in state.history):
+                raise InvalidGamePhase(
+                    f"settle {state.season} before starting the next one"
+                )
+            report = season_module.start_next_season(state)
+            self._touch()
+            return {**report, "snapshot": self.snapshot()}
+
     def next_round(self) -> dict[str, Any]:
         return round_service.advance_to_next_round(self.state).to_dict()
 

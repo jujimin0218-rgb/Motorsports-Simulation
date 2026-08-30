@@ -18,6 +18,7 @@ import Dashboard from './pages/Dashboard'
 import Development from './pages/Development'
 import Drivers from './pages/Drivers'
 import Finances from './pages/Finances'
+import History from './pages/History'
 import NewGame from './pages/NewGame'
 import RaceWeekend from './pages/RaceWeekend'
 import Replay from './pages/Replay'
@@ -78,6 +79,11 @@ export default function App() {
         { to: '/replay', label: 'Replay' },
         { to: '/calendar', label: 'Calendar' },
         { to: '/standings', label: 'Standings' },
+        {
+          to: '/history',
+          label: 'History',
+          badge: game.season_complete ? 'season over' : undefined,
+        },
       ],
     },
     {
@@ -139,6 +145,7 @@ export default function App() {
           <Route path="/replay" element={<Replay />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/standings" element={<Standings />} />
+          <Route path="/history" element={<History />} />
           <Route path="/team" element={<Team />} />
           <Route path="/development" element={<Development />} />
           <Route path="/finances" element={<Finances />} />
