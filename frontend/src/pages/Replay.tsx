@@ -33,14 +33,21 @@ export default function Replay() {
   const game = useLoadedGame()
   const [params, setParams] = useSearchParams()
 
+  // The server says which races it still has a track for -- only the most
+  // recent few are kept, and asking for one it does not have to find out would
+  // be a 404 as a lookup.
+  const available = game.replays
+  const raceId = params.get('race') ?? available[available.length - 1] ?? ''
+
   const finished = useMemo(
     () => Math.max(0, (game.current_round?.number ?? 23) - 1),
     [game],
   )
-  const raceId =
-    params.get('race') ?? `${game.season}-${String(finished).padStart(2, '0')}`
 
-  const replay = useAsync(() => api.replay(raceId), [raceId])
+  const replay = useAsync(
+    () => (raceId ? api.replay(raceId) : Promise.reject(new Error('nothing yet'))),
+    [raceId],
+  )
   const geometry = useAsync(
     () => api.track(finished > 0 ? finished : undefined),
     [finished],
@@ -70,6 +77,16 @@ export default function Replay() {
     }
   }, [playing, speed, steps])
 
+  if (!raceId) {
+    return (
+      <>
+        <PageHead title="Replay" />
+        <Empty>
+          Nothing to play back yet — run a race and it will appear here.
+        </Empty>
+      </>
+    )
+  }
   if (replay.loading || geometry.loading) return <Loading what="Loading the replay" />
   if (replay.error) {
     return (
@@ -108,7 +125,7 @@ export default function Replay() {
         title="Replay"
         subtitle={`${data.track} · ${data.laps} laps · race ${data.race_id}`}
         action={
-          finished > 1 && (
+          available.length > 1 && (
             <select
               value={raceId}
               onChange={(event) => {
@@ -116,11 +133,11 @@ export default function Replay() {
                 setStep(0)
                 setPlaying(false)
               }}
-              style={{ width: 160 }}
+              style={{ width: 170 }}
             >
-              {Array.from({ length: finished }, (_, i) => finished - i).map((n) => (
-                <option key={n} value={`${game.season}-${String(n).padStart(2, '0')}`}>
-                  Round {n}
+              {[...available].reverse().map((id) => (
+                <option key={id} value={id}>
+                  Round {Number(id.split('-')[1])}
                 </option>
               ))}
             </select>

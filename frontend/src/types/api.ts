@@ -215,6 +215,9 @@ export interface GameSnapshot {
   season: number
   seed: number
   settings: GameSettings
+  /** Race ids that can be played back.  Only the most recent few are kept. */
+  replays: string[]
+  autosave_error: string | null
   player_team: string
   season_complete: boolean
   current_round: (RoundSummary & { circuit: Circuit; race_laps: number }) | null

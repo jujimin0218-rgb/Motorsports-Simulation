@@ -262,6 +262,47 @@ rewriting five megabytes after every step of every weekend. Every race keeps its
 classification and lap records regardless; only the second-by-second track ages
 out. Moving replays into their own table is the seam if that changes.
 
+## Seasons that end
+
+A season is settled and then a winter is taken, in two steps rather than one:
+a player should be able to look at a finished championship before committing to
+a grid that is about to change.
+
+What carries over and what does not is the whole design, because every game in
+this genre gets it wrong in one of two directions — carry everything and the
+third season is decided before it starts, reset everything and none of the
+first two mattered.
+
+| | |
+|---|---|
+| money | carries — a good season pays for next year's car |
+| reputation | carries slowly, *toward* where you finished rather than to it |
+| facilities | carries — the slowest advantage and the one that lasts |
+| car ratings | **rebased** — every winter is a new car |
+| research | cleared — a part for last year's car is worth nothing |
+| drivers | age toward their potential, then away from it, then stop |
+
+The rebase is the part that needed measuring. A season of development adds two
+or three points to every car; without a winter that puts it back, five seasons
+and the whole grid is at 0.99 with no headroom and development has stopped
+meaning anything. So the *level* is pulled back to the grid's own design mean
+and the *spread the teams earned* is kept — which is also what a regulation
+change does in reality.
+
+The first attempt rebased to a fixed 0.72 and was wrong: it handed the whole
+field a worse car every winter, taking the backmarker from 0.738 to 0.608 in one
+off-season. That is not resetting the inflation, it is resetting the grid.
+Rebasing to the design mean instead holds four seasons steady while the field
+converges:
+
+```
+season   mean     best     worst    spread
+2026     0.8410   0.9114   0.7292   0.1822
+2027     0.8410   0.9140   0.7359   0.1781
+2028     0.8410   0.9187   0.7457   0.1730
+2029     0.8410   0.9098   0.7564   0.1534
+```
+
 ## The data
 
 Nothing about the sport is in the code.

@@ -170,6 +170,10 @@ class GameService:
             "seed": state.seed,
             "settings": state.settings.to_dict(),
             "autosave_error": self._autosave_error,
+            # Which races can actually be played back.  Told rather than
+            # guessed: without this a client has to ask for one and read the
+            # 404 to find out, and only the most recent few are kept.
+            "replays": sorted(state.replays),
             "player_team": state.player_team,
             "season_complete": state.season_complete,
             "current_round": None
