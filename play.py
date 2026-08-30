@@ -57,7 +57,7 @@ def check_python() -> None:
     if missing:
         _fail(
             f"Missing Python packages: {', '.join(missing)}.",
-            "pip install -e .",
+            'pip install -e ".[server]"',
         )
 
 

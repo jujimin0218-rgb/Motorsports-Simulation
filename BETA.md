@@ -1,6 +1,6 @@
 # Beta — running it
 
-    pip install -e .
+    pip install -e ".[server]"
     python play.py
 
 That is the whole thing.  It builds the page if it needs to, starts the server,

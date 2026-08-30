@@ -14,6 +14,12 @@ dependencies = []
 [project.optional-dependencies]
 viz = ["matplotlib>=3.7"]
 dev = ["pytest>=7.4", "matplotlib>=3.7"]
+# The engine itself has no dependencies -- it is a physics library, and
+# `dependencies = []` above means that literally.  The season-management game
+# in backend/ is a separate layer built on top of it, and *that* is what needs
+# a web framework.  Kept out of the base install so the engine stays usable on
+# its own; `pip install -e ".[server]"` is what play.py and BETA.md ask for.
+server = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.6"]
 
 [tool.setuptools.packages.find]
 include = ["f1_race_engine*"]
