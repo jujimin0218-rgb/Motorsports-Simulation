@@ -218,6 +218,11 @@ tr.you .pos { color: var(--accent); }
 
 .scroll { overflow-x: auto; }
 
+/* A race log is as long as the race was busy, and a few hundred passes is an
+   ordinary grand prix.  It scrolls in its own panel rather than pushing
+   everything below it off the bottom of a very tall page. */
+.scroll-tall { overflow: auto; max-height: 420px; }
+
 /* -- controls ------------------------------------------------------------- */
 
 button, .button {
