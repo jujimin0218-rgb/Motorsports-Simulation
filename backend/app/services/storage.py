@@ -204,6 +204,16 @@ class SaveStore:
             for row in rows
         ]
 
+    def slot_of(self, save_id: str) -> str | None:
+        """The slot a save lives in, or ``None`` if it is an ordinary one.
+
+        A slot is rewritten by whatever owns it -- the autosave, after every
+        phase -- so what is in one is not somewhere else's to keep.
+        """
+        with self._lock:
+            row = self._row(save_id)
+        return row["slot"] if row is not None else None
+
     def delete(self, save_id: str) -> None:
         with self._lock:
             cursor = self._connection.execute(

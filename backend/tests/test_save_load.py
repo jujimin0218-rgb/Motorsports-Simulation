@@ -155,3 +155,39 @@ def test_recording_a_round_twice_replaces_rather_than_scores_twice(game):
     assert game.standings().driver_position(driver) is not None
     assert len(game.outcomes_for_round(1)) == 1
     assert game.outcomes_for_round(1)[0].position == 5
+
+
+def test_a_deliberate_save_does_not_land_in_the_autosave_slot(game):
+    """The autosave is rewritten after every phase of a weekend.
+
+    A player who carries on from it and then saves on purpose -- before a
+    gamble, say -- is making a checkpoint.  Writing that back into the slot the
+    autosave owns means the next phase quietly overwrites it, so the one save
+    they made deliberately is the one they cannot keep.
+    """
+    from app.services.game_service import GameService
+    from app.services.jobs import JobRunner
+
+    service = GameService(store=SaveStore(":memory:"), jobs=JobRunner(max_workers=1))
+    try:
+        service.start(player_team="harrow", seed=20260101, rounds=1)
+        service._touch()
+        autosave = next(s for s in service.saves() if s.slot == AUTOSAVE_SLOT)
+
+        service.load(save_id=autosave.id)
+        checkpoint = service.save(name="before the gamble")
+
+        assert checkpoint.slot is None, "a deliberate save owns no slot"
+        assert checkpoint.id != autosave.id
+
+        service._touch()
+        kept = {s.id for s in service.saves()}
+        assert checkpoint.id in kept, "the next autosave took the checkpoint with it"
+        assert autosave.id in kept
+
+        # Saving again writes back to the same checkpoint rather than piling up.
+        again = service.save(name="before the gamble")
+        assert again.id == checkpoint.id
+        assert len(service.saves()) == 2
+    finally:
+        service.close()
