@@ -1,0 +1,65 @@
+{
+  "_comment": "Engine suppliers.  The names, teams and drivers shipped with this game are fictional: inventing performance statistics and then attaching a real person's or manufacturer's name to them would be presenting made-up data as fact.  Everything here is a plain data file, so a licensed or community-made set can be dropped in without touching a line of code. Every rating is 0-1 and is a game-balance value.",
+  "engines": [
+    {
+      "id": "helios",
+      "name": "Helios Racing Power",
+      "nationality": "Germany",
+      "ice_output": 0.94,
+      "kers_output": 0.92,
+      "fuel_efficiency": 0.9,
+      "cooling": 0.86,
+      "reliability": 0.93,
+      "cost_per_season": 18.0,
+      "works_team": "argent"
+    },
+    {
+      "id": "corsario",
+      "name": "Corsario Motori",
+      "nationality": "Italy",
+      "ice_output": 0.92,
+      "kers_output": 0.86,
+      "fuel_efficiency": 0.83,
+      "cooling": 0.8,
+      "reliability": 0.85,
+      "cost_per_season": 16.5,
+      "works_team": "scuderia_lucente"
+    },
+    {
+      "id": "kagami",
+      "name": "Kagami Heavy Industries",
+      "nationality": "Japan",
+      "ice_output": 0.9,
+      "kers_output": 0.94,
+      "fuel_efficiency": 0.92,
+      "cooling": 0.89,
+      "reliability": 0.9,
+      "cost_per_season": 17.0,
+      "works_team": "apex_gp"
+    },
+    {
+      "id": "nordwerk",
+      "name": "Nordwerk Antrieb",
+      "nationality": "Germany",
+      "ice_output": 0.87,
+      "kers_output": 0.85,
+      "fuel_efficiency": 0.88,
+      "cooling": 0.91,
+      "reliability": 0.88,
+      "cost_per_season": 15.0,
+      "works_team": "brackley_united"
+    },
+    {
+      "id": "vanguard",
+      "name": "Vanguard Powertrains",
+      "nationality": "United Kingdom",
+      "ice_output": 0.89,
+      "kers_output": 0.88,
+      "fuel_efficiency": 0.86,
+      "cooling": 0.84,
+      "reliability": 0.81,
+      "cost_per_season": 14.0,
+      "works_team": "meridian"
+    }
+  ]
+}

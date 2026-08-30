@@ -1,0 +1,365 @@
+# The season management game
+
+A Formula 1 season on top of the race engine: you run a team, sign the drivers,
+spend the research, set the strategy, and the races are simulated rather than
+rolled for.
+
+## The one rule
+
+**The game does not simulate races.** It assembles the inputs, hands them to
+`f1_race_engine`, and reads the result back. There is no second, simpler race
+model anywhere in it, and there is no place where a lap time is adjusted after
+the engine has produced one.
+
+```
+React + TypeScript
+      |
+   FastAPI            backend/app/api/
+      |
+ Game services        backend/app/services/    season, money, research, jobs
+      |
+  Race adapter        backend/app/adapters/    a team's ratings -> a real car
+      |
+  f1_race_engine      the physics, untouched
+```
+
+Every arrow points down. The engine knows nothing about the game; the adapter
+knows nothing about HTTP; the API decides nothing.
+
+## Where the seam is
+
+A team's car is six ratings between 0 and 1. The engine wants a `VehicleSpec`:
+downforce areas in square metres, mass in kilograms, power in watts. The
+adapter (`app/adapters/car_builder.py`) converts one into the other, and the
+rule it follows is the engine's own — **a rating buys a physical property, and
+the engine decides what that is worth.**
+
+| rating | what it buys | why that |
+|---|---|---|
+| `aero` | downforce area up, induced drag down | a better wing is not a bigger wing; efficiency is what an aero department produces |
+| `power_unit` | engine power and deployment, with the supplier's | a customer of a strong manufacturer can beat a works team of a weak one |
+| `chassis` | mass | everybody chases the same minimum weight and the good teams get closer to it |
+| `mechanical_grip` | centre-of-gravity height, track width | not an analogy: those two numbers are what set lateral load transfer in the engine's grip model |
+| `tyre_management` | the tyre model's reference wear energy | the same work wears the tyre less |
+| `reliability` | the per-distance failure rates | a hazard rate, not a chance of a DNF |
+
+The spans are calibrated by measurement, not chosen.
+`backend/scripts/calibrate_spread.py` runs the whole grid round three circuits:
+
+```
+Monza        2.24 s   2.14%   top two split 0.31 s
+Silverstone  1.99 s   2.26%   top two split 0.22 s
+Monaco       1.82 s   2.40%   top two split 0.08 s
+```
+
+Two to three per cent front to back with a couple of tenths at the top is where
+a real Formula 1 field sits. And the *order* changes between the three, which
+nobody arranged: it falls out of what each circuit asks of a car meeting what
+each car is good at.
+
+## The driver model is the engine's
+
+The engine already has one, with ten attributes. A `DriverProfile` is the
+career around it — an age, a contract, a reputation, a run of form — and
+`to_engine_driver()` builds the engine's own object when a session needs one.
+
+Six ratings carry the engine's names and are handed straight across. Five exist
+only in the game, because the engine has nowhere to put them:
+
+- `overtaking` and `defending`, because the engine settles a fight with one
+  `racecraft` number and a manager game wants to tell an attacker from a
+  defender. They are stored apart and folded back together according to which
+  side of the fight the driver is on.
+- `starts`, for the first hundred metres.
+- `feedback`, which pays off in the factory rather than on Sunday.
+- `mentality`, which decides what a bad weekend does to a driver's form.
+
+The engine's other four attributes — braking, cornering, throttle control, risk
+management — are derived from the ratings above rather than stored separately,
+so each ability has one source of truth.
+
+## The management game
+
+Three resources, and they buy different things on different timescales. That is
+the whole design: a game where every decision is bought with the same currency
+has no decisions in it.
+
+**Money** buys a driver now. **Research** buys car performance over a few
+rounds. **Reputation** buys the *option* to sign the driver or the sponsor at
+all, and takes a season to move. There is also a fourth thing to run out of --
+**cost-cap allowance**, which is not money and cannot be topped up.
+
+### Development is concave, twice
+
+Progress in an area goes as `invested ** e` with `e` below one, *and* it is
+proportional to the headroom left in that area. So:
+
+- the tenth upgrade to the aerodynamics is worth a fraction of the first;
+- a car at 0.95 gains a fraction of what a car at 0.70 gains from the same
+  research.
+
+Concavity alone turned out not to be enough, and the measurement said so: run
+whole seasons with the shipped grid and the field barely closed at all, because
+a big team earns far more research from its factory and its head count than a
+small one and that advantage swamped the curve. So the game uses the sport's
+own answer to exactly this problem — a **sliding scale of development
+allowance**, most for the team at the back and least for the team leading.
+
+With it, a season closes the front-to-back spread by eight or nine per cent and
+the midfield develops about twice as fast as the leader, who stays in front.
+That is the balance rule 31 asks for: an early advantage does not decide the
+year, and it is not a reset either. Three or four seasons of getting it right
+is what it takes a backmarker to reach the front, which is about the pace the
+real thing moves at.
+
+A third constraint sits under both: **building the parts costs money.** Set too
+high and money rather than research becomes what the back of the grid runs out
+of — which stops the sliding scale doing anything at all, and was what the first
+measurement found.
+
+Three things about a project, all of them decisions:
+
+| | |
+|---|---|
+| it takes time | commissioned at round five, arrives at round eight; the season may have moved |
+| it can fail | and the failure chance falls with the facility, so the factory buys reliability of development as well as speed |
+| it costs reliability | a new part is a part nobody has raced, and the fragility wears off over three rounds |
+
+### The transfer market is not a price check
+
+A driver decides on the car first, the money second, the team's standing third.
+A star will refuse a backmarker at the fair price — *not convinced by the car* —
+and take it at sixty per cent over. And there is a floor: an offer below about
+62% of what a driver is asking is refused outright, whatever the car, because in
+a real negotiation there is a number below which nobody is having the
+conversation.
+
+The asking price is not one number for the whole grid. A driver charges a slow
+team more, which is what stops a backmarker buying its way to the front cheaply.
+
+### The AI does not cheat
+
+It reads the same calendar, spends the same money under the same cap, and its
+cars are built by the same adapter. What difficulty changes is how well it
+decides — how accurately it reads what the remaining rounds ask for, and how
+much of its allowance it commits. There is a test that asserts a harder AI's
+cars are not faster, because that is the easy thing to get wrong.
+
+The interesting part is what it is deciding. Not "develop the weakest area",
+which is the obvious answer and the wrong one, but "where do the next hundred
+points buy the most lap time *over the races that are left*" — so a team facing
+eight power circuits builds an engine even if its aerodynamics are worse, and
+the same team in October builds nothing, because the part would arrive after the
+flag.
+
+## Determinism
+
+One seed, addressed by name:
+
+```
+GameSeed -> season/2026 -> round/7 -> qualifying   (handed to the engine)
+                                   -> race         (handed to the engine)
+                                   -> development  (the game's own draws)
+```
+
+Nothing depends on call order, so a save reloaded and re-run reaches the same
+address and gets the same race. That is what makes "load it and try a different
+strategy" a comparison rather than two different afternoons.
+
+## What a round costs
+
+The engine simulates every car on every lap. Measured, twenty cars:
+
+| | |
+|---|---|
+| qualifying | 2.6 min |
+| a 57-lap grand prix | 10.4 min |
+| a 22-round season | about 4.8 hours |
+
+Handled two ways, neither of which touches the physics. Long sessions run as
+**background jobs** and the client polls; and a season can be run at a
+**fraction of the race distance**, which is a shorter race rather than a
+cheaper one — a 25% grand prix is fourteen laps genuinely simulated.
+
+## The client
+
+React and TypeScript, and one rule: **the frontend never simulates anything.**
+Every number on every screen came from the backend, which got it from the race
+engine. There is no lap time computed in the browser and no championship
+recounted there.
+
+```
+frontend/src/
+  services/api.ts   the only place the client talks to the server
+  hooks/useGame     one game, held once, so no two screens disagree about it
+  types/api.ts      what the server sends
+  pages/            one per screen
+```
+
+Three things the client is careful about, each because getting it wrong is the
+usual way this kind of app goes bad.
+
+**Refusals keep their code.** Every no from the backend arrives as
+`{code, message}` — the phase machine says `InvalidGamePhase`, the economy says
+`InsufficientBudget` — and a screen with only the English string could not tell
+them apart. The code is carried through on the thrown error and shown with the
+message, so a refusal is information rather than a crash.
+
+**Long sessions are polled, not awaited.** Qualifying is two and a half minutes
+of simulation and a grand prix is ten. The server hands back a job and the
+client follows it, so the screen shows a race happening — lap by lap — rather
+than a spinner and a promise that may not settle.
+
+**One game, held once.** There is exactly one game on the server, so there is
+exactly one in the client, and every action refreshes it. That removes the whole
+class of bug where the dashboard says round four and the calendar says round
+five.
+
+The screens are almost entirely tables of numbers, so the type is chosen for
+reading them: tabular figures wherever a column has to line up, and a monospace
+face for anything meant to be compared down a column rather than read across.
+
+## Drawing a circuit, and playing a race back
+
+Project rule 11 asks for the physics coordinates and the drawing coordinates to
+be kept apart, and they are:
+
+```
+race engine position          distance round the lap
+        |
+   geometry.py                a plan view, in metres
+        |
+   TrackMap.tsx               a viewBox
+```
+
+The engine's track model is a **distance** model — curvature, camber, elevation
+and grip as functions of how far round the lap you are — and the `x`/`y` each
+segment carries is a projection for exactly this purpose. Nothing in the drawing
+feeds back into the simulation.
+
+Two details that are easy to get wrong and were:
+
+- The centreline is decimated to what a screen can show, **except through
+  corners**, which keep every point they have. A decimated hairpin looks like a
+  chicane.
+- Line weights are in metres rather than pixels, because a two-kilometre circuit
+  and a seven-kilometre one need the same *apparent* width.
+
+A **replay** is sampled from the engine's own timing tower every two seconds of
+race time — the tower can answer "how far had car 7 covered at 412 seconds", so
+the car on the screen is where the simulation actually had it rather than an
+interpolation between lap times. A verified five-lap race shows the standing
+start in the numbers (0, 17.5, 65.7, 158.3 m) and lands on exactly five laps.
+
+The running order is computed from **total** distance covered, not distance
+round the lap. That is the difference between a leader who has just crossed the
+line and a leader who appears to be last.
+
+Replays are bounded to the five most recent races. A full-distance race with
+twenty cars is about a quarter of a megabyte of samples, and the save is one
+JSON document rewritten on every autosave — a whole season of them would mean
+rewriting five megabytes after every step of every weekend. Every race keeps its
+classification and lap records regardless; only the second-by-second track ages
+out. Moving replays into their own table is the seam if that changes.
+
+## Seasons that end
+
+A season is settled and then a winter is taken, in two steps rather than one:
+a player should be able to look at a finished championship before committing to
+a grid that is about to change.
+
+What carries over and what does not is the whole design, because every game in
+this genre gets it wrong in one of two directions — carry everything and the
+third season is decided before it starts, reset everything and none of the
+first two mattered.
+
+| | |
+|---|---|
+| money | carries — a good season pays for next year's car |
+| reputation | carries slowly, *toward* where you finished rather than to it |
+| facilities | carries — the slowest advantage and the one that lasts |
+| car ratings | **rebased** — every winter is a new car |
+| research | cleared — a part for last year's car is worth nothing |
+| drivers | age toward their potential, then away from it, then stop |
+
+The rebase is the part that needed measuring. A season of development adds two
+or three points to every car; without a winter that puts it back, five seasons
+and the whole grid is at 0.99 with no headroom and development has stopped
+meaning anything. So the *level* is pulled back to the grid's own design mean
+and the *spread the teams earned* is kept — which is also what a regulation
+change does in reality.
+
+The first attempt rebased to a fixed 0.72 and was wrong: it handed the whole
+field a worse car every winter, taking the backmarker from 0.738 to 0.608 in one
+off-season. That is not resetting the inflation, it is resetting the grid.
+Rebasing to the design mean instead holds four seasons steady while the field
+converges:
+
+```
+season   mean     best     worst    spread
+2026     0.8410   0.9114   0.7292   0.1822
+2027     0.8410   0.9140   0.7359   0.1781
+2028     0.8410   0.9187   0.7457   0.1730
+2029     0.8410   0.9098   0.7564   0.1534
+```
+
+## What is deliberately not here
+
+**Sound.** Phase 7 asks for a structure sound can be added to, and the honest
+answer is that the seam exists and the audio does not. Every step of a weekend
+returns a typed `RoundReport`; a race returns typed incidents, flag periods and
+stewards' decisions; a replay carries a timed list of events with the lap each
+happened on. Anything that wanted to make a noise would attach there. Building
+an audio layer with no assets to play would be inventing a subsystem nobody
+asked to hear, so it was not built — but nothing has to be rearranged to add it.
+
+**Real circuit geometry.** The twenty-two circuits are real and their lengths,
+corner counts and race distances are the published ones, but the *shape* a lap
+is driven on is not: the engine ships three synthetic circuits and no surveyed
+data for these venues, so each round borrows the synthetic circuit closest to
+its character. It is named in `physics_track` and is one file per circuit away
+from being real. `tools/author_circuits.py` in the engine has the honesty gates
+that will say when survey data is good enough, and it currently rejects every
+draft — which is the correct answer until somebody has the data.
+
+**Live intervention during a race.** The spec's MVP asks for pace and
+aggression commands rather than lap-by-lap control, and the strategy the engine
+runs is currently its own. The seam is the engine's per-lap callback, which the
+job already uses to report progress.
+
+## The data
+
+Nothing about the sport is in the code.
+
+```
+data/rules.json          points, season length, prize money, the cost cap
+data/calendar.json       which circuits, in what order
+data/tracks/tracks.json  the circuits, and what each asks of a car
+data/teams/teams.json    the grid
+data/drivers/drivers.json
+data/engines/engines.json
+```
+
+The circuits are real and their lengths, corner counts and race distances are
+the published ones. The teams, drivers and engine suppliers are fictional on
+purpose: inventing performance figures and attaching a real person's name to
+them would be presenting made-up data as fact. Every file is plain JSON, so a
+licensed or community-made set drops in without a line of code changing.
+
+The one thing still missing is real circuit *geometry*. The engine ships three
+synthetic circuits and no surveyed data for these twenty-two, so each round
+borrows the synthetic circuit closest to its character — named in
+`physics_track`, and replaceable per circuit when survey data exists.
+
+## Phases
+
+| | | |
+|---|---|---|
+| 0 | Repository analysis | done |
+| 1 | Game core: state, calendar, teams, drivers, standings, save/load | done |
+| 2 | Race engine integration: qualifying, race, championship update | done |
+| 3 | Management: R&D, upgrades, facilities, contracts, sponsors, AI teams | done |
+| 4 | Frontend | done |
+| 5 | SVG race visualisation and replay | done |
+| 6 | Advanced events | already in the engine — nothing to add |
+| 7 | Season rollover, history book, polish | next |

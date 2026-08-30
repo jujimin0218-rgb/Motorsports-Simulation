@@ -1,0 +1,31 @@
+{
+  "name": "Reference 2024",
+  "team": "Reference",
+  "mass": {
+    "chassis_mass": 718.0,
+    "driver_mass": 80.0,
+    "wheelbase": 3.6,
+    "cg_height": 0.3,
+    "weight_distribution_front": 0.45
+  },
+  "aero": {
+    "min_downforce_area": 3.6,
+    "max_downforce_area": 6.2,
+    "zero_lift_drag_area": 0.4978,
+    "induced_drag_factor": 0.03258,
+    "aero_balance_front": 0.44
+  },
+  "power_unit": {
+    "max_power": 560000.0,
+    "wheel_radius": 0.36
+  },
+  "brakes": {
+    "max_brake_force": 60000.0,
+    "brake_bias_front": 0.57
+  },
+  "metadata": {
+    "generation": "2024 regulations",
+    "notes": "Balanced baseline calibrated against published Formula 1 performance figures. The yardstick every other car and every model change is measured against.",
+    "calibration": "published performance figures, not telemetry"
+  }
+}

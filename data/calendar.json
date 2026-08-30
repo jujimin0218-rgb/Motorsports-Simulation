@@ -1,0 +1,138 @@
+{
+  "_comment": "Round order for one season.  A round names a track id; the track file holds everything about the circuit itself.",
+  "season": 2026,
+  "rounds": [
+    {
+      "round": 1,
+      "track": "bahrain_international_circuit",
+      "name": "Bahrain Grand Prix",
+      "laps": 57
+    },
+    {
+      "round": 2,
+      "track": "jeddah_corniche_circuit",
+      "name": "Saudi Arabia Grand Prix",
+      "laps": 50
+    },
+    {
+      "round": 3,
+      "track": "albert_park_circuit",
+      "name": "Australia Grand Prix",
+      "laps": 58
+    },
+    {
+      "round": 4,
+      "track": "suzuka_international_racing_course",
+      "name": "Japan Grand Prix",
+      "laps": 53
+    },
+    {
+      "round": 5,
+      "track": "miami_international_autodrome",
+      "name": "United States Grand Prix",
+      "laps": 57
+    },
+    {
+      "round": 6,
+      "track": "autodromo_enzo_e_dino_ferrari",
+      "name": "Italy Grand Prix",
+      "laps": 63
+    },
+    {
+      "round": 7,
+      "track": "circuit_de_monaco",
+      "name": "Monaco Grand Prix",
+      "laps": 78
+    },
+    {
+      "round": 8,
+      "track": "circuit_de_barcelona_catalunya",
+      "name": "Spain Grand Prix",
+      "laps": 66
+    },
+    {
+      "round": 9,
+      "track": "circuit_gilles_villeneuve",
+      "name": "Canada Grand Prix",
+      "laps": 70
+    },
+    {
+      "round": 10,
+      "track": "red_bull_ring",
+      "name": "Austria Grand Prix",
+      "laps": 71
+    },
+    {
+      "round": 11,
+      "track": "silverstone_circuit",
+      "name": "United Kingdom Grand Prix",
+      "laps": 52
+    },
+    {
+      "round": 12,
+      "track": "circuit_de_spa_francorchamps",
+      "name": "Belgium Grand Prix",
+      "laps": 44
+    },
+    {
+      "round": 13,
+      "track": "hungaroring",
+      "name": "Hungary Grand Prix",
+      "laps": 70
+    },
+    {
+      "round": 14,
+      "track": "circuit_zandvoort",
+      "name": "Netherlands Grand Prix",
+      "laps": 72
+    },
+    {
+      "round": 15,
+      "track": "autodromo_nazionale_monza",
+      "name": "Italy Grand Prix",
+      "laps": 53
+    },
+    {
+      "round": 16,
+      "track": "baku_city_circuit",
+      "name": "Azerbaijan Grand Prix",
+      "laps": 51
+    },
+    {
+      "round": 17,
+      "track": "marina_bay_street_circuit",
+      "name": "Singapore Grand Prix",
+      "laps": 62
+    },
+    {
+      "round": 18,
+      "track": "circuit_of_the_americas",
+      "name": "United States Grand Prix",
+      "laps": 56
+    },
+    {
+      "round": 19,
+      "track": "autodromo_hermanos_rodriguez",
+      "name": "Mexico Grand Prix",
+      "laps": 71
+    },
+    {
+      "round": 20,
+      "track": "autodromo_jose_carlos_pace",
+      "name": "Brazil Grand Prix",
+      "laps": 71
+    },
+    {
+      "round": 21,
+      "track": "las_vegas_strip_circuit",
+      "name": "United States Grand Prix",
+      "laps": 50
+    },
+    {
+      "round": 22,
+      "track": "yas_marina_circuit",
+      "name": "United Arab Emirates Grand Prix",
+      "laps": 58
+    }
+  ]
+}
