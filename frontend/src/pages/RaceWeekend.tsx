@@ -72,8 +72,12 @@ export default function RaceWeekend() {
   const phase = round?.phase ?? 'complete'
   const at = ORDER.indexOf(phase)
 
+  // The reports identify a driver and a team by id; the standings are where the
+  // names they are shown under live.
   const driverName = (id: string) =>
-    game.standings.drivers.find((row) => row.driver === id)?.driver ?? id
+    game.standings.drivers.find((row) => row.driver === id)?.driver_name ?? id
+  const teamName = (id: string) =>
+    game.standings.teams.find((row) => row.team === id)?.team_name ?? id
 
   async function step(name: string, work: () => Promise<unknown>) {
     setBusy(name)
@@ -238,8 +242,8 @@ export default function RaceWeekend() {
                 {qualifying.qualifying.map((row) => (
                   <tr key={row.driver} className={row.team === game.player_team ? 'you' : ''}>
                     <td className="pos">{row.position}</td>
-                    <td>{row.driver}</td>
-                    <td className="muted">{row.team}</td>
+                    <td>{driverName(row.driver)}</td>
+                    <td className="muted">{teamName(row.team)}</td>
                     <td className="right num">{lapTime(row.best)}</td>
                     <td className="tag">{row.eliminated_in ?? 'Q3'}</td>
                   </tr>
@@ -279,8 +283,8 @@ export default function RaceWeekend() {
                   return (
                     <tr key={row.driver} className={row.team === game.player_team ? 'you' : ''}>
                       <td className="pos">{row.position}</td>
-                      <td>{row.driver}</td>
-                      <td className="muted">{row.team}</td>
+                      <td>{driverName(row.driver)}</td>
+                      <td className="muted">{teamName(row.team)}</td>
                       <td className="right num dim">{row.started || '—'}</td>
                       <td
                         className={`right num ${gained > 0 ? 'good' : gained < 0 ? 'bad' : 'dim'}`}
@@ -327,7 +331,7 @@ export default function RaceWeekend() {
                               : 'reprimand'}
                         </Pill>
                       </td>
-                      <td>{penalty.driver}</td>
+                      <td>{driverName(penalty.driver)}</td>
                       <td className="muted">{penalty.reason}</td>
                       <td className="right dim num">
                         {penalty.lap ? `lap ${penalty.lap}` : ''}
