@@ -219,6 +219,8 @@ export interface GameSnapshot {
   replays: string[]
   autosave_error: string | null
   player_team: string
+  /** Rounds in this season's calendar, which a short season cuts down. */
+  rounds: number
   season_complete: boolean
   current_round: (RoundSummary & { circuit: Circuit; race_laps: number }) | null
   team: TeamRow & { engine: EngineSupplier }

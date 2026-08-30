@@ -122,7 +122,13 @@ class GameService:
         with self._lock:
             if save_id is not None:
                 self._state = self._store.load(save_id)
-                self._save_id = save_id
+                # Carrying on from a slot save does not make the game *own*
+                # that slot.  The autosave is rewritten after every phase, so
+                # a deliberate save that wrote back into it would be gone by
+                # the next one -- it gets a save of its own instead.
+                self._save_id = (
+                    None if self._store.slot_of(save_id) is not None else save_id
+                )
             elif slot is not None:
                 self._state = self._store.load_slot(slot)
                 self._save_id = None
@@ -182,6 +188,10 @@ class GameService:
             # 404 to find out, and only the most recent few are kept.
             "replays": sorted(state.replays),
             "player_team": state.player_team,
+            # How long *this* season is.  A game started with `rounds` set has a
+            # shorter calendar than the shipped one, and a screen that wants to
+            # say "round 1 of 3" has to be told rather than assume the full set.
+            "rounds": len(state.calendar),
             "season_complete": state.season_complete,
             "current_round": None
             if current is None

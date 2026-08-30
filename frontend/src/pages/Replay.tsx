@@ -39,8 +39,10 @@ export default function Replay() {
   const available = game.replays
   const raceId = params.get('race') ?? available[available.length - 1] ?? ''
 
+  // The last round that has been run: the one before the current one, or the
+  // final round of the season once there is no current one left.
   const finished = useMemo(
-    () => Math.max(0, (game.current_round?.number ?? 23) - 1),
+    () => Math.max(0, (game.current_round?.number ?? game.rounds + 1) - 1),
     [game],
   )
 
@@ -257,8 +259,8 @@ export default function Replay() {
       </div>
 
       {data.events.length > 0 && (
-        <Panel title="What happened">
-          <div className="scroll">
+        <Panel title="What happened" note={`${data.events.length} moments`}>
+          <div className="scroll-tall">
             <table>
               <thead>
                 <tr>

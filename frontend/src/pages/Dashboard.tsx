@@ -45,7 +45,7 @@ export default function Dashboard() {
         title={game.team.name}
         subtitle={
           round
-            ? `Round ${round.number} of ${game.standings.teams.length && 22} · ${round.circuit.name}`
+            ? `Round ${round.number} of ${game.rounds} · ${round.circuit.name}`
             : `${game.season} season complete`
         }
         action={
