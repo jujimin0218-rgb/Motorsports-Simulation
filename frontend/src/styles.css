@@ -230,20 +230,25 @@ button, .button {
   padding: 7px 13px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, opacity 0.12s;
+  text-decoration: none;
+  display: inline-block;
 }
 
-button:hover:not(:disabled) { background: #232830; border-color: #333a45; }
+button:hover:not(:disabled), .button:hover { background: #232830; border-color: #333a45; }
 button:disabled { opacity: 0.42; cursor: not-allowed; }
 
-button.primary {
+button.primary, .button.primary {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
   font-weight: 550;
 }
-button.primary:hover:not(:disabled) { background: #ff1f49; border-color: #ff1f49; }
+button.primary:hover:not(:disabled), .button.primary:hover {
+  background: #ff1f49;
+  border-color: #ff1f49;
+}
 
-button.ghost { background: transparent; }
+button.ghost, .button.ghost { background: transparent; }
 
 input, select {
   font: inherit;

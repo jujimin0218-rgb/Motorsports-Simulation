@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { lapTime, ordinal, percent, titleCase } from '../components/format'
 import WeatherPanel from '../components/WeatherPanel'
@@ -253,6 +254,11 @@ export default function RaceWeekend() {
         <Panel
           title="Race result"
           note={`${race.retirements} retirement${race.retirements === 1 ? '' : 's'} · ${race.flags.length} flag period${race.flags.length === 1 ? '' : 's'}`}
+          action={
+            <Link to={`/replay?race=${race.race_id}`} className="button primary">
+              Watch the replay ▸
+            </Link>
+          }
         >
           <div className="scroll">
             <table>
