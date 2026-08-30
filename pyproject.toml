@@ -13,7 +13,11 @@ dependencies = []
 
 [project.optional-dependencies]
 viz = ["matplotlib>=3.7"]
-dev = ["pytest>=7.4", "matplotlib>=3.7"]
+# `testpaths` below runs the game's suite as well as the engine's, and that
+# suite imports the web layer -- so the install the README tells a contributor
+# to make has to carry it, or `pytest` fails at collection rather than at a
+# test.  httpx is what starlette's TestClient is built on; it ships separately.
+dev = ["f1-race-engine[server]", "httpx2>=2.0", "pytest>=7.4", "matplotlib>=3.7"]
 # The engine itself has no dependencies -- it is a physics library, and
 # `dependencies = []` above means that literally.  The season-management game
 # in backend/ is a separate layer built on top of it, and *that* is what needs
