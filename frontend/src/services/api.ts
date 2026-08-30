@@ -23,6 +23,7 @@ import type {
   GameSnapshot,
   Job,
   NegotiationAnswer,
+  PracticeReport,
   QualifyingReport,
   RaceReport,
   Replay,
@@ -150,7 +151,7 @@ export const api = {
 
   // -- running a weekend ---------------------------------------------------
   startRound: () => post<Record<string, unknown>>('/api/round/start'),
-  runPractice: () => post<Record<string, unknown>>('/api/round/practice'),
+  runPractice: () => post<PracticeReport>('/api/round/practice'),
   startQualifying: () => post<Job<QualifyingReport>>('/api/qualifying/run'),
   startRace: () => post<Job<RaceReport>>('/api/race/run'),
   runDevelopment: () => post<Record<string, unknown>>('/api/round/development'),

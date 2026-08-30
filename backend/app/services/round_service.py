@@ -298,6 +298,7 @@ def _steward(
             for row in result.classification
             if row.car_number in labels
         },
+        laps=result.laps,
     )
 
 

@@ -15,6 +15,7 @@
 import { useState } from 'react'
 
 import { lapTime, ordinal, percent, titleCase } from '../components/format'
+import WeatherPanel from '../components/WeatherPanel'
 import {
   ErrorNotice,
   Notice,
@@ -25,7 +26,13 @@ import {
 } from '../components/ui'
 import { useGame, useLoadedGame } from '../hooks/useGame'
 import { ApiFailure, api, runJob } from '../services/api'
-import type { Job, QualifyingReport, RaceReport, RoundPhase } from '../types/api'
+import type {
+  Job,
+  PracticeReport,
+  QualifyingReport,
+  RaceReport,
+  RoundPhase,
+} from '../types/api'
 
 const ORDER: RoundPhase[] = [
   'not_started',
@@ -56,6 +63,7 @@ export default function RaceWeekend() {
   const [busy, setBusy] = useState<string | null>(null)
   const [job, setJob] = useState<Job<unknown> | null>(null)
   const [error, setError] = useState<ApiFailure | null>(null)
+  const [practice, setPractice] = useState<PracticeReport | null>(null)
   const [qualifying, setQualifying] = useState<QualifyingReport | null>(null)
   const [race, setRace] = useState<RaceReport | null>(null)
 
@@ -162,7 +170,9 @@ export default function RaceWeekend() {
             </button>
             <button
               disabled={phase !== 'practice' || busy !== null}
-              onClick={() => void step('practice', () => api.runPractice())}
+              onClick={() =>
+                void step('practice', async () => setPractice(await api.runPractice()))
+              }
             >
               Run practice
             </button>
@@ -192,6 +202,18 @@ export default function RaceWeekend() {
             The order is enforced by the server, not by these buttons — posting to the
             race endpoint without qualifying gets a refusal, not a race.
           </p>
+        </Panel>
+      )}
+
+      {(practice ?? qualifying ?? race) && (
+        <Panel
+          title="Conditions"
+          note="The engine's own weather and track models. One sky runs through the weekend."
+        >
+          <WeatherPanel
+            weather={(race ?? qualifying ?? practice)!.weather}
+            forecast={practice?.forecast}
+          />
         </Panel>
       )}
 
@@ -273,6 +295,47 @@ export default function RaceWeekend() {
               </tbody>
             </table>
           </div>
+
+          {race.penalties.length > 0 && (
+            <>
+              <hr className="rule" />
+              <h2 style={{ marginBottom: 8 }}>Stewards</h2>
+              <table>
+                <tbody>
+                  {race.penalties.map((penalty, index) => (
+                    <tr key={index}>
+                      <td style={{ width: 130 }}>
+                        <Pill
+                          tone={
+                            penalty.kind === 'time'
+                              ? 'hot'
+                              : penalty.kind === 'grid'
+                                ? 'warn'
+                                : 'off'
+                          }
+                        >
+                          {penalty.kind === 'time'
+                            ? `${penalty.seconds.toFixed(0)}s`
+                            : penalty.kind === 'grid'
+                              ? `${penalty.places} places`
+                              : 'reprimand'}
+                        </Pill>
+                      </td>
+                      <td>{penalty.driver}</td>
+                      <td className="muted">{penalty.reason}</td>
+                      <td className="right dim num">
+                        {penalty.lap ? `lap ${penalty.lap}` : ''}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="subtitle" style={{ marginBottom: 0, marginTop: 10 }}>
+                A time penalty is applied before the points are, so five seconds that
+                change a result change the championship too.
+              </p>
+            </>
+          )}
 
           {race.flags.length > 0 && (
             <>

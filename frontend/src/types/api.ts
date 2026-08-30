@@ -25,6 +25,40 @@ export interface Circuit {
     brake_stress: number
     overtaking_ease: number
   }
+  /** The venue's climate for the month this round is held in. */
+  climate: {
+    air_temperature: number
+    rain_probability: number
+    relative_humidity: number
+    wind_speed: number
+  }
+}
+
+export interface Weather {
+  session: string
+  air_temperature: number
+  track_temperature: number
+  rain_intensity: number
+  raining: boolean
+  cloud_cover: number
+  wind_speed: number
+  relative_humidity: number
+  /** Metres of standing water. */
+  water_depth: number
+  wet_fraction: number
+  rubber: number
+}
+
+export interface PenaltyRow {
+  round: number
+  driver: string
+  team: string
+  kind: 'time' | 'grid' | 'reprimand'
+  reason: string
+  seconds: number
+  places: number
+  lap: number | null
+  served: boolean
 }
 
 export type RoundPhase =
@@ -241,6 +275,7 @@ export interface QualifyingReport {
   pole: string | null
   grid: string[]
   qualifying: QualifyingRow[]
+  weather: Weather
 }
 
 export interface RaceClassificationRow {
@@ -262,7 +297,24 @@ export interface RaceReport {
   winner: string | null
   classification: RaceClassificationRow[]
   retirements: number
+  weather: Weather
+  penalties: PenaltyRow[]
   flags: { lap: number; flag: string; reason: string }[]
+}
+
+export interface PracticeReport {
+  round: number
+  phase: RoundPhase
+  circuit: string
+  tyre_stress: number
+  overtaking_ease: number
+  weather: Weather
+  forecast: {
+    air_temperature: number
+    rain_probability: number
+    relative_humidity: number
+    wind_speed: number
+  }
 }
 
 export interface DevelopmentArea {

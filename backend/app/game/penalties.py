@@ -19,6 +19,16 @@ threshold those are warnings, and past the warnings they are five seconds --
 which is the real regulation and, more to the point, gives the commitment model
 underneath a consequence it did not have.
 
+Two things about that threshold, and both were got wrong first.  It is a
+**rate**, not a count, because this game runs races at anything from a quarter
+distance to a full one and the same driving has to earn the same penalty at
+either.  And only a *share* of a driver's mistakes are track-limits offences:
+the engine counts every error -- a lock-up, a snap, a moment -- and most of them
+do not put the car beyond the white line.  Both numbers come from measuring
+what the engine actually produces (0.146 mistakes per driver per lap across a
+field), set so that one or two drivers in a race are penalised and a couple more
+are warned, which is what a real Sunday looks like.
+
 **Power-unit changes.**  A season allows a car so many engines.  The engine
 model already retires cars with power-unit failures; counting them across the
 season and charging a grid drop for the ones beyond the allowance is what makes
@@ -36,11 +46,13 @@ from typing import Any, Iterable, Sequence
 
 __all__ = [
     "ENGINE_ALLOWANCE",
+    "REFERENCE_LAPS",
     "Penalty",
     "PenaltyKind",
     "apply_time_penalties",
     "grid_drop_for",
     "steward",
+    "track_limit_offences",
 ]
 
 
@@ -58,10 +70,19 @@ class PenaltyKind(str, Enum):
 #: Seconds for causing contact, by what it cost the other car.
 COLLISION_SECONDS = {"damage": 5.0, "retirement": 10.0}
 
-#: Mistakes a driver is allowed before the stewards start counting, and how
-#: many counted mistakes cost five seconds.  Three warnings then a penalty is
-#: the real rule; the first few are the ones nobody was watching.
-TRACK_LIMITS_FREE = 4
+#: A full grand prix, in laps.  Mistakes are normalised to it so that the same
+#: driving earns the same penalty whether the game is running quarter-distance
+#: races or full ones.
+REFERENCE_LAPS = 57
+
+#: What share of a driver's errors put the car beyond the white line.  The
+#: engine counts every moment; most of them are a lock-up or a snap and stay on
+#: the road.
+TRACK_LIMITS_SHARE = 0.25
+
+#: Three warnings, then five seconds, then five more for every three after
+#: that.  The real rule, applied to the normalised count above.
+TRACK_LIMITS_FREE = 3
 TRACK_LIMITS_PER_PENALTY = 3
 TRACK_LIMITS_SECONDS = 5.0
 
@@ -125,6 +146,17 @@ class Penalty:
         return "reprimand"
 
 
+def track_limit_offences(mistakes: int, laps: int) -> float:
+    """A driver's mistakes as track-limits offences over a full grand prix.
+
+    Normalised by distance and reduced to the share that actually put the car
+    off the road -- see the module docstring for why both.
+    """
+    if laps <= 0:
+        return 0.0
+    return mistakes * (REFERENCE_LAPS / laps) * TRACK_LIMITS_SHARE
+
+
 def steward(
     *,
     round_number: int,
@@ -132,13 +164,15 @@ def steward(
     classification: Iterable[Any],
     labels: dict[int, tuple[str, str]],
     engines_used: dict[str, int],
+    laps: int = REFERENCE_LAPS,
 ) -> list[Penalty]:
     """Look at what happened and decide what it costs.
 
     ``labels`` maps a car number to ``(driver id, team id)``; the engine knows
     car numbers and the game knows who was in them.  ``engines_used`` is how
     many power units each car has been through this season *including* this
-    race, so the allowance can be checked.
+    race, so the allowance can be checked.  ``laps`` is how long the race
+    actually was, so track limits are judged on a rate rather than a count.
     """
     penalties: list[Penalty] = []
 
@@ -174,9 +208,10 @@ def steward(
         if who is None:
             continue
         driver_id, team_id = who
-        counted = max(0, row.mistakes - TRACK_LIMITS_FREE)
-        if counted >= TRACK_LIMITS_PER_PENALTY:
-            times = counted // TRACK_LIMITS_PER_PENALTY
+        offences = track_limit_offences(row.mistakes, laps)
+        beyond = offences - TRACK_LIMITS_FREE
+        if beyond >= TRACK_LIMITS_PER_PENALTY:
+            times = int(beyond // TRACK_LIMITS_PER_PENALTY)
             penalties.append(
                 Penalty(
                     round_number=round_number,
@@ -184,17 +219,17 @@ def steward(
                     team_id=team_id,
                     kind=PenaltyKind.TIME,
                     seconds=TRACK_LIMITS_SECONDS * times,
-                    reason=f"track limits ({row.mistakes} in the race)",
+                    reason=f"track limits ({offences:.0f} offences)",
                 )
             )
-        elif counted > 0:
+        elif beyond > 0:
             penalties.append(
                 Penalty(
                     round_number=round_number,
                     driver_id=driver_id,
                     team_id=team_id,
                     kind=PenaltyKind.REPRIMAND,
-                    reason=f"track limits warning ({row.mistakes} in the race)",
+                    reason=f"track limits warning ({offences:.0f} offences)",
                 )
             )
 
