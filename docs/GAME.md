@@ -219,6 +219,49 @@ The screens are almost entirely tables of numbers, so the type is chosen for
 reading them: tabular figures wherever a column has to line up, and a monospace
 face for anything meant to be compared down a column rather than read across.
 
+## Drawing a circuit, and playing a race back
+
+Project rule 11 asks for the physics coordinates and the drawing coordinates to
+be kept apart, and they are:
+
+```
+race engine position          distance round the lap
+        |
+   geometry.py                a plan view, in metres
+        |
+   TrackMap.tsx               a viewBox
+```
+
+The engine's track model is a **distance** model — curvature, camber, elevation
+and grip as functions of how far round the lap you are — and the `x`/`y` each
+segment carries is a projection for exactly this purpose. Nothing in the drawing
+feeds back into the simulation.
+
+Two details that are easy to get wrong and were:
+
+- The centreline is decimated to what a screen can show, **except through
+  corners**, which keep every point they have. A decimated hairpin looks like a
+  chicane.
+- Line weights are in metres rather than pixels, because a two-kilometre circuit
+  and a seven-kilometre one need the same *apparent* width.
+
+A **replay** is sampled from the engine's own timing tower every two seconds of
+race time — the tower can answer "how far had car 7 covered at 412 seconds", so
+the car on the screen is where the simulation actually had it rather than an
+interpolation between lap times. A verified five-lap race shows the standing
+start in the numbers (0, 17.5, 65.7, 158.3 m) and lands on exactly five laps.
+
+The running order is computed from **total** distance covered, not distance
+round the lap. That is the difference between a leader who has just crossed the
+line and a leader who appears to be last.
+
+Replays are bounded to the five most recent races. A full-distance race with
+twenty cars is about a quarter of a megabyte of samples, and the save is one
+JSON document rewritten on every autosave — a whole season of them would mean
+rewriting five megabytes after every step of every weekend. Every race keeps its
+classification and lap records regardless; only the second-by-second track ages
+out. Moving replays into their own table is the seam if that changes.
+
 ## The data
 
 Nothing about the sport is in the code.
@@ -252,6 +295,6 @@ borrows the synthetic circuit closest to its character — named in
 | 2 | Race engine integration: qualifying, race, championship update | done |
 | 3 | Management: R&D, upgrades, facilities, contracts, sponsors, AI teams | done |
 | 4 | Frontend | done |
-| 5 | SVG race visualisation | next |
-| 6 | Advanced events | mostly already in the engine |
-| 7 | Polish, replay, season history | |
+| 5 | SVG race visualisation and replay | done |
+| 6 | Advanced events | already in the engine — nothing to add |
+| 7 | Season rollover, history book, polish | next |
