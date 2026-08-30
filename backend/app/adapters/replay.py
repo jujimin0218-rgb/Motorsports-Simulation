@@ -129,13 +129,19 @@ def build_replay(
         events.append({"kind": "flag", "lap": lap, "flag": flag, "detail": reason})
     for move in result.overtakes:
         payload = move.to_dict()
+        # The engine names the two cars in a move `attacker` and `defender`; a
+        # replay reads them as "who made the move" and "who was passed".
+        passed = payload.get("defender")
+        detail = f"passed car {passed}" if passed is not None else "made a move"
+        if payload.get("drs"):
+            detail += " with DRS"
         events.append(
             {
                 "kind": "overtake",
                 "lap": payload.get("lap"),
-                "car_number": payload.get("car_number"),
-                "passed": payload.get("passed"),
-                "detail": payload.get("where") or "",
+                "car_number": payload.get("attacker"),
+                "passed": passed,
+                "detail": detail,
             }
         )
     events.sort(key=lambda item: (item.get("lap") or 0))
