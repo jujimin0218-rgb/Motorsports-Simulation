@@ -1,0 +1,57 @@
+{
+  "_comment": [
+    "What every shipped real circuit is checked against, and the gate it has",
+    "to pass to be here at all.",
+    "",
+    "A recovered layout is not a fact until something independent agrees with",
+    "it.  Two things do.  'length_m' is what the circuit publishes, and the",
+    "recovery solves its straights to land on it exactly, so that one is a",
+    "construction rather than a check.  'pole_s' is the real one: a pole lap",
+    "set on THIS layout by a car of the era this engine models.  A layout can",
+    "close, measure right and still be the wrong shape, and the lap time is",
+    "what notices.",
+    "",
+    "A circuit ships when its computed lap is within TOLERANCE_S of 'pole_s'.",
+    "Circuits with no comparable pole lap do not ship, however clean their",
+    "geometry -- unverified is not the same as correct.",
+    "",
+    "tests/test_circuit_accuracy.py enforces this.  It is the honesty gate."
+  ],
+  "tolerance_s": 5.0,
+  "circuits": {
+    "interlagos":    {"length_m": 4309, "pole_s": 70.727, "pole": "2024 Brazilian GP"},
+    "suzuka":        {"length_m": 5807, "pole_s": 88.197, "pole": "2024 Japanese GP"},
+    "hungaroring":   {"length_m": 4381, "pole_s": 75.227, "pole": "2024 Hungarian GP"},
+    "bahrain":       {"length_m": 5412, "pole_s": 89.179, "pole": "2024 Bahrain GP"},
+    "mexico_city":   {"length_m": 4304, "pole_s": 75.703, "pole": "2024 Mexico City GP"},
+    "zandvoort":     {"length_m": 4259, "pole_s": 69.673, "pole": "2024 Dutch GP"},
+    "red_bull_ring": {"length_m": 4318, "pole_s": 63.314, "pole": "2024 Austrian GP"},
+    "shanghai":      {"length_m": 5451, "pole_s": 93.660, "pole": "2024 Chinese GP"},
+    "monza":         {"length_m": 5793, "pole_s": 79.327, "pole": "2024 Italian GP"},
+    "austin":        {"length_m": 5513, "pole_s": 92.174, "pole": "2024 United States GP"},
+    "montreal":      {"length_m": 4361, "pole_s": 70.944, "pole": "2024 Canadian GP"},
+    "silverstone":   {"length_m": 5891, "pole_s": 85.819, "pole": "2024 British GP"}
+  },
+  "_not_shipped": {
+    "_comment": [
+      "Recovered cleanly, held back, and why.  The survey set is a snapshot",
+      "from about 2019, so three of these are honest recordings of a layout",
+      "that no longer exists.  Correcting them would mean inventing the",
+      "rebuild.  Re-run tools/extract_circuits.py against current data and",
+      "they ship themselves."
+    ],
+    "albert_park":    "rebuilt 2022; survey is the previous layout (+14.6 s)",
+    "barcelona":      "final chicane removed 2023; survey predates it (+8.7 s)",
+    "yas_marina":     "rebuilt 2021; survey is the previous layout",
+    "spa":            "survey has no elevation and Raidillon climbs 40 m (-5.4 s)",
+    "brands_hatch":   "no comparable pole lap: not a current F1 circuit",
+    "hockenheim":     "no comparable pole lap: last F1 race 2019, different regulations",
+    "indianapolis":   "no comparable pole lap: last F1 race 2007",
+    "moscow_raceway": "no comparable pole lap: never held an F1 race",
+    "norisring":      "no comparable pole lap: never held an F1 race",
+    "nurburgring":    "no comparable pole lap: last F1 race 2020, different regulations",
+    "oschersleben":   "no comparable pole lap: never held an F1 race",
+    "sepang":         "no comparable pole lap: last F1 race 2017, different regulations",
+    "sochi":          "no comparable pole lap: last F1 race 2021, no longer raced"
+  }
+}

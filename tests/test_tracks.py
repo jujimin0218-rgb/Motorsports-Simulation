@@ -122,10 +122,13 @@ def test_report_is_json_serialisable(builtin_track):
 
 
 def test_all_expected_circuits_are_shipped():
-    """Three invented tracks, and 25 recovered from surveyed centrelines.
+    """The three invented tracks, plus whatever passed the accuracy gate.
 
-    The recovered ones are built by ``tools/extract_circuits.py`` and each
-    lands on its circuit's published lap length exactly; see docs/CIRCUITS.md.
+    The real circuits are not listed here on purpose.  What may ship is decided
+    by ``f1_race_engine/data/circuit_reference.json`` and enforced in
+    ``test_circuit_accuracy.py``, which checks each one against a real pole lap;
+    repeating the list here would be a second place for it to drift out of date
+    and would not check anything the gate does not already check.
     """
     shipped = set(builtin_track_names())
     assert {
@@ -133,62 +136,4 @@ def test_all_expected_circuits_are_shipped():
         "synthetic_proving_ground",
         "synthetic_street_circuit",
     } <= shipped, "a synthetic track went missing"
-    assert shipped - {
-        "albert_park",
-        "austin",
-        "bahrain",
-        "barcelona",
-        "brands_hatch",
-        "hockenheim",
-        "hungaroring",
-        "indianapolis",
-        "interlagos",
-        "mexico_city",
-        "montreal",
-        "monza",
-        "moscow_raceway",
-        "norisring",
-        "nurburgring",
-        "oschersleben",
-        "red_bull_ring",
-        "sepang",
-        "shanghai",
-        "silverstone",
-        "sochi",
-        "spa",
-        "suzuka",
-        "synthetic_power_circuit",
-        "synthetic_proving_ground",
-        "synthetic_street_circuit",
-        "yas_marina",
-        "zandvoort",
-    } == set(), "an unrecognised track file is shipped"
-    recovered = {
-        "albert_park",
-        "austin",
-        "bahrain",
-        "barcelona",
-        "brands_hatch",
-        "hockenheim",
-        "hungaroring",
-        "indianapolis",
-        "interlagos",
-        "mexico_city",
-        "montreal",
-        "monza",
-        "moscow_raceway",
-        "norisring",
-        "nurburgring",
-        "oschersleben",
-        "red_bull_ring",
-        "sepang",
-        "shanghai",
-        "silverstone",
-        "sochi",
-        "spa",
-        "suzuka",
-        "yas_marina",
-        "zandvoort",
-    }
-    assert recovered <= shipped, "a recovered circuit went missing"
-    assert len(shipped) == 28
+    assert len(shipped) > 3, "the recovered circuits are not being shipped"

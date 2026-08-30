@@ -196,6 +196,116 @@ def load_centreline(path: Path) -> tuple[list[tuple[float, float]], float]:
     return points, width
 
 
+#: Curvature smoothing for **telemetry**, in metres of track.
+#:
+#: Much shorter than :data:`SMOOTH_M`, and for a reason worth stating.  The 45 m
+#: window on a survey is not really a filter -- it stands in for a racing line,
+#: because a survey is the road and a car does not drive the road's curvature
+#: point by point.  Telemetry is the opposite: it is one car's actual line, so
+#: the averaging has already been done by the driver.  Smoothing it over 45 m
+#: would apply the racing line twice.  Fifteen metres is enough to take out
+#: positional noise and nothing else.
+SMOOTH_TELEMETRY_M = 15.0
+
+#: FastF1 reports car position in tenths of a metre.
+FASTF1_POSITION_SCALE = 0.1
+
+
+def load_fastf1(
+    path: Path,
+    *,
+    scale: float = FASTF1_POSITION_SCALE,
+    width: float = 12.0,
+) -> tuple[list[tuple[float, float]], float, list[float]]:
+    """A lap of FastF1 position telemetry: points in metres, width, elevation.
+
+    Reads what ``lap.get_telemetry()`` or ``lap.get_pos_data()`` writes out as
+    CSV -- ``X``, ``Y`` and, when the source has it, ``Z``.  Column names are
+    matched case-insensitively and anything else in the file is ignored, so a
+    full telemetry export works as well as a trimmed one.
+
+    Three things differ from a survey, and all three matter.
+
+    **It is a driven line, not the centreline.**  The driver has already cut
+    every corner, so these radii are the line's and not the circuit's.  That is
+    what :attr:`TrackDefaults.geometry` distinguishes, and it is why telemetry
+    gets :data:`SMOOTH_TELEMETRY_M` rather than :data:`SMOOTH_M`.
+
+    **It carries elevation.**  ``Z`` is the channel a survey does not have, and
+    it is the missing input for Spa -- Raidillon climbs forty metres and a flat
+    Spa is a fast Spa.  Returned as a third value, empty when absent.
+
+    **It has no width.**  Nothing in the telemetry says how wide the road is,
+    so ``width`` has to be told rather than measured.
+    """
+    columns: dict[str, int] = {}
+    points: list[tuple[float, float]] = []
+    elevation: list[float] = []
+    with path.open(encoding="utf-8") as handle:
+        for row in csv.reader(handle):
+            if not row:
+                continue
+            if not columns:
+                header = [cell.strip().lower() for cell in row]
+                for wanted in ("x", "y", "z"):
+                    if wanted in header:
+                        columns[wanted] = header.index(wanted)
+                if "x" not in columns or "y" not in columns:
+                    raise ValueError(
+                        f"{path.name}: expected X and Y columns, found {row}"
+                    )
+                continue
+            try:
+                x = float(row[columns["x"]]) * scale
+                y = float(row[columns["y"]]) * scale
+            except (ValueError, IndexError):
+                continue  # a blank or partial row, of which exports have plenty
+            points.append((x, y))
+            if "z" in columns:
+                try:
+                    elevation.append(float(row[columns["z"]]) * scale)
+                except (ValueError, IndexError):
+                    elevation.append(elevation[-1] if elevation else 0.0)
+    if len(points) < 100:
+        raise ValueError(f"{path.name}: only {len(points)} usable points")
+    return points, width, elevation
+
+
+def elevation_control_points(
+    elevation: list[float],
+    lap_length: float,
+    *,
+    every: float = 100.0,
+) -> tuple[tuple[float, float], ...]:
+    """Thin a per-sample elevation trace down to control points for the engine.
+
+    Sampled every hundred metres, which is fine enough for Eau Rouge and coarse
+    enough not to turn GPS noise into a gradient.  The lap has to come back to
+    its own height -- the engine checks that -- so any drift left by the sensor
+    is taken out linearly round the lap rather than dumped at the join, which
+    would put a step in the road where the timing line is.
+    """
+    if not elevation:
+        return ()
+    count = len(elevation)
+    drift = elevation[-1] - elevation[0]
+    levelled = [z - drift * i / (count - 1) for i, z in enumerate(elevation)]
+    base = levelled[0]
+    stride = max(1, int(round(count * every / lap_length)))
+    points = [
+        (round(i * lap_length / count, 1), round(levelled[i] - base, 2))
+        for i in range(0, count, stride)
+    ]
+    # The last sample, always, and not only when the stride happens to miss the
+    # end.  Levelling made it equal to the first, so ending on it closes the
+    # lap's height exactly; stopping at whatever the stride reached instead
+    # leaves the engine to interpolate the remainder, which puts a gradient in
+    # the road that the circuit does not have.
+    if points[-1][0] < lap_length - 1.0:
+        points.append((round(lap_length - 0.1, 1), round(levelled[-1] - base, 2)))
+    return tuple(points)
+
+
 # -- the recovery ------------------------------------------------------------
 
 

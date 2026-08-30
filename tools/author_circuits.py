@@ -1,5 +1,19 @@
 """Generate the real benchmark circuits from published layout data.
 
+.. note::
+
+   **Superseded by** ``tools/extract_circuits.py`` for anything that ships.
+
+   This tool authors a circuit from a track map read by hand.  The solvers and
+   honesty gates below were right and are still in use -- ``extract_circuits``
+   calls the same ones -- but the *input* was a person reading a drawing, and
+   that is the part a survey replaces.  Nothing here writes a shipped circuit
+   any more; the twelve that ship come from measured centrelines and are gated
+   on a real pole lap by ``tests/test_circuit_accuracy.py``.
+
+   Kept because the reasoning is worth reading and the setup-search verdict --
+   Monza has to *want* minimum wing -- is a sharper check than lap time alone.
+
     python tools/author_circuits.py [--write] [--only NAME]
 
 Project rule 10 asks for real circuits as benchmarks, and rule 2.3 says their
