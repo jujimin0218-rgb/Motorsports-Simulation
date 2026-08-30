@@ -97,6 +97,28 @@ class TrackDefaults:
     track_width: Metres = 13.0
     """Default usable track width, m."""
 
+    geometry: str = "driven_line"
+    """What the layout's corner radii describe.
+
+    ``driven_line``
+        The radii are the ones a car goes round on.  A circuit authored by hand
+        has them chosen so the lap time comes out right, which makes them
+        exactly that.
+
+    ``centreline``
+        The radii are the road's, as a survey measures it.  A car does not
+        drive the centre of the road: it goes wide, cuts to the apex and comes
+        out wide, on a radius twenty to ninety per cent larger depending on how
+        much room there is and how long the corner takes.  Reading a survey as
+        if it were a driven line makes every real circuit come out seconds
+        slow -- measured, seven at Monza.
+
+    Only a ``centreline`` gets a line solved for it, by
+    :mod:`f1_race_engine.track.racing_line`.  The default is ``driven_line``
+    because that is what every circuit authored before this one is, and it
+    keeps them unchanged to the last decimal.
+    """
+
     surface_type: SurfaceType = SurfaceType.ASPHALT
     surface_grip: float = 1.0
     """Baseline static grip multiplier (1.0 = reference asphalt)."""
@@ -127,6 +149,11 @@ class TrackDefaults:
             raise TrackBuildError("surface_grip must be positive")
         if not 0.0 <= self.roughness <= 1.0:
             raise TrackBuildError("roughness must lie in [0, 1]")
+        if self.geometry not in ("driven_line", "centreline"):
+            raise TrackBuildError(
+                f"geometry must be 'driven_line' or 'centreline', "
+                f"got {self.geometry!r}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -134,6 +161,7 @@ class TrackDefaults:
             "min_transition_length": self.min_transition_length,
             "max_transition_fraction": self.max_transition_fraction,
             "track_width": self.track_width,
+            "geometry": self.geometry,
             "surface_type": self.surface_type.value,
             "surface_grip": self.surface_grip,
             "roughness": self.roughness,

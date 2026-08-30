@@ -141,6 +141,19 @@ class TrackSegment:
     y: Metres
     heading: Radians
 
+    line_curvature_start: float | None = None
+    line_curvature_end: float | None = None
+    """Curvature of the line a car actually drives, 1/m, when it differs.
+
+    ``None`` on a circuit whose geometry already describes a driven line, which
+    is every hand-authored one.  Set on a surveyed centreline, where the car
+    goes wide, cuts to the apex and comes out wide on a larger radius than the
+    road has -- see :mod:`f1_race_engine.track.racing_line`.
+
+    The physics reads :meth:`driving_curvature_at`; anything drawing the
+    circuit reads :meth:`curvature_at`, because the road is still where the
+    road is."""
+
     # -- derived geometry ----------------------------------------------------
 
     @property
@@ -258,6 +271,24 @@ class TrackSegment:
     def curvature_at(self, distance: Metres) -> Curvature:
         """Exact curvature at ``distance`` (linear within the segment)."""
         return lerp(self.curvature_start, self.curvature_end, self.local_fraction(distance))
+
+    def driving_curvature_at(self, distance: Metres) -> Curvature:
+        """The curvature the car experiences here.
+
+        The line's where one has been solved, the road's otherwise.  This is
+        what the cornering limit should read: a car on a surveyed centreline is
+        not driving the centreline, and charging it the road's radius is what
+        makes a real circuit come out seconds slow.
+        """
+        if self.line_curvature_start is None or self.line_curvature_end is None:
+            return self.curvature_at(distance)
+        if self.length <= 0.0:
+            return self.line_curvature_start
+        fraction = (distance - self.distance) / self.length
+        fraction = 0.0 if fraction < 0.0 else (1.0 if fraction > 1.0 else fraction)
+        return self.line_curvature_start + (
+            self.line_curvature_end - self.line_curvature_start
+        ) * fraction
 
     def elevation_at(self, distance: Metres) -> Metres:
         """Elevation at ``distance``, m."""

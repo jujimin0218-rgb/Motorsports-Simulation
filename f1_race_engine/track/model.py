@@ -215,7 +215,7 @@ class Track:
         index = self.segment_index_at(wrapped)
         segment = self.segments[index]
 
-        curvature = segment.curvature_at(wrapped)
+        curvature = segment.driving_curvature_at(wrapped)
 
         # Anything with a hard boundary -- surface regions, kerbs, DRS zones,
         # sectors -- is resolved from its own map at the exact distance rather

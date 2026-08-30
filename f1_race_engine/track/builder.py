@@ -268,6 +268,9 @@ class TrackBuilder:
                 distance += step
                 index += 1
 
+        if definition.defaults.geometry == "centreline":
+            segments = _apply_racing_line(segments)
+
         return Track(
             name=definition.name,
             country=definition.country,
@@ -403,6 +406,42 @@ class TrackBuilder:
                     f"got {boundary:.1f} m after {previous:.1f} m"
                 )
             previous = boundary
+
+
+def _apply_racing_line(segments: list[TrackSegment]) -> list[TrackSegment]:
+    """Solve the line a car drives and hang it on the segments.
+
+    Only for a circuit whose geometry is a surveyed centreline.  A hand-authored
+    circuit already has the radii of the line, so solving another one on top
+    would straighten a corner twice.
+    """
+    from dataclasses import replace as _replace
+
+    from .racing_line import solve_racing_line
+
+    if len(segments) < 8:
+        return segments
+
+    # The solver works on evenly spaced samples; the builder already produces
+    # them, so a segment's midpoint curvature is the sample.
+    step = sum(segment.length for segment in segments) / len(segments)
+    curvature = [
+        0.5 * (segment.curvature_start + segment.curvature_end)
+        for segment in segments
+    ]
+    widths = [segment.track_width for segment in segments]
+    line = solve_racing_line(curvature, widths, step)
+
+    count = len(segments)
+    return [
+        _replace(
+            segment,
+            line_curvature_start=0.5 * (line.curvature[i - 1] + line.curvature[i]),
+            line_curvature_end=0.5
+            * (line.curvature[i] + line.curvature[(i + 1) % count]),
+        )
+        for i, segment in enumerate(segments)
+    ]
 
 
 def _lerp(a: float, b: float, t: float) -> float:
