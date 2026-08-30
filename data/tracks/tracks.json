@@ -10,7 +10,7 @@
       "corner_count": 15,
       "race_laps": 57,
       "drs_zones": 3,
-      "physics_track": "synthetic_proving_ground",
+      "physics_track": "bahrain",
       "characteristics": {
         "power_sensitivity": 0.62,
         "downforce_requirement": 0.55,
@@ -82,7 +82,7 @@
       "corner_count": 18,
       "race_laps": 53,
       "drs_zones": 1,
-      "physics_track": "synthetic_proving_ground",
+      "physics_track": "suzuka",
       "characteristics": {
         "power_sensitivity": 0.55,
         "downforce_requirement": 0.88,
@@ -202,7 +202,7 @@
       "corner_count": 14,
       "race_laps": 70,
       "drs_zones": 3,
-      "physics_track": "synthetic_street_circuit",
+      "physics_track": "montreal",
       "characteristics": {
         "power_sensitivity": 0.75,
         "downforce_requirement": 0.4,
@@ -226,7 +226,7 @@
       "corner_count": 10,
       "race_laps": 71,
       "drs_zones": 3,
-      "physics_track": "synthetic_proving_ground",
+      "physics_track": "red_bull_ring",
       "characteristics": {
         "power_sensitivity": 0.72,
         "downforce_requirement": 0.5,
@@ -250,7 +250,7 @@
       "corner_count": 18,
       "race_laps": 52,
       "drs_zones": 2,
-      "physics_track": "synthetic_proving_ground",
+      "physics_track": "silverstone",
       "characteristics": {
         "power_sensitivity": 0.62,
         "downforce_requirement": 0.9,
@@ -298,7 +298,7 @@
       "corner_count": 14,
       "race_laps": 70,
       "drs_zones": 2,
-      "physics_track": "synthetic_street_circuit",
+      "physics_track": "hungaroring",
       "characteristics": {
         "power_sensitivity": 0.3,
         "downforce_requirement": 0.92,
@@ -322,7 +322,7 @@
       "corner_count": 14,
       "race_laps": 72,
       "drs_zones": 2,
-      "physics_track": "synthetic_street_circuit",
+      "physics_track": "zandvoort",
       "characteristics": {
         "power_sensitivity": 0.42,
         "downforce_requirement": 0.85,
@@ -346,7 +346,7 @@
       "corner_count": 11,
       "race_laps": 53,
       "drs_zones": 2,
-      "physics_track": "synthetic_power_circuit",
+      "physics_track": "monza",
       "characteristics": {
         "power_sensitivity": 0.95,
         "downforce_requirement": 0.2,
@@ -418,7 +418,7 @@
       "corner_count": 20,
       "race_laps": 56,
       "drs_zones": 2,
-      "physics_track": "synthetic_proving_ground",
+      "physics_track": "austin",
       "characteristics": {
         "power_sensitivity": 0.6,
         "downforce_requirement": 0.85,
@@ -442,7 +442,7 @@
       "corner_count": 17,
       "race_laps": 71,
       "drs_zones": 3,
-      "physics_track": "synthetic_power_circuit",
+      "physics_track": "mexico_city",
       "characteristics": {
         "power_sensitivity": 0.78,
         "downforce_requirement": 0.62,
@@ -466,7 +466,7 @@
       "corner_count": 15,
       "race_laps": 71,
       "drs_zones": 2,
-      "physics_track": "synthetic_street_circuit",
+      "physics_track": "interlagos",
       "characteristics": {
         "power_sensitivity": 0.68,
         "downforce_requirement": 0.7,

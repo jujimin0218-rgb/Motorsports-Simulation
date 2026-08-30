@@ -323,29 +323,37 @@ def check_curvature_spikes(
 def check_heading_closure(
     track: Track, cfg: TrackValidationConfig
 ) -> list[ValidationIssue]:
-    """A closed circuit must turn through a whole number of full turns."""
+    """A closed circuit must turn through a whole number of full turns.
+
+    Including **zero** of them.  A lap that crosses over itself turns as far one
+    way as the other and comes back to its starting heading having made no net
+    turn at all -- Suzuka is the obvious one, a figure of eight with the back
+    straight passing under the bridge.  A turning number of zero is a real
+    answer for such a layout, not a broken one.
+
+    What proves a lap closes is where it ends up, not how far it turned, and
+    :func:`check_position_closure` measures exactly that: it walks the
+    centreline and reports the plan-view gap between the last point and the
+    first.  A layout that runs out and comes back without closing fails there,
+    on the metres, which is the check that can tell the difference.  Rejecting
+    zero turning here as well would only reject the figure of eight.
+    """
     total = track.total_heading_change
     turns = total / math.tau
     nearest = round(turns)
     error_deg = abs(rad_to_deg(total - nearest * math.tau))
+    shape = "figure of eight" if nearest == 0 else (
+        "clockwise" if total < 0 else "anticlockwise"
+    )
     issues: list[ValidationIssue] = [
         ValidationIssue(
             "heading_closure",
             Severity.INFO,
             f"total turning {rad_to_deg(total):.3f} deg "
-            f"({turns:+.4f} full turns, {'clockwise' if total < 0 else 'anticlockwise'})",
+            f"({turns:+.4f} full turns, {shape})",
         )
     ]
-    if nearest == 0:
-        issues.append(
-            ValidationIssue(
-                "heading_closure",
-                Severity.ERROR,
-                f"the layout turns through {rad_to_deg(total):.3f} deg in total, so it "
-                f"never closes into a lap",
-            )
-        )
-    elif error_deg > cfg.heading_closure_tolerance_deg:
+    if error_deg > cfg.heading_closure_tolerance_deg:
         issues.append(
             ValidationIssue(
                 "heading_closure",

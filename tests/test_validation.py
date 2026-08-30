@@ -291,3 +291,33 @@ def test_report_formatting_and_export(proving_ground):
 def test_custom_check_list_is_honoured(square_track):
     report = validate_track(square_track, checks=[check_heading_closure])
     assert _codes(report) == {"heading_closure"}
+
+
+def test_figure_of_eight_closes_at_no_net_turning():
+    """A lap that crosses itself turns nowhere in total, and that is a lap.
+
+    Two tangent loops, one each way: the plan view comes back to the start
+    exactly, and the heading does too, having made no net turn at all.  This is
+    Suzuka's shape, and the check has to accept it -- the thing that proves a
+    lap closes is where it ends up, which ``check_position_closure`` measures.
+    """
+    definition = TrackDefinition(
+        name="figure of eight",
+        layout=(
+            CornerDefinition(120.0, 360.0, CornerDirection.RIGHT, corner_id=1),
+            CornerDefinition(120.0, 360.0, CornerDirection.LEFT, corner_id=2),
+        ),
+        sectors=SectorDefinition(boundaries=(250.0, 500.0)),
+    )
+    report = validate_track(build_track(definition), checks=[check_heading_closure])
+    assert not _codes(report, Severity.ERROR)
+    assert "figure of eight" in report.format()
+
+
+def test_real_suzuka_is_a_figure_of_eight_and_validates():
+    """The recovered Suzuka is the case this exists for, end to end."""
+    from f1_race_engine.track.io import load_track
+
+    track = load_track("suzuka")
+    assert abs(math.degrees(track.total_heading_change)) < 1.0
+    assert validate_track(track).ok

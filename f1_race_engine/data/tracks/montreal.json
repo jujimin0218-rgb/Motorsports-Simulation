@@ -1,0 +1,283 @@
+{
+  "name": "Circuit Gilles-Villeneuve",
+  "country": "Canada",
+  "defaults": {
+    "transition_factor": 0.04,
+    "min_transition_length": 2.0,
+    "max_transition_fraction": 0.15,
+    "track_width": 9.651855504587152,
+    "geometry": "driven_line",
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 281.66624155770967,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 259.35160797315206,
+      "angle": 10.505593296042942,
+      "direction": "right",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 98.23565700591502,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 53.96674126702204,
+      "angle": 69.42022751140816,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "corner",
+      "radius": 49.50047083965875,
+      "angle": 172.00862359384976,
+      "direction": "right",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 34.80261655953364,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 199.98111604805766,
+      "angle": 22.139810862202392,
+      "direction": "right",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 49.246270173793526,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 63.70454750814591,
+      "angle": 66.82810089254971,
+      "direction": "right",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "corner",
+      "radius": 63.40906848486788,
+      "angle": 51.02602928468297,
+      "direction": "left",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 56.430527819894024,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 187.29389623374615,
+      "angle": 15.456631152332484,
+      "direction": "left",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 137.39082855469334,
+      "angle": 53.29669260688255,
+      "direction": "right",
+      "name": "Turn 8",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 127.22428079491179,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 48.894631544143735,
+      "angle": 94.03556376721251,
+      "direction": "left",
+      "name": "Turn 9",
+      "corner_id": 9
+    },
+    {
+      "type": "corner",
+      "radius": 87.98282926927483,
+      "angle": 89.03268163714951,
+      "direction": "right",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 518.6775117650102,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 44.58090398868501,
+      "angle": 64.93660765387362,
+      "direction": "right",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "corner",
+      "radius": 88.5730459317204,
+      "angle": 59.600466659161306,
+      "direction": "left",
+      "name": "Turn 12",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 436.71484259071315,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 358.8844411919463,
+      "angle": 6.642980096511124,
+      "direction": "left",
+      "name": "Turn 13",
+      "corner_id": 13
+    },
+    {
+      "type": "straight",
+      "length": 113.16088994674203,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 38.83974779708301,
+      "angle": 188.53049187498416,
+      "direction": "right",
+      "name": "Turn 14",
+      "corner_id": 14
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 173.27618885950525,
+      "angle": 19.655344251092416,
+      "direction": "left",
+      "name": "Turn 15",
+      "corner_id": 15
+    },
+    {
+      "type": "straight",
+      "length": 1208.5592287122947,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 48.48499838269795,
+      "angle": 56.19557811541565,
+      "direction": "right",
+      "name": "Turn 16",
+      "corner_id": 16
+    },
+    {
+      "type": "corner",
+      "radius": 53.62125431050456,
+      "angle": 47.636937810549405,
+      "direction": "left",
+      "name": "Turn 17",
+      "corner_id": 17
+    }
+  ],
+  "elevation": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        9.651855504587152
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 1,
+        "name": null,
+        "detection_distance": 1485.4,
+        "activation_start": 1635.4,
+        "activation_end": 2069.1,
+        "length": 433.6999999999998,
+        "lap_length": 4361.0
+      },
+      {
+        "index": 2,
+        "name": null,
+        "detection_distance": 2152.3,
+        "activation_start": 2302.3,
+        "activation_end": 2660.1,
+        "length": 357.7999999999997,
+        "lap_length": 4361.0
+      },
+      {
+        "index": 3,
+        "name": null,
+        "detection_distance": 2966.2,
+        "activation_start": 3116.2,
+        "activation_end": 4205.2,
+        "length": 1089.0,
+        "lap_length": 4361.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1453.6666666666667,
+      2907.3333333333335
+    ]
+  },
+  "metadata": {
+    "source": "TUM racetrack-database centreline, recovered",
+    "recovered_length_m": 4359.0,
+    "recovered_corners": 17,
+    "total_turn_deg": -363.38,
+    "built_length_m": 4361.0,
+    "closure_turns": -1,
+    "angle_moved_deg": 10.19,
+    "worst_angle_moved_deg": 1.77
+  }
+}

@@ -84,7 +84,31 @@ __all__ = ["Recovered", "recover", "load_centreline"]
 STEP_M = 3.0
 
 #: Curvature smoothing window, in metres of track.
-SMOOTH_M = 21.0
+#:
+#: This is the one real parameter in the recovery and it turned out to be the
+#: dominant one, so it is set by measurement against real pole laps rather than
+#: chosen.  Swept from 21 m to 110 m across five circuits whose pole times are
+#: known, the lap time moves by more than fifteen seconds and passes through
+#: the right answer at about forty-five:
+#:
+#: .. code-block:: text
+#:
+#:                21 m      45 m      75 m
+#:     Bahrain    +3.74s    +0.65s    -4.51s
+#:     Suzuka     +2.78s    -0.93s    -5.62s
+#:     Monza      +7.59s    +3.06s    -4.68s
+#:
+#: And it is not really a filter setting.  Smoothing the road's curvature over
+#: the length of a corner entry is, physically, *what a racing line is*: a car
+#: does not follow the road's curvature point by point, it takes a path that
+#: averages it out over the distance it can move sideways in.  Forty-five metres
+#: is about how far a Formula 1 car travels while crossing the width of a
+#: circuit, which is why this is the number and not some other one.
+#:
+#: The principled version is to solve for the line rather than approximate it
+#: with a filter -- ``f1_race_engine.track.racing_line`` does that -- but it
+#: does not yet beat this on tight narrow corners.  See ``docs/CIRCUITS.md``.
+SMOOTH_M = 45.0
 
 #: Above this curvature the road is turning: 1/400 m is a corner a Formula 1
 #: car takes appreciably below its top speed, and below it the road is straight
@@ -96,6 +120,17 @@ CORNER_CURVATURE = 1.0 / 400.0
 MIN_RUN_M = 12.0
 
 #: A corner has to turn at least this much to be called one.
+#:
+#: A run that turns less than this stays a straight -- but its turning does
+#: *not* get thrown away, it is folded into the nearest real corner.  That
+#: distinction is worth the trouble.  A lap is the sum of its turning, and
+#: every degree discarded here has to be put back by the closure solver, which
+#: does it by moving the corners that *were* measured: with the turning
+#: discarded the definition came out twenty degrees short of its own trace, the
+#: solver moved the real corners by a hundred degrees between them, and the lap
+#: came out at fifteen kilometres.  Keeping every kink as a corner instead
+#: fixes the turning and breaks something else -- there are no straights left
+#: for the length solver to work with.  Folding is what does both.
 MIN_CORNER_DEG = 6.0
 
 
@@ -285,22 +320,27 @@ def recover(
     length = count * step
 
     elements: list[Element] = []
+    stray = 0.0
     for label, start, end in _runs(kappa, step):
         span = end - start
         run_length = span * step
-        if label == "straight":
-            elements.append(
-                Element("straight", run_length, start=(start % count) * step)
-            )
-            continue
         turn = sum(kappa[i % count] for i in range(start, end)) * step
         degrees = abs(math.degrees(turn))
+
         if degrees < MIN_CORNER_DEG:
-            # Turns too little to be a corner: it is a kink in a straight.
+            # A straight, but not one that turns nowhere: the few degrees it
+            # does swing are banked and given to the next real corner, so the
+            # lap still turns as far as the survey says it does.
+            stray += turn
             elements.append(
                 Element("straight", run_length, start=(start % count) * step)
             )
             continue
+
+        # Hand this corner whatever the kinks either side of it were carrying.
+        turn += stray
+        stray = 0.0
+        degrees = abs(math.degrees(turn))
         # Radius from the arc: a corner of this length that turns this much has
         # this radius.  More robust than averaging 1/kappa, which is dominated
         # by whichever sample was straightest.
@@ -315,6 +355,68 @@ def recover(
                 start=(start % count) * step,
             )
         )
+
+    # Enforce the threshold on the finished elements.  Absorbing short runs into
+    # their neighbours can chain a straight onto a corner and leave a kilometre
+    # of Monza's main straight labelled as a 5838-metre-radius bend -- which is
+    # a straight, and which the lap-length solver then cannot shorten because it
+    # is not allowed to touch corners.
+    threshold_radius = 1.0 / CORNER_CURVATURE
+    tidied: list[Element] = []
+    for element in elements:
+        if element.kind == "corner" and element.radius > threshold_radius:
+            signed = math.radians(element.angle) * (
+                1.0 if element.direction == "left" else -1.0
+            )
+            stray += signed
+            tidied.append(Element("straight", element.length, start=element.start))
+        else:
+            tidied.append(element)
+    elements = tidied
+
+    # Give the banked turning back to the real corners, in proportion to how
+    # much each already turns -- so a hairpin takes more of it than a kink, and
+    # no single corner is bent out of shape by the correction.
+    real = [e for e in elements if e.kind == "corner"]
+    total_turn_of_real = sum(math.radians(e.angle) for e in real)
+    if abs(stray) > 1e-9 and total_turn_of_real > 1e-9:
+        for index, element in enumerate(elements):
+            if element.kind != "corner":
+                continue
+            share = math.radians(element.angle) / total_turn_of_real
+            signed = math.radians(element.angle) * (
+                1.0 if element.direction == "left" else -1.0
+            ) + stray * share
+            if abs(signed) < 1e-9:
+                continue
+            elements[index] = Element(
+                "corner",
+                element.length,
+                radius=element.length / abs(signed),
+                angle=abs(math.degrees(signed)),
+                direction="left" if signed > 0 else "right",
+                start=element.start,
+            )
+        stray = 0.0
+
+    if abs(stray) > 1e-9:
+        for index in range(len(elements) - 1, -1, -1):
+            element = elements[index]
+            if element.kind != "corner":
+                continue
+            signed = math.radians(element.angle) * (
+                1.0 if element.direction == "left" else -1.0
+            )
+            signed += stray
+            elements[index] = Element(
+                "corner",
+                element.length,
+                radius=element.length / max(abs(signed), 1e-9),
+                angle=abs(math.degrees(signed)),
+                direction="left" if signed > 0 else "right",
+                start=element.start,
+            )
+            break
 
     # Merge straights that ended up adjacent after a kink was reclassified.
     tidy: list[Element] = []
@@ -380,7 +482,9 @@ def to_definition(
     from f1_race_engine.track.drs import DrsZone
     from f1_race_engine.track.builder import build_track
     from f1_race_engine.track.layout_solver import (
+        apply_corner_angles,
         apply_straight_lengths,
+        solve_corner_angles,
         solve_straight_lengths,
     )
     from dataclasses import replace
@@ -440,7 +544,20 @@ def to_definition(
         name=display_name or result.name,
         country=country,
         layout=tuple(layout),
-        defaults=TrackDefaults(track_width=result.mean_width),
+        defaults=TrackDefaults(
+            track_width=result.mean_width,
+            # The survey already contains the transitions.  A real corner eases
+            # into its radius over a spiral and the curvature trace shows it
+            # doing so, which is exactly what the recovery measured -- so the
+            # builder must not add another one on top.  Left at the default,
+            # it puts 0.55 x radius of clothoid either side of every corner,
+            # which on a lap with a dozen large-radius sweepers is over a
+            # kilometre of track that is not there: Monza came out at 7261 m
+            # against its 5793.
+            transition_factor=0.04,
+            min_transition_length=2.0,
+            max_transition_fraction=0.15,
+        ),
         width=WidthDefinition(control_points=((0.0, result.mean_width),)),
         sectors=sectors,
         drs=DrsDefinition(zones=()),
@@ -452,7 +569,53 @@ def to_definition(
         },
     )
 
-    # Re-solve the straights against the published length, so the clothoids the
+    # Close the lap.  A closed lap turns through exactly a whole number of full
+    # turns, and a curvature integral off a real survey lands a few degrees
+    # away -- smoothing rounds the sharpest corners off, and what is rounded off
+    # is turning.  How far the angles have to move to close is the honesty
+    # number: a couple of degrees is a good reading and twenty is a drawing.
+    # Signed, and zero is a real answer: Suzuka is a figure of eight and turns
+    # as far one way as the other, so it closes at no net turns at all.  The
+    # corners carry their own direction, so the sign here is the lap's.
+    turns = round(result.total_turn / 360.0)
+    moved = total_moved = 0.0
+    if turns != 0:
+        angles = solve_corner_angles(definition, turns=turns)
+        definition = apply_corner_angles(definition, angles.angles)
+        moved = max(
+            (abs(a - b) for a, b in zip(angles.angles, angles.original_angles)),
+            default=0.0,
+        )
+        total_moved = sum(
+            abs(a - b) for a, b in zip(angles.angles, angles.original_angles)
+        )
+    else:
+        # A figure of eight turns as far one way as the other and closes at no
+        # net turns at all.  The angle solver cannot be asked for that: it
+        # scales every corner by a single factor, and no factor except zero
+        # takes a non-zero sum to zero.  So the leftover comes off the corners
+        # directly, each giving up a share in proportion to its own size --
+        # which at Suzuka is half a degree spread across twenty-one corners,
+        # or about a hundredth of a degree each.
+        corners = [e for e in definition.layout if isinstance(e, CornerDefinition)]
+        signed = [
+            e.angle * (1.0 if e.direction is CornerDirection.LEFT else -1.0)
+            for e in corners
+        ]
+        residual = sum(signed)
+        weight = sum(abs(a) for a in signed)
+        if weight > 0.0 and residual != 0.0:
+            corrected = [a - residual * abs(a) / weight for a in signed]
+            # The correction is a fraction of a percent, so it cannot turn a
+            # corner around; taking the magnitude back is safe because the
+            # direction still lives on the element.
+            angles_out = [abs(a) for a in corrected]
+            deltas = [abs(a - e.angle) for a, e in zip(angles_out, corners)]
+            moved = max(deltas, default=0.0)
+            total_moved = sum(deltas)
+            definition = apply_corner_angles(definition, angles_out)
+
+    # Then the straights, against the published length, so the clothoids the
     # engine adds do not lengthen the lap past what the circuit measures.
     target = published_length if published_length is not None else result.length
     solution = solve_straight_lengths(definition, target_lap_length=target)
@@ -500,7 +663,13 @@ def to_definition(
         definition,
         sectors=sectors,
         drs=DrsDefinition(zones=tuple(zones)),
-        metadata={**definition.metadata, "built_length_m": round(lap, 1)},
+        metadata={
+            **definition.metadata,
+            "built_length_m": round(lap, 1),
+            "closure_turns": turns,
+            "angle_moved_deg": round(total_moved, 2),
+            "worst_angle_moved_deg": round(moved, 2),
+        },
     )
 
 
@@ -534,3 +703,24 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def write_definition(definition, directory: Path, *, slug: str | None = None) -> Path:
+    """Write a recovered circuit as an engine track file.
+
+    Round-tripped before it is written: a file the engine cannot read back is
+    not a track, and finding that out at load time rather than here would mean
+    a broken circuit sitting in the data directory looking fine.
+    """
+    from f1_race_engine.track.io import definition_from_dict, definition_to_dict
+
+    payload = definition_to_dict(definition)
+    restored = definition_to_dict(definition_from_dict(payload))
+    if restored != payload:
+        raise ValueError(f"{definition.name}: does not survive a round trip")
+
+    directory.mkdir(parents=True, exist_ok=True)
+    name = slug or definition.name.lower().replace(" ", "_").replace("-", "_")
+    path = directory / f"{name}.json"
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return path

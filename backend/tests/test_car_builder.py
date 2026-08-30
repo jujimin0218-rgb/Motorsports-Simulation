@@ -155,27 +155,53 @@ def test_the_field_spread_is_the_one_a_real_field_has():
     assert (times[1] / times[0]) - 1.0 < 0.006
 
 
-def test_the_same_car_is_ranked_differently_at_different_circuits():
-    """The point of keeping performance per area: if the order never changed,
-    every circuit would be the same circuit."""
+def test_a_circuit_rewards_the_car_that_suits_it():
+    """The point of keeping performance per area: a circuit that asks for power
+    has to reward the car that has it, and one that asks for downforce must not.
+
+    An ordering flip is the visible version of this, and it used to be what this
+    test asserted -- but it is a brittle thing to assert.  Whether two cars swap
+    depends on how close they happened to be, not on whether the circuit
+    discriminates, and when Monza stopped being a synthetic caricature and
+    became the real measured circuit the flip went away while the
+    discrimination did not: real Monza has two tight chicanes and asks rather
+    more of a car than a track designed to be nothing but straights.
+
+    So this measures the discrimination itself.  Take the field's two
+    best-matched opposites -- Apex, which is strong in aero and weak in power,
+    against Scuderia Lucente, which is the reverse at nearly the same overall
+    level -- and watch the gap between them across circuits.  It is normalised
+    by the field's spread at each circuit, because a longer lap spreads every
+    gap and that would otherwise be read as circuit character.
+    """
     from app.game.newgame import new_game
 
     game = new_game(player_team="harrow", seed=1)
-    orders = []
-    for circuit_id, wing in (
-        ("autodromo_nazionale_monza", 0.30),
-        ("circuit_de_monaco", 0.95),
-    ):
-        circuit = game.calendar.circuit(circuit_id)
-        track = load_track(circuit.physics_track)
-        rows = []
+
+    def normalised_gap(circuit_id: str, wing: float) -> float:
+        track = load_track(game.calendar.circuit(circuit_id).physics_track)
+        times = {}
         for team in game.teams.values():
             car = build_vehicle(
                 team, game.engine_for(team.id), setup=VehicleSetup(wing_level=wing)
             )
-            rows.append(
-                (compute_lap_time(track, car, mass=car.total_mass(35.0)).lap_time, team.id)
-            )
-        rows.sort()
-        orders.append([team_id for _, team_id in rows])
-    assert orders[0] != orders[1], "Monza and Monaco produced the same order"
+            times[team.id] = compute_lap_time(
+                track, car, mass=car.total_mass(35.0)
+            ).lap_time
+        spread = max(times.values()) - min(times.values())
+        return (times["scuderia_lucente"] - times["apex_gp"]) / spread
+
+    # Monza is the calendar's least downforce-dependent circuit and the
+    # Hungaroring its most, so the power car should give away least at the one
+    # and most at the other.
+    at_monza = normalised_gap("autodromo_nazionale_monza", 0.30)
+    at_hungaroring = normalised_gap("hungaroring", 0.95)
+
+    assert at_monza < at_hungaroring, (
+        f"the power-biased car gave away {at_monza:.3f} of the field at Monza "
+        f"and {at_hungaroring:.3f} at the Hungaroring; a circuit that rewards "
+        f"power has to reward it"
+    )
+    # And by an amount worth having: the swing is most of a tenth of the field
+    # at each circuit, not a rounding difference.
+    assert at_hungaroring - at_monza > 0.05
