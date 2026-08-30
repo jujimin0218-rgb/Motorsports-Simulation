@@ -303,6 +303,30 @@ season   mean     best     worst    spread
 2029     0.8410   0.9098   0.7564   0.1534
 ```
 
+## What is deliberately not here
+
+**Sound.** Phase 7 asks for a structure sound can be added to, and the honest
+answer is that the seam exists and the audio does not. Every step of a weekend
+returns a typed `RoundReport`; a race returns typed incidents, flag periods and
+stewards' decisions; a replay carries a timed list of events with the lap each
+happened on. Anything that wanted to make a noise would attach there. Building
+an audio layer with no assets to play would be inventing a subsystem nobody
+asked to hear, so it was not built — but nothing has to be rearranged to add it.
+
+**Real circuit geometry.** The twenty-two circuits are real and their lengths,
+corner counts and race distances are the published ones, but the *shape* a lap
+is driven on is not: the engine ships three synthetic circuits and no surveyed
+data for these venues, so each round borrows the synthetic circuit closest to
+its character. It is named in `physics_track` and is one file per circuit away
+from being real. `tools/author_circuits.py` in the engine has the honesty gates
+that will say when survey data is good enough, and it currently rejects every
+draft — which is the correct answer until somebody has the data.
+
+**Live intervention during a race.** The spec's MVP asks for pace and
+aggression commands rather than lap-by-lap control, and the strategy the engine
+runs is currently its own. The seam is the engine's per-lap callback, which the
+job already uses to report progress.
+
 ## The data
 
 Nothing about the sport is in the code.
