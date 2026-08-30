@@ -296,8 +296,16 @@ class Calendar:
     # -- building ------------------------------------------------------------
 
     @classmethod
-    def load(cls, *, season: int | None = None) -> Calendar:
-        """Read the shipped calendar and the circuits it refers to."""
+    def load(cls, *, season: int | None = None, rounds_limit: int | None = None) -> Calendar:
+        """Read the shipped calendar and the circuits it refers to.
+
+        ``rounds_limit`` cuts the season short at that many races.  A full season is
+        twenty-two, which is a long time to wait to find out whether something
+        works, so a short one is what the beta runs and what most tests want.
+        The circuits are all still loaded either way -- a truncated calendar is
+        a shorter season, not a smaller world, and the standings, development
+        and contract logic all still see the same grid.
+        """
         try:
             calendar_data = json.loads(
                 data_file("calendar.json").read_text(encoding="utf-8")
@@ -328,6 +336,12 @@ class Calendar:
                 )
             )
         rounds.sort(key=lambda r: r.number)
+        if rounds_limit is not None:
+            if rounds_limit < 1:
+                raise UnknownEntity(
+                    f"a season needs at least one round, got {rounds_limit}"
+                )
+            rounds = rounds[:rounds_limit]
         return cls(
             season=season if season is not None else int(calendar_data["season"]),
             rounds=rounds,

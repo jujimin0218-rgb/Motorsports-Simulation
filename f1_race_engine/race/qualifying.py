@@ -23,6 +23,8 @@ car gets a clear lap, which is honest rather than pretended.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
@@ -235,8 +237,17 @@ class QualifyingSession:
 
     # -- running it ----------------------------------------------------------
 
-    def run(self) -> QualifyingResult:
-        """Run every segment and return the grid."""
+    def run(
+        self, on_segment: Callable[[str, int, int], None] | None = None
+    ) -> QualifyingResult:
+        """Run every segment and return the grid.
+
+        ``on_segment`` is called as each segment finishes, with its name and
+        how many of how many are done.  Qualifying is a couple of minutes of
+        simulation and a caller that cannot say how far along it is has to show
+        a spinner that never moves, which is indistinguishable from a hang.
+        Purely for reporting: nothing it does can change the session.
+        """
         by_number = {entry.car_number: entry for entry in self.entries}
         surviving = list(by_number)
         order: list[int] = []
@@ -268,6 +279,8 @@ class QualifyingSession:
             already_out = [car for car in order if car not in ranked]
             order = survivors + knocked + already_out
             surviving = survivors
+            if on_segment is not None:
+                on_segment(segment.name, index + 1, len(self.format))
             if not surviving:
                 break
 

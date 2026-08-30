@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import replace
 from typing import Any
 
 from .calendar import Calendar
@@ -136,12 +137,22 @@ def new_game(
     seed: int | None = None,
     season: int | None = None,
     name: str = "",
+    rounds: int | None = None,
+    race_distance: float | None = None,
 ) -> GameState:
     """Build a fresh season with the player in ``player_team``.
 
     ``seed`` decides everything the game will ever draw.  Left out, it is taken
     from the clock -- but it is then *stored*, so the game remains reproducible
     from the moment it starts rather than only from the moment it is saved.
+
+    ``rounds`` cuts the season short, for a game somebody wants to see the end
+    of.  It changes the length of the season and nothing else.
+
+    ``race_distance`` is the fraction of a full grand prix each race is run
+    over.  It is a real setting rather than a shortcut: the engine simulates
+    every lap it is given, so a shorter race is a shorter race -- fewer stops,
+    less tyre wear to manage -- and not a faster approximation of a long one.
     """
     teams, drivers, engines = load_static_data()
     if player_team not in teams:
@@ -150,7 +161,7 @@ def new_game(
             f"choose one of {', '.join(sorted(teams))}"
         )
 
-    calendar = Calendar.load(season=season)
+    calendar = Calendar.load(season=season, rounds_limit=rounds)
     rules = Rules.load()
 
     # A team's budget comes from its own data file, so the grid starts uneven
@@ -166,4 +177,8 @@ def new_game(
         engines=engines,
         name=name or f"{teams[player_team].name} {calendar.season}",
     )
+    if race_distance is not None:
+        # GameSettings validates the range for us, so an out-of-range value
+        # fails here at the start rather than at the first race.
+        state.settings = replace(state.settings, race_distance=float(race_distance))
     return state

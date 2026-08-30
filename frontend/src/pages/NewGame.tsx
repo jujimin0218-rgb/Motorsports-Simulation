@@ -15,6 +15,9 @@ import { useAsync } from '../hooks/useAsync'
 import { useGame } from '../hooks/useGame'
 import { ApiFailure, api } from '../services/api'
 
+/** Rounds in a full season, which is what the shipped calendar holds. */
+const FULL_SEASON = 22
+
 export default function NewGame() {
   const { refresh } = useGame()
   const teams = useAsync(() => api.selectableTeams(), [])
@@ -22,6 +25,17 @@ export default function NewGame() {
 
   const [chosen, setChosen] = useState<string | null>(null)
   const [seed, setSeed] = useState('')
+  // The launcher puts a preferred season length in the URL, so `python play.py
+  // --rounds 1` starts a one-race game without the tester having to know that
+  // is what they wanted.  It is a default for the control below, not a lock:
+  // it can still be changed here, and a season is 22 rounds without it.
+  const [distance, setDistance] = useState(0.25)
+  const [rounds, setRounds] = useState(() => {
+    const asked = Number(new URLSearchParams(window.location.search).get('rounds'))
+    return Number.isInteger(asked) && asked >= 1 && asked <= FULL_SEASON
+      ? asked
+      : FULL_SEASON
+  })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ApiFailure | null>(null)
 
@@ -33,6 +47,8 @@ export default function NewGame() {
       await api.newGame({
         player_team: chosen,
         seed: seed.trim() === '' ? null : Number(seed),
+        rounds,
+        race_distance: distance,
       })
       await refresh()
     } catch (caught) {
@@ -59,7 +75,7 @@ export default function NewGame() {
     <div style={{ maxWidth: 980, margin: '0 auto' }}>
       <PageHead
         title="Take over a team"
-        subtitle="One season, twenty-two rounds, and every race simulated by the engine underneath."
+        subtitle="Every session is run by the physics engine underneath -- nothing here invents a lap time."
       />
 
       <ErrorNotice error={error} />
@@ -150,6 +166,35 @@ export default function NewGame() {
         <hr className="rule" />
 
         <div className="row">
+          <div className="field" style={{ maxWidth: 220 }}>
+            <label>Season length</label>
+            <select
+              value={rounds}
+              onChange={(event) => setRounds(Number(event.target.value))}
+            >
+              <option value={1}>1 race — Bahrain</option>
+              <option value={3}>3 races</option>
+              <option value={8}>8 races</option>
+              <option value={FULL_SEASON}>Full season — {FULL_SEASON} races</option>
+            </select>
+          </div>
+
+          <div className="field" style={{ maxWidth: 240 }}>
+            <label>Race distance</label>
+            <select
+              value={distance}
+              onChange={(event) => setDistance(Number(event.target.value))}
+            >
+              <option value={0.25}>Quarter — about 4 min a weekend</option>
+              <option value={0.5}>Half — about 7 min a weekend</option>
+              <option value={1}>Full — about 12 min a weekend</option>
+            </select>
+            <p className="muted small">
+              Every lap is simulated, so a shorter race is a shorter race — fewer
+              stops, less tyre wear to manage — not a rougher guess at a long one.
+            </p>
+          </div>
+
           <div className="field" style={{ maxWidth: 220 }}>
             <label>Seed (optional)</label>
             <input

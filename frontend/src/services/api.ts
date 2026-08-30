@@ -113,7 +113,13 @@ export const api = {
   health: () => get<{ status: string }>('/health'),
   snapshot: () => get<GameSnapshot>('/api/game'),
   selectableTeams: () => get<SelectableTeam[]>('/api/game/teams'),
-  newGame: (body: { player_team: string; seed?: number | null; name?: string }) =>
+  newGame: (body: {
+    player_team: string
+    seed?: number | null
+    name?: string
+    rounds?: number | null
+    race_distance?: number | null
+  }) =>
     post<GameSnapshot>('/api/game/new', body),
   save: (body: { save_id?: string | null; slot?: string | null; name?: string | null }) =>
     post<SaveSummary>('/api/game/save', body),

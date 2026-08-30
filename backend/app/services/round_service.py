@@ -128,12 +128,19 @@ def run_practice(state: GameState) -> RoundReport:
     )
 
 
-def run_qualifying(state: GameState) -> RoundReport:
-    """Run the engine's knockout qualifying and set the grid."""
+def run_qualifying(state: GameState, *, on_segment: Any = None) -> RoundReport:
+    """Run the engine's knockout qualifying and set the grid.
+
+    ``on_segment`` is the engine's per-segment callback, passed straight
+    through -- which is how a job reports progress on something that takes a
+    couple of minutes.
+    """
     entry = _current(state)
     entry.require(RoundPhase.QUALIFYING)
 
-    result, field, weather = session_runner.run_qualifying(state, entry.number)
+    result, field, weather = session_runner.run_qualifying(
+        state, entry.number, on_segment=on_segment
+    )
     by_number = {item.car_number: item for item in field}
     entry.grid = [
         by_number[car].driver_id for car in result.order if car in by_number

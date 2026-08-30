@@ -257,3 +257,65 @@ def test_the_history_endpoint_fills_up(started: TestClient, service: GameService
     assert len(history) == 1
     assert history[0]["season"] == 2026
     assert "standings" in history[0]
+
+
+def test_a_season_can_be_started_short(client):
+    """A full season is twenty-two rounds, which is a long time to wait to find
+    out whether something works.  A short one is the same grid over fewer."""
+    response = client.post(
+        "/api/game/new", json={"player_team": "harrow", "seed": 3, "rounds": 1}
+    )
+    assert response.status_code == 200
+    assert len(client.get("/api/calendar").json()) == 1
+    assert client.get("/api/season").json()["rounds"] == 1
+    # Same world, fewer races: the grid is untouched.
+    assert len(client.get("/api/teams").json()) == 10
+
+
+def test_race_distance_is_a_setting_and_is_bounded(client):
+    started = client.post(
+        "/api/game/new",
+        json={"player_team": "harrow", "seed": 3, "rounds": 1, "race_distance": 0.25},
+    )
+    assert started.status_code == 200
+    assert client.get("/api/season").json()["settings"]["race_distance"] == 0.25
+    for bad in (0, -1, 9):
+        assert (
+            client.post(
+                "/api/game/new",
+                json={"player_team": "harrow", "race_distance": bad},
+            ).status_code
+            == 422
+        ), f"race distance {bad} should be rejected"
+
+
+def test_the_page_is_served_from_the_api_process(client):
+    """One process and one port, so there is no CORS question at all.
+
+    Skipped when the frontend has not been built, which is a normal state for a
+    checkout that has only ever run the tests.
+    """
+    import pytest
+
+    from app.main import FRONTEND_DIST
+
+    if not (FRONTEND_DIST / "index.html").is_file():
+        pytest.skip("frontend not built")
+
+    root = client.get("/")
+    assert root.status_code == 200
+    assert "text/html" in root.headers["content-type"]
+    # A deep link survives a reload: the client router gets index.html and
+    # works out what the path meant.
+    assert client.get("/standings").status_code == 200
+    # And the catch-all is a route inside the app, never a way out of dist.
+    for escape in ("/../pyproject.toml", "/../../etc/passwd", "/../saves.db"):
+        leaked = client.get(escape)
+        assert "text/html" in leaked.headers["content-type"], escape
+        assert "[project]" not in leaked.text and "root:" not in leaked.text, escape
+
+
+def test_the_api_still_wins_over_the_page(client):
+    """The catch-all is registered last, so it must not shadow the API."""
+    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/api/game/teams").status_code == 200

@@ -38,6 +38,23 @@ class NewGameRequest(BaseModel):
     )
     season: int | None = None
     name: str = ""
+    rounds: int | None = Field(
+        default=None,
+        description=(
+            "Cut the season short at this many races.  A full season is "
+            "twenty-two; a shorter one is the same grid over fewer rounds."
+        ),
+    )
+    race_distance: float | None = Field(
+        default=None,
+        gt=0.0,
+        le=1.0,
+        description=(
+            "Fraction of a full grand prix each race is run over.  The engine "
+            "simulates every lap it is given, so this is a shorter race and "
+            "not a faster approximation of a long one."
+        ),
+    )
 
 
 class SaveRequest(BaseModel):

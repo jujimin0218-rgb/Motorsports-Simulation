@@ -55,6 +55,8 @@ def start_game(
         seed=request.seed,
         season=request.season,
         name=request.name,
+        rounds=request.rounds,
+        race_distance=request.race_distance,
     )
     return service.snapshot()
 

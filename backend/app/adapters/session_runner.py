@@ -168,6 +168,7 @@ def run_qualifying(
     round_number: int,
     *,
     ambient: AmbientConditions | None = None,
+    on_segment: Callable[[str, int, int], None] | None = None,
 ) -> tuple[QualifyingResult, list[FieldEntry], RoundConditions]:
     """Run knockout qualifying and produce a grid.
 
@@ -195,7 +196,7 @@ def run_qualifying(
         evolution=weather.evolution,
         fuel_mass=QUALIFYING_FUEL_KG,
     )
-    return session.run(), field, weather
+    return session.run(on_segment), field, weather
 
 
 def run_race(

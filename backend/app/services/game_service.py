@@ -88,10 +88,17 @@ class GameService:
         seed: int | None = None,
         season: int | None = None,
         name: str = "",
+        rounds: int | None = None,
+        race_distance: float | None = None,
     ) -> GameState:
         with self._lock:
             self._state = new_game(
-                player_team=player_team, seed=seed, season=season, name=name
+                player_team=player_team,
+                seed=seed,
+                season=season,
+                name=name,
+                rounds=rounds,
+                race_distance=race_distance,
             )
             self._save_id = None
             self._touch()
@@ -299,9 +306,13 @@ class GameService:
         entry.require(RoundPhase.QUALIFYING)
 
         def work(job: Job) -> dict[str, Any]:
+            def segment_done(name: str, done: int, total: int) -> None:
+                job.detail = f"{name} complete"
+                job.progress = done / total
+
             with self._lock:
-                job.detail = "running qualifying"
-                report = round_service.run_qualifying(state)
+                job.detail = "Q1 running"
+                report = round_service.run_qualifying(state, on_segment=segment_done)
                 self._touch()
                 return report.to_dict()
 
