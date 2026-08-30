@@ -13,6 +13,7 @@ game asks the round machine whether this is the moment for it first.
 
 from __future__ import annotations
 
+import logging
 import threading
 from typing import Any
 
@@ -25,6 +26,8 @@ from .jobs import Job, JobRunner
 from .storage import SaveStore, SaveSummary
 
 __all__ = ["GameService"]
+
+_log = logging.getLogger(__name__)
 
 
 class GameService:
@@ -41,6 +44,11 @@ class GameService:
         self._jobs = jobs if jobs is not None else JobRunner()
         self._state: GameState | None = None
         self._save_id: str | None = None
+        self._autosave_error: str | None = None
+        """What went wrong the last time the game tried to save itself.
+
+        Surfaced on the snapshot so the player finds out before they close the
+        tab rather than after."""
         self._autosave = autosave
         self._lock = threading.RLock()
 
@@ -129,9 +137,24 @@ class GameService:
 
         Called after every step of a weekend, because losing a race that took
         ten minutes to a closed tab is not an experience worth shipping.
+
+        A failure here is *reported and swallowed*, which is the opposite of
+        what this file does everywhere else, and deliberately.  The autosave is
+        a convenience on top of the work; if the save file has gone
+        unwritable -- a full disk, a file deleted underneath a running server --
+        letting that propagate would throw away the race the player just spent
+        ten minutes on in order to complain about the thing that was meant to
+        protect it.  The result is kept, the game stays live, and the player
+        can save somewhere else.
         """
-        if self._autosave and self._state is not None:
+        if not self._autosave or self._state is None:
+            return
+        try:
             self._store.autosave(self._state)
+            self._autosave_error = None
+        except Exception as error:  # noqa: BLE001 - reported, see above
+            self._autosave_error = f"{type(error).__name__}: {error}"
+            _log.warning("autosave failed: %s", self._autosave_error)
 
     # -- reading the game ----------------------------------------------------
 
@@ -146,6 +169,7 @@ class GameService:
             "season": state.season,
             "seed": state.seed,
             "settings": state.settings.to_dict(),
+            "autosave_error": self._autosave_error,
             "player_team": state.player_team,
             "season_complete": state.season_complete,
             "current_round": None

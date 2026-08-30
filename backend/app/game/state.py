@@ -27,6 +27,7 @@ from .car import EngineSupplier
 from .development import Upgrade
 from .errors import UnknownEntity
 from .finance import SponsorDeal
+from .penalties import Penalty
 from .people import DriverProfile
 from .rng import GameRng
 from .rules import Rules
@@ -123,6 +124,13 @@ class GameState:
     track that ages out.  Moving replays into their own table is the seam if
     that ever needs to change."""
 
+    penalties: list[Penalty] = field(default_factory=list)
+    """Every stewards' decision this season, served or not."""
+
+    engines_used: dict[str, int] = field(default_factory=dict)
+    """Power units each driver has been through.  A season allows so many, and
+    the ones beyond it cost places on the grid."""
+
     upgrades: list[Upgrade] = field(default_factory=list)
     """Every project any team has commissioned this season, finished or not."""
 
@@ -184,6 +192,21 @@ class GameState:
             for u in self.upgrades
             if u.in_development and u.arrives_at_round <= round_number
         ]
+
+    def penalties_for(self, driver_id: str) -> list[Penalty]:
+        return [p for p in self.penalties if p.driver_id == driver_id]
+
+    def pending_grid_drop(self, driver_id: str) -> int:
+        """Places this driver still has to give up at the next start."""
+        from .penalties import PenaltyKind
+
+        return sum(
+            p.places
+            for p in self.penalties
+            if p.driver_id == driver_id
+            and p.kind is PenaltyKind.GRID
+            and not p.served
+        )
 
     def sponsor_deals_for(self, team_id: str) -> list[SponsorDeal]:
         return [d for d in self.sponsor_deals if d.team_id == team_id]
@@ -320,6 +343,8 @@ class GameState:
             "outcomes": [o.to_dict() for o in self.outcomes],
             "race_archive": self.race_archive,
             "replays": self.replays,
+            "penalties": [p.to_dict() for p in self.penalties],
+            "engines_used": dict(self.engines_used),
             "upgrades": [u.to_dict() for u in self.upgrades],
             "sponsor_deals": [d.to_dict() for d in self.sponsor_deals],
             "history": [record.to_dict() for record in self.history],
@@ -355,6 +380,8 @@ class GameState:
             outcomes=[RaceOutcome.from_dict(o) for o in data.get("outcomes", [])],
             race_archive=dict(data.get("race_archive", {})),
             replays=dict(data.get("replays", {})),
+            penalties=[Penalty.from_dict(p) for p in data.get("penalties", [])],
+            engines_used=dict(data.get("engines_used", {})),
             upgrades=[Upgrade.from_dict(u) for u in data.get("upgrades", [])],
             sponsor_deals=[
                 SponsorDeal.from_dict(d) for d in data.get("sponsor_deals", [])

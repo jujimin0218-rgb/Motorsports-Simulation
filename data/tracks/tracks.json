@@ -1,5 +1,5 @@
 {
-  "_comment": "Length, corner count, race distance and DRS-zone count are published facts about these circuits.  The five characteristics are game-balance weights describing what each circuit asks of a car -- they are not measurements and are not claimed to be. physics_track names the engine circuit a round is currently run on: the engine ships three synthetic circuits and no surveyed geometry for these twenty-two, so each round borrows the synthetic circuit closest to its character.  Replace it with a real track file per circuit and nothing else in the game has to change.",
+  "_comment": "Length, corner count, race distance and DRS-zone count are published facts about these circuits.  The five characteristics are game-balance weights describing what each circuit asks of a car -- they are not measurements and are not claimed to be. climate is the venue at the time of year the round is actually held -- air temperature in degrees, rain probability, humidity and wind in m/s. The engine's weather model takes it from there and moves the sky on its own during a session.  physics_track names the engine circuit a round is currently run on: the engine ships three synthetic circuits and no surveyed geometry for these twenty-two, so each round borrows the synthetic circuit closest to its character.  Replace it with a real track file per circuit and nothing else in the game has to change.",
   "tracks": [
     {
       "id": "bahrain_international_circuit",
@@ -17,6 +17,12 @@
         "tyre_stress": 0.85,
         "brake_stress": 0.9,
         "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 26,
+        "rain_probability": 0.02,
+        "relative_humidity": 0.45,
+        "wind_speed": 3.5
       }
     },
     {
@@ -35,6 +41,12 @@
         "tyre_stress": 0.6,
         "brake_stress": 0.55,
         "overtaking_ease": 0.55
+      },
+      "climate": {
+        "air_temperature": 28,
+        "rain_probability": 0.03,
+        "relative_humidity": 0.55,
+        "wind_speed": 4.0
       }
     },
     {
@@ -53,6 +65,12 @@
         "tyre_stress": 0.55,
         "brake_stress": 0.65,
         "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 20,
+        "rain_probability": 0.28,
+        "relative_humidity": 0.62,
+        "wind_speed": 5.0
       }
     },
     {
@@ -71,6 +89,12 @@
         "tyre_stress": 0.8,
         "brake_stress": 0.6,
         "overtaking_ease": 0.3
+      },
+      "climate": {
+        "air_temperature": 17,
+        "rain_probability": 0.35,
+        "relative_humidity": 0.68,
+        "wind_speed": 4.5
       }
     },
     {
@@ -89,6 +113,12 @@
         "tyre_stress": 0.7,
         "brake_stress": 0.7,
         "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 28,
+        "rain_probability": 0.3,
+        "relative_humidity": 0.72,
+        "wind_speed": 4.5
       }
     },
     {
@@ -107,6 +137,12 @@
         "tyre_stress": 0.62,
         "brake_stress": 0.7,
         "overtaking_ease": 0.18
+      },
+      "climate": {
+        "air_temperature": 20,
+        "rain_probability": 0.3,
+        "relative_humidity": 0.65,
+        "wind_speed": 3.0
       }
     },
     {
@@ -125,6 +161,12 @@
         "tyre_stress": 0.35,
         "brake_stress": 0.8,
         "overtaking_ease": 0.05
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.22,
+        "relative_humidity": 0.68,
+        "wind_speed": 2.5
       }
     },
     {
@@ -143,6 +185,12 @@
         "tyre_stress": 0.88,
         "brake_stress": 0.6,
         "overtaking_ease": 0.35
+      },
+      "climate": {
+        "air_temperature": 23,
+        "rain_probability": 0.15,
+        "relative_humidity": 0.6,
+        "wind_speed": 4.0
       }
     },
     {
@@ -161,6 +209,12 @@
         "tyre_stress": 0.55,
         "brake_stress": 0.95,
         "overtaking_ease": 0.65
+      },
+      "climate": {
+        "air_temperature": 22,
+        "rain_probability": 0.32,
+        "relative_humidity": 0.66,
+        "wind_speed": 4.0
       }
     },
     {
@@ -179,6 +233,12 @@
         "tyre_stress": 0.6,
         "brake_stress": 0.75,
         "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.38,
+        "relative_humidity": 0.63,
+        "wind_speed": 4.5
       }
     },
     {
@@ -197,6 +257,12 @@
         "tyre_stress": 0.85,
         "brake_stress": 0.55,
         "overtaking_ease": 0.55
+      },
+      "climate": {
+        "air_temperature": 19,
+        "rain_probability": 0.42,
+        "relative_humidity": 0.7,
+        "wind_speed": 6.0
       }
     },
     {
@@ -215,6 +281,12 @@
         "tyre_stress": 0.7,
         "brake_stress": 0.6,
         "overtaking_ease": 0.75
+      },
+      "climate": {
+        "air_temperature": 18,
+        "rain_probability": 0.48,
+        "relative_humidity": 0.74,
+        "wind_speed": 5.0
       }
     },
     {
@@ -233,6 +305,12 @@
         "tyre_stress": 0.75,
         "brake_stress": 0.55,
         "overtaking_ease": 0.12
+      },
+      "climate": {
+        "air_temperature": 27,
+        "rain_probability": 0.24,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.5
       }
     },
     {
@@ -251,6 +329,12 @@
         "tyre_stress": 0.72,
         "brake_stress": 0.55,
         "overtaking_ease": 0.15
+      },
+      "climate": {
+        "air_temperature": 19,
+        "rain_probability": 0.4,
+        "relative_humidity": 0.75,
+        "wind_speed": 7.0
       }
     },
     {
@@ -269,6 +353,12 @@
         "tyre_stress": 0.5,
         "brake_stress": 0.85,
         "overtaking_ease": 0.8
+      },
+      "climate": {
+        "air_temperature": 25,
+        "rain_probability": 0.2,
+        "relative_humidity": 0.6,
+        "wind_speed": 3.0
       }
     },
     {
@@ -287,6 +377,12 @@
         "tyre_stress": 0.55,
         "brake_stress": 0.8,
         "overtaking_ease": 0.85
+      },
+      "climate": {
+        "air_temperature": 22,
+        "rain_probability": 0.15,
+        "relative_humidity": 0.62,
+        "wind_speed": 5.5
       }
     },
     {
@@ -305,6 +401,12 @@
         "tyre_stress": 0.9,
         "brake_stress": 0.85,
         "overtaking_ease": 0.2
+      },
+      "climate": {
+        "air_temperature": 29,
+        "rain_probability": 0.45,
+        "relative_humidity": 0.82,
+        "wind_speed": 2.5
       }
     },
     {
@@ -323,6 +425,12 @@
         "tyre_stress": 0.78,
         "brake_stress": 0.65,
         "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 24,
+        "rain_probability": 0.28,
+        "relative_humidity": 0.64,
+        "wind_speed": 4.5
       }
     },
     {
@@ -341,6 +449,12 @@
         "tyre_stress": 0.6,
         "brake_stress": 0.9,
         "overtaking_ease": 0.65
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.25,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.0
       }
     },
     {
@@ -359,6 +473,12 @@
         "tyre_stress": 0.7,
         "brake_stress": 0.7,
         "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 23,
+        "rain_probability": 0.4,
+        "relative_humidity": 0.7,
+        "wind_speed": 4.5
       }
     },
     {
@@ -377,6 +497,12 @@
         "tyre_stress": 0.65,
         "brake_stress": 0.8,
         "overtaking_ease": 0.75
+      },
+      "climate": {
+        "air_temperature": 13,
+        "rain_probability": 0.08,
+        "relative_humidity": 0.35,
+        "wind_speed": 4.0
       }
     },
     {
@@ -395,6 +521,12 @@
         "tyre_stress": 0.65,
         "brake_stress": 0.7,
         "overtaking_ease": 0.5
+      },
+      "climate": {
+        "air_temperature": 26,
+        "rain_probability": 0.02,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.5
       }
     }
   ]

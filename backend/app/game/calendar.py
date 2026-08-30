@@ -78,9 +78,33 @@ class Circuit:
     brake_stress: float = 0.6
     overtaking_ease: float = 0.5
 
+    # The sky.  Not a game-balance weight: these are the venue's climate at the
+    # time of year the round is held, and the engine's weather model takes them
+    # as a forecast and moves on from there by itself.
+    air_temperature: float = 22.0
+    rain_probability: float = 0.2
+    relative_humidity: float = 0.6
+    wind_speed: float = 4.0
+
     @property
     def race_distance_km(self) -> float:
         return self.length_km * self.race_laps
+
+    def forecast(self) -> Any:
+        """This venue's climate, as the engine's own forecast object.
+
+        The engine takes it from here: the weather model moves the sky on its
+        own during a session, so a 48% chance of rain at Spa is a chance rather
+        than a scheduled shower.
+        """
+        from f1_race_engine.environment import Forecast
+
+        return Forecast(
+            air_temperature=self.air_temperature,
+            rain_probability=self.rain_probability,
+            relative_humidity=self.relative_humidity,
+            wind_speed=self.wind_speed,
+        )
 
     def area_weights(self) -> dict[str, float]:
         """What this circuit asks of each area of a car.
@@ -124,11 +148,18 @@ class Circuit:
                 "brake_stress": self.brake_stress,
                 "overtaking_ease": self.overtaking_ease,
             },
+            "climate": {
+                "air_temperature": self.air_temperature,
+                "rain_probability": self.rain_probability,
+                "relative_humidity": self.relative_humidity,
+                "wind_speed": self.wind_speed,
+            },
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Circuit:
         chars = data.get("characteristics", {})
+        climate = data.get("climate", {})
         return cls(
             id=str(data["id"]),
             name=str(data.get("name", data["id"])),
@@ -144,6 +175,10 @@ class Circuit:
             tyre_stress=float(chars.get("tyre_stress", 0.6)),
             brake_stress=float(chars.get("brake_stress", 0.6)),
             overtaking_ease=float(chars.get("overtaking_ease", 0.5)),
+            air_temperature=float(climate.get("air_temperature", 22.0)),
+            rain_probability=float(climate.get("rain_probability", 0.2)),
+            relative_humidity=float(climate.get("relative_humidity", 0.6)),
+            wind_speed=float(climate.get("wind_speed", 4.0)),
         )
 
 

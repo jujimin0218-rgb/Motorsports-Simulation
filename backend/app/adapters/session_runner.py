@@ -17,6 +17,12 @@ same round.  The engine takes ownership of the hub it is given.
 race writes tyre wear, fuel, damage and retirement into it.  Reusing one across
 rounds would carry last week's puncture into this week's race, so every session
 gets new ones.
+
+**One sky per weekend.**  The engine has a weather model and a track-evolution
+model and both are handed to the session, so a wet qualifying is wet because
+the engine made it rain and the tyre choice follows from the water on the road.
+Continuity between the sessions is :mod:`app.adapters.conditions`; nothing
+about the weather itself is decided here.
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ from f1_race_engine.race import (
     RaceResult,
     RaceSession,
     RaceStrategy,
+    compound_for_conditions,
 )
 from f1_race_engine.race.qualifying import DEFAULT_FORMAT, QualifyingSession
 from f1_race_engine.track.io import load_track
@@ -43,6 +50,7 @@ from ..game.calendar import Circuit
 from ..game.standings import RaceOutcome
 from ..game.state import GameState
 from .car_builder import build_vehicle
+from .conditions import RoundConditions, build_conditions
 
 __all__ = [
     "COMPOUND_SET",
@@ -105,6 +113,7 @@ def build_field(
     *,
     fuel_mass: float,
     attacking: bool = True,
+    water_depth: float = 0.0,
 ) -> list[FieldEntry]:
     """Assemble the grid for one session.
 
@@ -135,7 +144,10 @@ def build_field(
                 compounds=compounds.compounds,
                 strategy=RaceStrategy(),
             )
-            entry.fit(compounds["M"])
+            # What the car starts on is decided by the water on the road, by
+            # the engine's own rule -- not by a default that happens to be a
+            # medium whatever the sky is doing.
+            entry.fit(compound_for_conditions(compounds.compounds, water_depth))
             field.append(
                 FieldEntry(
                     car_number=number,
@@ -156,24 +168,34 @@ def run_qualifying(
     round_number: int,
     *,
     ambient: AmbientConditions | None = None,
-) -> tuple[QualifyingResult, list[FieldEntry]]:
+) -> tuple[QualifyingResult, list[FieldEntry], RoundConditions]:
     """Run knockout qualifying and produce a grid.
 
     The engine's own session: three segments, cars eliminated at the end of
-    each, a real out-lap and a real flying lap on a track that rubbers in as it
-    goes.  Nothing about it is decided here.
+    each, real out-laps and real flying laps on a track that rubbers in as it
+    goes and washes clean when it rains.  Nothing about it is decided here.
     """
     circuit = state.circuit_for(round_number)
-    field = build_field(state, round_number, fuel_mass=QUALIFYING_FUEL_KG)
+    track = track_for(circuit)
+    weather = build_conditions(state, round_number, track, session="qualifying")
+    field = build_field(
+        state,
+        round_number,
+        fuel_mass=QUALIFYING_FUEL_KG,
+        water_depth=weather.evolution.mean_water_depth,
+    )
     session = QualifyingSession(
-        track_for(circuit),
+        track,
         [item.entry for item in field],
         segments=DEFAULT_FORMAT,
         rng=_hub(state, round_number, "qualifying"),
-        ambient=ambient,
+        ambient=ambient or weather.ambient,
+        conditions=weather.conditions,
+        weather=weather.weather,
+        evolution=weather.evolution,
         fuel_mass=QUALIFYING_FUEL_KG,
     )
-    return session.run(), field
+    return session.run(), field, weather
 
 
 def run_race(
@@ -186,7 +208,7 @@ def run_race(
     hazards: bool = True,
     laps: int | None = None,
     on_lap: Callable[..., None] | None = None,
-) -> tuple[RaceResult, list[FieldEntry]]:
+) -> tuple[RaceResult, list[FieldEntry], RoundConditions]:
     """Run the grand prix.
 
     ``grid`` is the qualifying order as car numbers.  Left empty, the field
@@ -195,7 +217,14 @@ def run_race(
     """
     circuit = state.circuit_for(round_number)
     entry_round = state.round(round_number)
-    field = build_field(state, round_number, fuel_mass=RACE_FUEL_KG)
+    track = track_for(circuit)
+    weather = build_conditions(state, round_number, track, session="race")
+    field = build_field(
+        state,
+        round_number,
+        fuel_mass=RACE_FUEL_KG,
+        water_depth=weather.evolution.mean_water_depth,
+    )
     by_number = {item.car_number: item for item in field}
 
     for position, car_number in enumerate(grid, start=1):
@@ -206,16 +235,19 @@ def run_race(
             item.entry.grid_position = item.car_number
 
     session = RaceSession(
-        track_for(circuit),
+        track,
         [item.entry for item in field],
         laps=laps if laps is not None else entry_round.laps,
         rng=_hub(state, round_number, "race"),
-        ambient=ambient,
+        ambient=ambient or weather.ambient,
+        conditions=weather.conditions,
+        weather=weather.weather,
+        evolution=weather.evolution,
         racing=racing,
         hazards=hazards,
         standing_start=True,
     )
-    return session.run(on_lap=on_lap), field
+    return session.run(on_lap=on_lap), field, weather
 
 
 def outcomes_from(
@@ -224,12 +256,17 @@ def outcomes_from(
     round_number: int,
     *,
     pole: int | None = None,
+    positions: dict[int, int] | None = None,
 ) -> list[RaceOutcome]:
     """Turn the engine's classification into championship results.
 
     A projection, not a replacement: the engine's own result is kept whole in
     :attr:`GameState.race_archive` for the replay, and this is only what the
     standings need.
+
+    ``positions`` overrides the finishing order, which is how a time penalty
+    reaches the championship: the stewards re-take the order and the points
+    follow it rather than the order the cars crossed the line in.
     """
     by_number = {item.car_number: item for item in field}
     fastest = result.fastest_lap.car_number if result.fastest_lap is not None else None
@@ -244,7 +281,7 @@ def outcomes_from(
                 round_number=round_number,
                 driver_id=item.driver_id,
                 team_id=item.team_id,
-                position=row.position,
+                position=(positions or {}).get(row.car_number, row.position),
                 started=item.entry.grid_position or 0,
                 laps_completed=row.laps_completed,
                 retired=row.retired,
@@ -252,4 +289,5 @@ def outcomes_from(
                 pole=(pole is not None and row.car_number == pole),
             )
         )
+    outcomes.sort(key=lambda outcome: outcome.position)
     return outcomes

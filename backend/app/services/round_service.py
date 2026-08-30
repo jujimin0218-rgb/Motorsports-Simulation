@@ -24,12 +24,14 @@ from typing import Any
 
 from f1_race_engine.race import QualifyingResult, RaceResult
 
+from ..adapters import conditions
 from ..adapters import replay as replay_builder
 from ..adapters import session_runner
 from ..game import ai, development, finance
 from ..game.calendar import Round, RoundPhase
 from ..game.development import Upgrade
 from ..game.finance import Ledger
+from ..game import penalties as penalties_module
 from ..game.errors import InvalidGamePhase, RaceAlreadyCompleted
 from ..game.state import GameState
 
@@ -92,15 +94,21 @@ def start_round(state: GameState) -> RoundReport:
 def run_practice(state: GameState) -> RoundReport:
     """Run practice.
 
-    Nothing is timed and nothing is reported, which is what practice is for in
-    this game so far: the point is that the laps happened.  What it produces is
-    an estimate of how the tyres will behave here, taken from the engine's own
-    degradation measurement rather than from a table -- so a circuit that eats
-    tyres says so before the player has to commit to a strategy.
+    Nothing is timed, which is what practice is for in this game: the point is
+    that the laps happened -- rubber goes down, the sky moves on, and qualifying
+    starts on the track Friday left behind.
+
+    What it reports is what a player needs before committing to anything: what
+    the circuit asks of the tyres, and what the weather is actually doing as
+    opposed to what the venue's climate said it probably would.
     """
     entry = _current(state)
     entry.require(RoundPhase.PRACTICE)
     circuit = state.circuit_for(entry.number)
+    track = session_runner.track_for(circuit)
+    weather = conditions.build_conditions(
+        state, entry.number, track, session="practice"
+    )
     entry.advance(RoundPhase.PRACTICE)
     return RoundReport(
         entry.number,
@@ -109,6 +117,13 @@ def run_practice(state: GameState) -> RoundReport:
             "circuit": circuit.id,
             "tyre_stress": circuit.tyre_stress,
             "overtaking_ease": circuit.overtaking_ease,
+            "weather": weather.summary(),
+            "forecast": {
+                "air_temperature": circuit.air_temperature,
+                "rain_probability": circuit.rain_probability,
+                "relative_humidity": circuit.relative_humidity,
+                "wind_speed": circuit.wind_speed,
+            },
         },
     )
 
@@ -118,7 +133,7 @@ def run_qualifying(state: GameState) -> RoundReport:
     entry = _current(state)
     entry.require(RoundPhase.QUALIFYING)
 
-    result, field = session_runner.run_qualifying(state, entry.number)
+    result, field, weather = session_runner.run_qualifying(state, entry.number)
     by_number = {item.car_number: item for item in field}
     entry.grid = [
         by_number[car].driver_id for car in result.order if car in by_number
@@ -132,6 +147,7 @@ def run_qualifying(state: GameState) -> RoundReport:
             "pole": entry.grid[0] if entry.grid else None,
             "grid": list(entry.grid),
             "qualifying": _qualifying_summary(result, by_number),
+            "weather": weather.summary(),
         },
     )
 
@@ -177,7 +193,7 @@ def run_race(
         raise RaceAlreadyCompleted(f"round {entry.number} has already been run")
 
     grid_numbers = _grid_car_numbers(state, entry)
-    result, field = session_runner.run_race(
+    result, field, weather = session_runner.run_race(
         state,
         entry.number,
         grid=grid_numbers,
@@ -186,7 +202,21 @@ def run_race(
         on_lap=on_lap,
     )
     pole = grid_numbers[0] if grid_numbers else None
-    outcomes = session_runner.outcomes_from(result, field, entry.number, pole=pole)
+
+    # The stewards look at what the engine reported and decide what it cost.
+    # Time penalties are applied *before* the outcomes are filed, because a
+    # five-second penalty that changes a result has to change the points too.
+    labels = {
+        item.car_number: (item.driver_id, item.team_id) for item in field
+    }
+    decisions = _steward(state, entry.number, result, field, labels)
+    state.penalties.extend(decisions)
+    revised = penalties_module.apply_time_penalties(
+        result.classification, decisions, labels
+    )
+    outcomes = session_runner.outcomes_from(
+        result, field, entry.number, pole=pole, positions=dict(revised)
+    )
 
     state.record_outcomes(outcomes)
     race_id = f"{state.season}-{entry.number:02d}"
@@ -222,10 +252,51 @@ def run_race(
             "winner": outcomes[0].driver_id if outcomes else None,
             "classification": [o.to_dict() for o in outcomes],
             "retirements": sum(1 for o in outcomes if o.retired),
+            "penalties": [d.to_dict() for d in decisions],
+            "weather": weather.summary(),
             "flags": [
                 {"lap": lap, "flag": flag, "reason": reason}
                 for lap, flag, reason in result.flags
             ],
+        },
+    )
+
+
+def _steward(
+    state: GameState,
+    round_number: int,
+    result: Any,
+    field: list[session_runner.FieldEntry],
+    labels: dict[int, tuple[str, str]],
+) -> list[penalties_module.Penalty]:
+    """Count the power units, then let the stewards look at the race."""
+    for row in result.classification:
+        who = labels.get(row.car_number)
+        if who is None:
+            continue
+        driver_id = who[0]
+        state.engines_used.setdefault(driver_id, 1)
+
+    # A power-unit failure means a new one for the next race.
+    for incident in result.incidents:
+        payload = incident.to_dict()
+        if payload.get("kind") != "mechanical" or payload.get("system") != "power_unit":
+            continue
+        who = labels.get(payload.get("car_number"))
+        if who is not None:
+            state.engines_used[who[0]] = state.engines_used.get(who[0], 1) + 1
+
+    return penalties_module.steward(
+        round_number=round_number,
+        incidents=result.incidents,
+        classification=result.classification,
+        labels=labels,
+        engines_used={
+            labels[row.car_number][0]: state.engines_used.get(
+                labels[row.car_number][0], 1
+            )
+            for row in result.classification
+            if row.car_number in labels
         },
     )
 
