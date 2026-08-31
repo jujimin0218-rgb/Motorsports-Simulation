@@ -16,15 +16,9 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { lapTime, ordinal, percent, titleCase } from '../components/format'
+import LiveTiming from '../components/LiveTiming'
 import WeatherPanel from '../components/WeatherPanel'
-import {
-  ErrorNotice,
-  Notice,
-  PageHead,
-  Panel,
-  Pill,
-  Progress,
-} from '../components/ui'
+import { ErrorNotice, Notice, PageHead, Panel, Pill } from '../components/ui'
 import { useGame, useLoadedGame } from '../hooks/useGame'
 import { ApiFailure, api, runJob } from '../services/api'
 import type {
@@ -151,16 +145,7 @@ export default function RaceWeekend() {
       <ErrorNotice error={error} />
 
       {job && (job.status === 'pending' || job.status === 'running') && (
-        <Progress
-          label={job.kind === 'race' ? 'The grand prix is running' : 'Qualifying is running'}
-          value={job.progress}
-          since={job.started_at}
-          detail={
-            job.kind === 'race'
-              ? `${round.race_laps} laps, every car simulated on every one of them.`
-              : 'Three segments, real out-laps and real flying laps.'
-          }
-        />
+        <LiveTiming job={job} />
       )}
 
       {!job && (

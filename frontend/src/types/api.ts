@@ -261,10 +261,61 @@ export interface Job<T = unknown> {
   detail: string
   started_at: number
   finished_at: number | null
+  /** The session as it stands, while it is still running. */
+  live?: LiveRace | LiveQualifying
   result?: T
   error?: string
   code?: string
 }
+
+/** One row of a session being watched rather than read back afterwards. */
+export interface LiveRow {
+  position: number | null
+  car_number: number
+  driver: string
+  team: string
+  is_player: boolean
+}
+
+export interface LiveRaceRow extends LiveRow {
+  laps_completed: number
+  gap: string
+  interval: string
+  retired: boolean
+}
+
+export interface LiveRace {
+  lap: number
+  laps: number
+  order: LiveRaceRow[]
+  retired: number
+  leader_elapsed?: number
+  fastest_lap: {
+    car_number: number
+    driver: string
+    lap_time: number
+    lap: number
+  } | null
+}
+
+export interface LiveQualifyingRow extends LiveRow {
+  /** Seconds, or null for a car that has not set a time yet. */
+  best: number | null
+  gap: number | null
+  segment: string | null
+}
+
+export interface LiveQualifying {
+  segment: string
+  done: number
+  total: number
+  /** False while the segment is still running, true once it is a result. */
+  complete: boolean
+  order: LiveQualifyingRow[]
+}
+
+export const isLiveRace = (live: Job['live']): live is LiveRace =>
+  live !== undefined && 'lap' in live
 
 export interface QualifyingRow {
   position: number

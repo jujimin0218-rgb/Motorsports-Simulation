@@ -25,8 +25,11 @@ Pick a team, pick a season length and a race distance, and start.  Then, per
 round: **Start round → Practice → Qualifying → Race**, and between rounds,
 development, contracts and finances.
 
-Qualifying and the race are long enough to be jobs with progress bars, because
-they are real simulations rather than dice:
+Qualifying and the race are long enough to be run as jobs, because they are
+real simulations rather than dice — so you watch them rather than wait for
+them.  The race screen is a timing tower that moves a lap at a time: the order,
+the gaps, who has stopped.  Qualifying builds its order up as the laps are set,
+segment by segment.  The times below are how long that takes:
 
 | | quarter distance | half | full |
 |---|---|---|---|

@@ -392,19 +392,9 @@ label {
 
 /* -- progress ------------------------------------------------------------- */
 
-.progress-panel { text-align: center; padding: 34px 20px; }
-.progress-label { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
-.progress-pct {
-  font-family: var(--mono);
-  font-size: 34px;
-  letter-spacing: -0.03em;
-  margin-bottom: 14px;
-}
-.progress-bar { max-width: 420px; margin: 0 auto; }
-
 /* A job that cannot say how far along it is says that, rather than sitting at
-   0% and looking stuck.  Qualifying is one: the engine runs three segments and
-   reports when each is done, not lap by lap. */
+   0% and looking stuck -- which is a session in the moment before its first
+   lap lands, rather than a whole session, now that both report as they go. */
 .progress-bar.indeterminate { position: relative; overflow: hidden; }
 .progress-bar.indeterminate > span {
   position: absolute;

@@ -9,7 +9,7 @@
 import type { ReactNode } from 'react'
 
 import { ApiFailure } from '../services/api'
-import { percent, rating, titleCase } from './format'
+import { rating, titleCase } from './format'
 
 export function Panel({
   title,
@@ -126,47 +126,6 @@ export function Pill({
   tone?: 'on' | 'off' | 'hot' | 'warn'
 }) {
   return <span className={`pill ${tone ?? ''}`}>{children}</span>
-}
-
-/**
- * A live job, shown as something moving rather than a spinner.
- *
- * Not every session can say how far along it is.  A race reports a lap at a
- * time; qualifying runs three segments inside the engine and reports when it
- * is done.  So a job with no progress to report gets a sweeping bar and an
- * elapsed clock rather than a number stuck at zero, which is the honest
- * version of "this is working and I cannot tell you how much longer".
- */
-export function Progress({
-  label,
-  value,
-  detail,
-  since,
-}: {
-  label: string
-  value: number
-  detail?: string
-  /** Epoch seconds the job started, for the elapsed clock. */
-  since?: number
-}) {
-  const known = value > 0
-  const elapsed = since ? Math.max(0, Math.round(Date.now() / 1000 - since)) : null
-  return (
-    <div className="panel progress-panel">
-      <div className="progress-label">{label}</div>
-      <div className="progress-pct num">
-        {known ? percent(value) : elapsed !== null ? `${elapsed}s` : '…'}
-      </div>
-      <div className={`bar accent progress-bar ${known ? '' : 'indeterminate'}`}>
-        <span style={known ? { width: `${Math.max(2, value * 100)}%` } : undefined} />
-      </div>
-      {detail && (
-        <div className="stat-note" style={{ marginTop: 12 }}>
-          {detail}
-        </div>
-      )}
-    </div>
-  )
 }
 
 export function PageHead({
