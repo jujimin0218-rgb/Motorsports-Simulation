@@ -128,7 +128,7 @@ export default function Replay() {
         ? {
             carNumber,
             driver: car.driver_name,
-            colour: colourOf(car.team),
+
             samples,
           }
         : null

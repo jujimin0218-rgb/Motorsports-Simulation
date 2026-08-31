@@ -8,6 +8,11 @@
  * with two y-scales.  Kilometres an hour and a fraction of a pedal have nothing
  * to do with each other, and putting them on the same frame invents crossings
  * that mean nothing.
+ *
+ * A trace is coloured by which car was picked, not by its team.  Everywhere
+ * else a colour means a team, and it should -- but two team mates compared here
+ * would then be one colour and two indistinguishable lines, which is the whole
+ * of what this panel is for.  The swatch in the legend says which is which.
  */
 
 import { useState } from 'react'
@@ -21,10 +26,12 @@ const THROTTLE = 2
 const BRAKE = 3
 const DRS = 4
 
+/** The first two categorical slots, which pass the palette checks as a pair. */
+const TRACE_COLOURS = ['#3987e5', '#d95926']
+
 export interface TelemetryCar {
   carNumber: number
   driver: string
-  colour: string
   samples: TelemetryLap
 }
 
@@ -92,14 +99,14 @@ function Plot({
         {label}
       </text>
 
-      {cars.map((car) => (
+      {cars.map((car, index) => (
         <path
           key={car.carNumber}
           d={car.samples
             .map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(s[D]).toFixed(1)} ${y(s[channel]).toFixed(1)}`)
             .join(' ')}
           fill="none"
-          stroke={car.colour}
+          stroke={TRACE_COLOURS[index % TRACE_COLOURS.length]}
           strokeWidth={2}
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -151,11 +158,11 @@ export default function TelemetryTrace({
     <div>
       {/* A legend for two or more, and every trace is labelled either way. */}
       <div className="inline" style={{ marginBottom: 6 }}>
-        {cars.map((car) => {
+        {cars.map((car, index) => {
           const sample = hover === null ? null : nearest(car.samples, hover)
           return (
             <span key={car.carNumber} className="trace-key">
-              <span className="trace-swatch" style={{ background: car.colour }} />
+              <span className="trace-swatch" style={{ background: TRACE_COLOURS[index % TRACE_COLOURS.length] }} />
               {car.driver}
               {sample && (
                 <span className="num dim" style={{ marginLeft: 6 }}>
