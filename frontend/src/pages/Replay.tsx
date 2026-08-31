@@ -24,6 +24,9 @@ import { api } from '../services/api'
 
 const SPEEDS = [1, 2, 5, 10, 30]
 
+/** A second of dirty air at racing speed, in metres of road. */
+const WAKE_METRES = 70
+
 export default function Replay() {
   const game = useLoadedGame()
   const [params, setParams] = useSearchParams()
@@ -53,6 +56,9 @@ export default function Replay() {
   const [step, setStep] = useState(0)
   /** Cars whose telemetry is on screen. Two compare; more is a tangle. */
   const [picked, setPicked] = useState<number[]>([])
+  const [corners, setCorners] = useState(false)
+  /** A car to keep centred, so a fight can be watched rather than found. */
+  const [follow, setFollow] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(5)
   const timer = useRef<number | null>(null)
@@ -100,19 +106,31 @@ export default function Replay() {
 
   const colourOf = teamColours(data.cars.map((car) => car.team))
 
+  const frame = Math.min(step, steps - 1)
   const order = [...data.cars]
-    .map((car) => ({ car, distance: car.distances[Math.min(step, steps - 1)] ?? 0 }))
+    .map((car) => ({
+      car,
+      distance: car.distances[frame] ?? 0,
+      offset: car.offsets?.[frame] ?? 0,
+    }))
     .sort((a, b) => b.distance - a.distance)
 
   const elapsed = step * data.interval
-  const cars: CarOnTrack[] = order.map(({ car, distance }, index) => ({
-    carNumber: car.car_number,
-    distance,
-    label: String(index + 1),
-    colour: colourOf(car.team),
-    isPlayer: car.team === game.player_team,
-    retired: car.stopped_at !== null && elapsed >= car.stopped_at,
-  }))
+  const cars: CarOnTrack[] = order.map(({ car, distance, offset }, index) => {
+    // Within a second of the car in front is the engine's own wake threshold,
+    // and a second at racing speed is about seventy metres of road.
+    const ahead = order[index - 1]
+    return {
+      carNumber: car.car_number,
+      distance,
+      offset,
+      label: String(index + 1),
+      colour: colourOf(car.team),
+      isPlayer: car.team === game.player_team,
+      retired: car.stopped_at !== null && elapsed >= car.stopped_at,
+      inWake: index > 0 && ahead.distance - distance < WAKE_METRES,
+    }
+  })
 
   const leader = order[0]?.distance ?? 0
   const lap = Math.min(data.laps, Math.floor(leader / data.lap_length) + 1)
@@ -134,6 +152,13 @@ export default function Replay() {
         : null
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+
+  // The last few things that happened at or before this moment, newest first,
+  // so an incident is on screen when it is on screen.
+  const happening = [...data.events]
+    .filter((event) => (event.lap ?? 0) <= lap)
+    .slice(-6)
+    .reverse()
 
   return (
     <>
@@ -161,22 +186,42 @@ export default function Replay() {
         }
       />
 
-      <div
-        className="grid two"
-        style={{ gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)' }}
-      >
-        <Panel
-          title={`Lap ${lap} of ${data.laps}`}
-          action={
-            <div className="inline">
-              <Pill tone="off">{lapTime(elapsed)}</Pill>
-              <Pill>{Math.round(leader).toLocaleString()} m</Pill>
-            </div>
-          }
-        >
-          <TrackMap geometry={geometry.data} cars={cars} height={430} />
+      <div className="raceview">
+        <TrackMap geometry={geometry.data} cars={cars} showCorners={corners} follow={follow} />
 
-          <div className="row" style={{ marginTop: 12, alignItems: 'center' }}>
+        <div className="raceview-panel raceview-head">
+          <h2>
+            Lap {lap} of {data.laps}
+          </h2>
+          <span className="raceview-key">
+            <span className="num dim">{lapTime(elapsed)}</span>
+            <span>
+              <i style={{ background: '#e3a33a' }} /> dirty air{' '}
+              {cars.filter((c) => c.inWake && !c.retired).length}
+            </span>
+            {cars.some((c) => c.retired) && (
+              <span>
+                <i style={{ background: '#8b94a3' }} /> out{' '}
+                {cars.filter((c) => c.retired).length}
+              </span>
+            )}
+          </span>
+        </div>
+
+        {happening.length > 0 && (
+          <div className="raceview-panel raceview-events">
+            {happening.map((event, index) => (
+              <div key={index}>
+                <b>Lap {event.lap}</b> · {event.kind === 'incident' ? '⚠ ' : ''}
+                {event.car_number ? `car ${event.car_number} ` : ''}
+                {event.detail}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="raceview-panel raceview-foot">
+          <div className="row" style={{ alignItems: 'center', width: '100%' }}>
             <button className="primary" onClick={() => setPlaying((on) => !on)}>
               {playing ? 'Pause' : step >= steps - 1 ? 'Replay' : 'Play'}
             </button>
@@ -212,16 +257,14 @@ export default function Replay() {
                 </option>
               ))}
             </select>
+            <button className="ghost" onClick={() => setCorners((c) => !c)}>
+              {corners ? 'Hide corners' : 'Corners'}
+            </button>
           </div>
-          <p className="subtitle" style={{ marginBottom: 0 }}>
-            Positions were sampled from the engine's own timing tower every{' '}
-            {data.interval} seconds of race time. Nothing here is interpolated
-            between lap times.
-          </p>
-        </Panel>
+        </div>
 
-        <Panel title="Order">
-          <div className="scroll">
+        <div className="raceview-panel raceview-tower">
+          <div className="scroll-tall">
             <table>
               <thead>
                 <tr>
@@ -246,6 +289,12 @@ export default function Replay() {
                             : [...now, car.car_number].slice(-2),
                         )
                       }
+                      onDoubleClick={() =>
+                        setFollow((now) =>
+                          now === car.car_number ? null : car.car_number,
+                        )
+                      }
+                      title="Click to trace, double-click to follow on the map"
                       className={[
                         car.team === game.player_team ? 'you' : '',
                         picked.includes(car.car_number) ? 'followed' : '',
@@ -282,7 +331,7 @@ export default function Replay() {
               </tbody>
             </table>
           </div>
-        </Panel>
+        </div>
       </div>
 
       <Panel

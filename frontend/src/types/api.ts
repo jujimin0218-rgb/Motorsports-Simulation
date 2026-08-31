@@ -284,6 +284,14 @@ export interface LiveRaceRow extends LiveRow {
   retired: boolean
   /** Metres round the lap, for the map. Interpolated, unlike the order. */
   distance: number
+  /** Metres across the road from the racing line, left positive. */
+  offset: number
+  /** Within a second of the car ahead, so in its dirty air. */
+  in_wake: boolean
+  /** In the wake *and* in a zone, so the wing is open. */
+  drs: boolean
+  /** Came into the pits on this lap. */
+  pitted: boolean
   last_lap: number
   compound: string | null
   tyre_age: number
@@ -485,8 +493,8 @@ export interface TrackGeometry {
   track: string
   name: string
   length: number
-  /** `[distance, x, y]` in metres, start line first. */
-  points: [number, number, number][]
+  /** `[distance, x, y, width]` in metres, start line first. */
+  points: [number, number, number, number][]
   /** `[minX, minY, maxX, maxY]` in metres. */
   bounds: [number, number, number, number]
   sectors: number[]
@@ -505,6 +513,8 @@ export interface ReplayCar {
   team_name: string
   /** Distance covered in total, one entry every `interval` seconds. */
   distances: number[]
+  /** Metres across the road at each of those samples, left positive. */
+  offsets: number[]
   stopped_at: number | null
   retired: boolean
 }

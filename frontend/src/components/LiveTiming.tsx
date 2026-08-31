@@ -163,54 +163,77 @@ function RaceBoard({ live }: { live: LiveRace }) {
   const cars: CarOnTrack[] = live.order.map((row: LiveRaceRow) => ({
     carNumber: row.car_number,
     distance: row.distance,
+    offset: row.offset,
     label: String(row.position ?? ''),
     colour: colourOf(row.team),
     isPlayer: row.is_player,
     retired: row.retired,
+    drs: row.drs,
+    inWake: row.in_wake,
+    pitting: row.pitted,
   }))
   const followed = live.order.find((row) => row.car_number === follow)
 
+  const racing = live.order.filter((row) => !row.retired)
+  const inWake = racing.filter((row) => row.in_wake).length
+  const withDrs = racing.filter((row) => row.drs).length
+
   return (
-    <>
-      <div className="broadcast">
-        <div>
-          {track.data ? (
-            <TrackMap
-              geometry={track.data}
-              cars={cars}
-              height={360}
-              showCorners={corners}
-              follow={follow}
-            />
-          ) : (
-            <div className="empty" style={{ height: 360 }}>
-              Drawing the circuit…
-            </div>
+    <div className="raceview">
+      {track.data ? (
+        <TrackMap
+          geometry={track.data}
+          cars={cars}
+          showCorners={corners}
+          follow={follow}
+        />
+      ) : (
+        <div className="empty">Drawing the circuit…</div>
+      )}
+
+      <div className="raceview-panel raceview-head">
+        <h2>
+          Lap {live.lap} of {live.laps}
+        </h2>
+        <span className="raceview-key">
+          <span>
+            <i style={{ background: '#35c07a' }} /> DRS {withDrs}
+          </span>
+          <span>
+            <i style={{ background: '#e3a33a' }} /> dirty air {inWake}
+          </span>
+          {live.retired > 0 && (
+            <span>
+              <i style={{ background: '#8b94a3' }} /> out {live.retired}
+            </span>
           )}
-          <div className="inline" style={{ marginTop: 8 }}>
-            <button className="ghost" onClick={() => setCorners((c) => !c)}>
-              {corners ? 'Hide corners' : 'Show corners'}
-            </button>
-            {followed ? (
-              <button className="ghost" onClick={() => setFollow(null)}>
-                Following {followed.driver} — stop
-              </button>
-            ) : (
-              <span className="subtitle" style={{ margin: 0 }}>
-                Pick a car in the tower to follow it. Scroll to zoom, drag to pan.
-              </span>
-            )}
-          </div>
-        </div>
+        </span>
+      </div>
+
+      <div className="raceview-panel raceview-tower">
         <Tower live={live} colourOf={colourOf} follow={follow} onFollow={setFollow} />
       </div>
-      {live.fastest_lap && (
-        <p className="subtitle" style={{ marginBottom: 0, marginTop: 10 }}>
-          Fastest so far: {live.fastest_lap.driver} — {lapTime(live.fastest_lap.lap_time)} on
-          lap {live.fastest_lap.lap}.
-        </p>
-      )}
-    </>
+
+      <div className="raceview-panel raceview-foot">
+        <button className="ghost" onClick={() => setCorners((c) => !c)}>
+          {corners ? 'Hide corners' : 'Corners'}
+        </button>
+        {followed ? (
+          <button className="ghost" onClick={() => setFollow(null)}>
+            Following {followed.driver} — stop
+          </button>
+        ) : (
+          <span className="subtitle" style={{ margin: 0 }}>
+            Pick a car in the tower to follow it · scroll to zoom · drag to pan
+          </span>
+        )}
+        {live.fastest_lap && (
+          <span className="subtitle" style={{ margin: 0 }}>
+            Fastest: {live.fastest_lap.driver} {lapTime(live.fastest_lap.lap_time)}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -261,6 +284,10 @@ export default function LiveTiming({ job }: { job: Job<unknown> }) {
       ? `Lap ${live.lap} of ${live.laps}`
       : `${live.segment} ${live.complete ? 'complete' : 'running'}`
 
+  // A race with cars on the road takes the screen; anything else -- qualifying,
+  // or the moment before the first lap lands -- is a panel like any other.
+  if (live && isLiveRace(live)) return <RaceBoard live={live} />
+
   return (
     <div className="panel">
       <div className="spread" style={{ marginBottom: 10 }}>
@@ -277,8 +304,7 @@ export default function LiveTiming({ job }: { job: Job<unknown> }) {
           ? 'Every car on every lap, and this is where they are.'
           : 'Three knockout segments, each one an order of its own.'}
       </p>
-      {live &&
-        (isLiveRace(live) ? <RaceBoard live={live} /> : <QualifyingBoard live={live} />)}
+      {live && <QualifyingBoard live={live} />}
     </div>
   )
 }

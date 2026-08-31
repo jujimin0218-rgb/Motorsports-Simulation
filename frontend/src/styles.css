@@ -515,3 +515,87 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
 
 .trace-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
 .trace-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* -- watching a race, full screen ----------------------------------------- */
+
+/* The race is the screen.  A circuit drawn small enough to sit above a fold of
+   tables cannot show two cars side by side, which is the thing worth watching,
+   so the map takes the viewport and everything else sits over it. */
+.raceview {
+  position: relative;
+  height: calc(100vh - 44px);
+  min-height: 420px;
+  margin: -8px -26px 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.raceview .trackmap { height: 100%; }
+.raceview .trackmap svg { height: 100%; }
+
+.raceview-panel {
+  position: absolute;
+  background: rgba(12, 14, 18, 0.86);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(6px);
+}
+
+.raceview-tower {
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.raceview-tower .scroll-tall { max-height: none; flex: 1; }
+
+.raceview-head {
+  top: 12px;
+  left: 12px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+.raceview-head h2 { margin: 0; font-size: 15px; }
+
+.raceview-foot {
+  left: 12px;
+  bottom: 12px;
+  right: 376px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.raceview-foot .field { margin-top: 0; flex: 1 1 200px; }
+
+.raceview-events {
+  left: 12px;
+  top: 66px;
+  width: 300px;
+  max-height: 34%;
+  overflow: auto;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.raceview-events div { padding: 2px 0; color: var(--muted); }
+.raceview-events b { color: var(--text); font-weight: 600; }
+
+@media (max-width: 1100px) {
+  .raceview-tower { position: static; width: auto; margin-top: 12px; }
+  .raceview-foot { right: 12px; }
+  .raceview { height: auto; }
+  .raceview .trackmap { height: 420px; }
+}
+
+/* A legend for what the rings on the cars mean. */
+.raceview-key { display: flex; gap: 14px; align-items: center; font-size: 11px; color: var(--dim); }
+.raceview-key span { display: inline-flex; align-items: center; gap: 5px; }
+.raceview-key i {
+  width: 10px; height: 10px; border-radius: 50%; display: inline-block; font-style: normal;
+}
