@@ -235,18 +235,34 @@ class QualifyingSession:
             for entry in self.entries
         }
 
+    @property
+    def laps(self) -> tuple[QualifyingLap, ...]:
+        """Every flying lap that has counted so far.
+
+        Readable while the session is still running, which is what lets a
+        caller show the order building up rather than only the grid it ends
+        with.  Reporting only: the session does not read this back.
+        """
+        return tuple(self._laps)
+
     # -- running it ----------------------------------------------------------
 
     def run(
-        self, on_segment: Callable[[str, int, int], None] | None = None
+        self,
+        on_segment: Callable[[str, int, int], None] | None = None,
+        *,
+        on_lap: Callable[[QualifyingLap], None] | None = None,
     ) -> QualifyingResult:
         """Run every segment and return the grid.
 
         ``on_segment`` is called as each segment finishes, with its name and
-        how many of how many are done.  Qualifying is a couple of minutes of
-        simulation and a caller that cannot say how far along it is has to show
-        a spinner that never moves, which is indistinguishable from a hang.
-        Purely for reporting: nothing it does can change the session.
+        how many of how many are done.  ``on_lap`` is called with every flying
+        lap that counts, as it is set, for a caller that wants to show the
+        order building up rather than three jumps.  Qualifying is a couple of
+        minutes of simulation and a caller that cannot say how far along it is
+        has to show a spinner that never moves, which is indistinguishable
+        from a hang.  Purely for reporting: nothing either does can change the
+        session.
         """
         by_number = {entry.car_number: entry for entry in self.entries}
         surviving = list(by_number)
@@ -255,7 +271,9 @@ class QualifyingSession:
         best: dict[int, Seconds] = {}
 
         for index, segment in enumerate(self.format):
-            times = self._run_segment(segment, [by_number[c] for c in surviving])
+            times = self._run_segment(
+                segment, [by_number[c] for c in surviving], on_lap
+            )
             for car, time in times.items():
                 if car not in best or time < best[car]:
                     best[car] = time
@@ -300,7 +318,10 @@ class QualifyingSession:
     # -- one segment ---------------------------------------------------------
 
     def _run_segment(
-        self, segment: QualifyingSegment, entries: Sequence[RaceEntry]
+        self,
+        segment: QualifyingSegment,
+        entries: Sequence[RaceEntry],
+        on_lap: Callable[[QualifyingLap], None] | None = None,
     ) -> dict[int, Seconds]:
         """Run one segment; return each car's best lap in it."""
         best: dict[int, Seconds] = {}
@@ -318,6 +339,8 @@ class QualifyingSession:
                 if lap is None:
                     continue
                 self._laps.append(lap)
+                if on_lap is not None:
+                    on_lap(lap)
                 if entry.car_number not in best or lap.lap_time < best[entry.car_number]:
                     best[entry.car_number] = lap.lap_time
 
