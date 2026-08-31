@@ -25,6 +25,10 @@ class _Timing:
     def distance_at(self, car: int, moment: float) -> float:
         return moment * 50.0
 
+    def offset_at(self, car: int, moment: float) -> float:
+        """Car 44 runs a metre off the line, car 7 on it."""
+        return 1.0 if car == 44 else 0.0
+
 
 class _Result:
     timing = _Timing()
@@ -73,3 +77,20 @@ def test_drs_is_carried_through_and_not_invented():
 
     assert "DRS" in moves[0]["detail"]
     assert "DRS" not in moves[1]["detail"]
+
+
+def test_a_replay_says_where_across_the_road_each_car_was():
+    """Two cars at the same distance are not in the same place.  Without this
+    the map draws a race as a single file of dots, whatever the cars did."""
+    replay = _replay()
+
+    by_car = {car["car_number"]: car for car in replay.cars}
+    assert by_car[7]["offsets"] == [0.0] * len(by_car[7]["distances"])
+    assert by_car[44]["offsets"] == [1.0] * len(by_car[44]["distances"])
+
+
+def test_the_offsets_line_up_with_the_distances():
+    """They are read together, one sample at a time, so a short list would put
+    a car somewhere it never was."""
+    for car in _replay().cars:
+        assert len(car["offsets"]) == len(car["distances"])

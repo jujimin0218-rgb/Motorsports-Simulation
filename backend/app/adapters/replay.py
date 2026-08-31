@@ -103,12 +103,17 @@ def build_replay(
     for car in numbers:
         until = timing.recorded_until(car)
         distances: list[float] = []
+        offsets: list[float] = []
         for step in range(steps):
             moment = step * interval
             # Past the point a car stopped, it stays where it stopped -- which
             # is the truth about a retirement and is also what a viewer expects
             # to see rather than a car that vanishes.
-            distances.append(round(timing.distance_at(car, min(moment, until)), 1))
+            at = min(moment, until)
+            distances.append(round(timing.distance_at(car, at), 1))
+            # Where across the road, so two cars racing are drawn racing rather
+            # than one on top of the other.
+            offsets.append(round(timing.offset_at(car, at), 2))
         label = labels.get(car, {})
         cars.append(
             {
@@ -118,6 +123,7 @@ def build_replay(
                 "driver_name": label.get("driver_name", str(car)),
                 "team_name": label.get("team_name", ""),
                 "distances": distances,
+                "offsets": offsets,
                 "stopped_at": round(until, 2) if car in retired_at else None,
                 "retired": car in retired_at,
             }

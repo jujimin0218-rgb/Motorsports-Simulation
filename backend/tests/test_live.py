@@ -41,10 +41,12 @@ class _Tower:
         laps: dict[int, int],
         pace: dict[int, float] | None = None,
         stops: dict[int, int] | None = None,
+        offsets: dict[int, float] | None = None,
     ) -> None:
         self._laps = laps
         self._pace = pace or {}
         self._stops = stops or {}
+        self._offsets = offsets or {}
 
     @property
     def cars(self) -> tuple[int, ...]:
@@ -61,6 +63,9 @@ class _Tower:
             for n in range(self._laps[car])
         )
 
+    def offset_at(self, car: int, time: float) -> float:
+        return self._offsets.get(car, 0.0)
+
     def distance_at(self, car: int, time: float) -> float:
         lap_time = 90.0 + self._pace.get(car, 0.0)
         done = min(self._laps[car], time / lap_time)
@@ -68,6 +73,18 @@ class _Tower:
 
     def fastest_lap(self):
         return None
+
+
+class _Track:
+    """A circuit with one DRS zone, so the rule has something to read."""
+
+    length = LAP_LENGTH
+
+    def state_at(self, distance: float):
+        class _State:
+            drs_zone = 0 if 800.0 <= distance <= 1400.0 else None
+
+        return _State()
 
 
 class _Entry:
@@ -84,9 +101,11 @@ class _Session:
         retired: set[int],
         pace: dict[int, float] | None = None,
         stops: dict[int, int] | None = None,
+        offsets: dict[int, float] | None = None,
     ) -> None:
-        self.timing = _Tower(laps, pace, stops)
+        self.timing = _Tower(laps, pace, stops, offsets)
         self.entries = tuple(_Entry(car, car not in retired) for car in sorted(laps))
+        self.track = _Track()
 
 
 LABELS = {
@@ -297,3 +316,46 @@ def test_a_row_carries_the_last_lap_it_set():
     live = build_live(_Session({1: 3}, retired=set(), pace={1: 2.25}), LABELS, lap=3, laps=14)
 
     assert live["order"][0]["last_lap"] == 92.25
+
+
+# -- the fight ----------------------------------------------------------------
+
+
+def test_a_row_says_where_across_the_road_the_car_is():
+    """Two cars at the same distance are not in the same place: the road has a
+    width, and this is where on it each of them is."""
+    session = _Session({1: 5, 2: 5}, retired=set(), offsets={1: -1.2, 2: 1.1})
+
+    live = build_live(session, LABELS, lap=5, laps=14)
+    by_car = {row["car_number"]: row for row in live["order"]}
+
+    assert by_car[1]["offset"] == -1.2
+    assert by_car[2]["offset"] == 1.1
+
+
+def test_a_car_within_a_second_is_in_the_wake_and_the_leader_is_not():
+    session = _Session({1: 5, 2: 5}, retired=set(), pace={2: 0.1})
+
+    live = build_live(session, LABELS, lap=5, laps=14)
+
+    assert live["order"][0]["in_wake"] is False, "nobody is in front of the leader"
+    assert live["order"][1]["in_wake"] is True, "half a second back over five laps"
+
+
+def test_a_car_a_long_way_back_is_in_clean_air():
+    session = _Session({1: 5, 2: 5}, retired=set(), pace={2: 2.0})
+
+    live = build_live(session, LABELS, lap=5, laps=14)
+
+    assert live["order"][1]["in_wake"] is False, "ten seconds is not a wake"
+    assert live["order"][1]["drs"] is False
+
+
+def test_drs_needs_the_zone_as_well_as_the_gap():
+    """Close enough is half of it; the other half is being somewhere the rules
+    allow it."""
+    inside = _Session({1: 5, 2: 5}, retired=set(), pace={2: 0.1})
+    live = build_live(inside, LABELS, lap=5, laps=14)
+    # Five laps of 5412 m puts the cars at the line, which is not a DRS zone.
+    assert live["order"][1]["in_wake"] is True
+    assert live["order"][1]["drs"] is False, "in the wake, but not in a zone"

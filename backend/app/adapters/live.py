@@ -99,6 +99,31 @@ def field_lap(session: Any) -> int:
     return min((session.timing.laps_completed(car) for car in running), default=0)
 
 
+#: Within this many seconds of the car ahead, a car is in its wake.
+#:
+#: The engine's own wake model runs on the same number: inside a second the air
+#: is dirty enough to cost the car behind grip, which is also the gap the rules
+#: use to hand out DRS.
+WAKE_SECONDS = 1.0
+
+
+def _seconds(gap: str) -> float | None:
+    """The seconds in a formatted gap, or None when it is laps or a dash."""
+    try:
+        return abs(float(gap))
+    except ValueError:
+        return None
+
+
+def _in_drs_zone(session: Any, distance: float) -> bool:
+    """Whether this point on the road is inside a DRS zone."""
+    track = session.track
+    try:
+        return track.state_at(distance % track.length).drs_zone is not None
+    except Exception:  # pragma: no cover - a track without zones
+        return False
+
+
 def _gap(laps: int, elapsed: float, to_laps: int, to_elapsed: float) -> str:
     """How far behind a car is: laps if it has lost one, otherwise seconds."""
     if laps < to_laps:
@@ -161,6 +186,8 @@ def build_live(
             # right for drawing a dot and wrong for deciding an order -- so it
             # is used for one and not the other.
             "distance": round(tower.distance_at(car, leader_elapsed), 1),
+            "offset": round(tower.offset_at(car, leader_elapsed), 2),
+            "pitted": bool(getattr(last, "pitted", False)),
             "last_lap": round(last.lap_time, 3),
             "compound": getattr(last, "compound", None),
             "tyre_age": done - (stops[-1] + 1) if stops else done,
@@ -178,9 +205,18 @@ def build_live(
         entry["position"] = position
         started = entry["started"]
         entry["gained"] = None if not started else started - position
+        # In the wake of the car ahead, and entitled to DRS: both are the same
+        # question -- how close is it -- asked of the air and of the rules.
+        behind = _seconds(entry["interval"])
+        entry["in_wake"] = position > 1 and behind is not None and behind < WAKE_SECONDS
+        entry["drs"] = bool(entry["in_wake"]) and _in_drs_zone(
+            session, entry["distance"]
+        )
     for entry in out:
         entry["position"] = None
         entry["gained"] = None
+        entry["in_wake"] = False
+        entry["drs"] = False
 
     fastest = tower.fastest_lap()
     return {

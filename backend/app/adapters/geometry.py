@@ -38,8 +38,12 @@ class TrackGeometry:
     track: str
     name: str
     length: float
-    points: tuple[tuple[float, float, float], ...]
-    """``(distance, x, y)`` around the lap, start line first."""
+    points: tuple[tuple[float, float, float, float], ...]
+    """``(distance, x, y, width)`` around the lap, start line first.
+
+    The width is what makes this a road rather than a line: a plan view that
+    draws a stroke of an arbitrary thickness cannot show two cars side by side,
+    and side by side is what a race is."""
 
     bounds: tuple[float, float, float, float]
     """``(min x, min y, max x, max y)``."""
@@ -58,7 +62,8 @@ class TrackGeometry:
             "name": self.name,
             "length": round(self.length, 2),
             "points": [
-                [round(d, 1), round(x, 2), round(y, 2)] for d, x, y in self.points
+                [round(d, 1), round(x, 2), round(y, 2), round(w, 2)]
+                for d, x, y, w in self.points
             ],
             "bounds": [round(value, 2) for value in self.bounds],
             "sectors": [round(value, 1) for value in self.sectors],
@@ -125,7 +130,7 @@ def build_geometry(track: Track) -> TrackGeometry:
         segment.distance for segment in track.segments if segment.corner_id is not None
     }
 
-    points: list[tuple[float, float, float]] = []
+    points: list[tuple[float, float, float, float]] = []
     last: tuple[float, float] | None = None
     for segment in track.segments:
         spacing = (
@@ -135,15 +140,17 @@ def build_geometry(track: Track) -> TrackGeometry:
             moved = math.hypot(segment.x - last[0], segment.y - last[1])
             if moved < spacing:
                 continue
-        points.append((segment.distance, segment.x, segment.y))
+        points.append(
+            (segment.distance, segment.x, segment.y, track.state_at(segment.distance).track_width)
+        )
         last = (segment.x, segment.y)
 
     # A lap is a loop, so the drawing closes back on the start line.
     first = track.segments[0]
-    points.append((track.length, first.x, first.y))
+    points.append((track.length, first.x, first.y, track.state_at(0.0).track_width))
 
-    xs = [x for _, x, _ in points]
-    ys = [y for _, _, y in points]
+    xs = [x for _, x, _, _ in points]
+    ys = [y for _, _, y, _ in points]
     lane = PitLane.for_track(track.length)
 
     return TrackGeometry(
