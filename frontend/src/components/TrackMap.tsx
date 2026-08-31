@@ -126,7 +126,8 @@ export default function TrackMap({
   geometry: TrackGeometry
   cars?: CarOnTrack[]
   showCorners?: boolean
-  height?: number
+  /** A pixel height, or `"100%"` to fill whatever it is put in. */
+  height?: number | string
   /** Car number to keep centred, so a fight can be watched rather than found. */
   follow?: number | null
 }) {

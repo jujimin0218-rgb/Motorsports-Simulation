@@ -157,7 +157,7 @@ export default function Replay() {
   // so an incident is on screen when it is on screen.
   const happening = [...data.events]
     .filter((event) => (event.lap ?? 0) <= lap)
-    .slice(-6)
+    .slice(-4)
     .reverse()
 
   return (
@@ -187,7 +187,13 @@ export default function Replay() {
       />
 
       <div className="raceview">
-        <TrackMap geometry={geometry.data} cars={cars} showCorners={corners} follow={follow} />
+        <TrackMap
+          geometry={geometry.data}
+          cars={cars}
+          height="100%"
+          showCorners={corners}
+          follow={follow}
+        />
 
         <div className="raceview-panel raceview-head">
           <h2>

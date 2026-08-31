@@ -523,15 +523,23 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
    so the map takes the viewport and everything else sits over it. */
 .raceview {
   position: relative;
-  height: calc(100vh - 44px);
-  min-height: 420px;
-  margin: -8px -26px 0;
+  /* Most of the window, and the same amount of it on every page: tying this to
+     whatever happens to sit underneath makes the map a different size on the
+     replay than on the race. */
+  height: min(72vh, 860px);
+  min-height: 460px;
+  margin: -8px -26px 14px;
   background: var(--bg);
   overflow: hidden;
 }
 
-.raceview .trackmap { height: 100%; }
-.raceview .trackmap svg { height: 100%; }
+/* The tower sits over the right of the map, so the circuit is drawn into what
+   is left rather than under it.  Sized on the container: the SVG carries an
+   inline width of its own and an inline style beats a stylesheet. */
+.raceview .trackmap { height: 100%; width: calc(100% - 404px); }
+@media (max-width: 1100px) {
+  .raceview .trackmap { width: 100%; }
+}
 
 .raceview-panel {
   position: absolute;
@@ -545,12 +553,14 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
   top: 12px;
   right: 12px;
   bottom: 12px;
-  width: 340px;
+  width: 392px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 .raceview-tower .scroll-tall { max-height: none; flex: 1; }
+.raceview-tower .tower td { padding: 4px 6px; }
+.raceview-tower th { padding: 0 6px 6px; }
 
 .raceview-head {
   top: 12px;
@@ -565,7 +575,7 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
 .raceview-foot {
   left: 12px;
   bottom: 12px;
-  right: 376px;
+  right: 428px;
   padding: 10px 14px;
   display: flex;
   align-items: center;
@@ -577,8 +587,8 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
 .raceview-events {
   left: 12px;
   top: 66px;
-  width: 300px;
-  max-height: 34%;
+  width: 264px;
+  max-height: 28%;
   overflow: auto;
   padding: 8px 12px;
   font-size: 12px;

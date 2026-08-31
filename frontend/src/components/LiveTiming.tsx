@@ -184,6 +184,7 @@ function RaceBoard({ live }: { live: LiveRace }) {
         <TrackMap
           geometry={track.data}
           cars={cars}
+          height="100%"
           showCorners={corners}
           follow={follow}
         />
