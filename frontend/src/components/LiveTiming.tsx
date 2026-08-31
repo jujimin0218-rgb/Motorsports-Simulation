@@ -12,9 +12,15 @@
  * like two different games.
  */
 
+import { useState } from 'react'
+
+import TrackMap, { type CarOnTrack } from './TrackMap'
 import { lapTime } from './format'
+import { teamColours } from './teamColour'
 import { Pill } from './ui'
-import type { Job, LiveQualifying, LiveRace } from '../types/api'
+import { useAsync } from '../hooks/useAsync'
+import { api } from '../services/api'
+import type { Job, LiveQualifying, LiveRace, LiveRaceRow } from '../types/api'
 import { isLiveRace } from '../types/api'
 
 /** Seconds since the job started, for a session that cannot say how far along it is. */
@@ -32,37 +38,171 @@ function Bar({ value }: { value: number }) {
   )
 }
 
+/** The tyre a car is on, as a letter and a colour, the way a broadcast shows it. */
+function Tyre({ compound, age }: { compound: string | null; age: number }) {
+  if (!compound) return null
+  const letter = compound[0]?.toUpperCase() ?? '?'
+  const colour =
+    { S: '#e2544a', M: '#e3a33a', H: '#e6e9ee', I: '#35c07a', W: '#4d9be6' }[letter] ??
+    '#8b94a3'
+  return (
+    <span className="tyre" title={`${compound}, ${age} lap${age === 1 ? '' : 's'} old`}>
+      <span className="tyre-mark" style={{ borderColor: colour, color: colour }}>
+        {letter}
+      </span>
+      <span className="num dim">{age}</span>
+    </span>
+  )
+}
+
+/** Places made up on the grid slot, as an arrow rather than a signed number. */
+function Change({ gained }: { gained: number | null }) {
+  if (gained === null || gained === 0) return <span className="dim">–</span>
+  return (
+    <span className={gained > 0 ? 'good' : 'bad'}>
+      {gained > 0 ? '▲' : '▼'}
+      {Math.abs(gained)}
+    </span>
+  )
+}
+
+function Tower({
+  live,
+  colourOf,
+  follow,
+  onFollow,
+}: {
+  live: LiveRace
+  colourOf: (team: string) => string
+  follow: number | null
+  onFollow: (car: number | null) => void
+}) {
+  return (
+    <div className="scroll-tall">
+      <table className="tower">
+        <thead>
+          <tr>
+            <th className="right">#</th>
+            <th />
+            <th>Driver</th>
+            <th className="right">Gap</th>
+            <th className="right">Int</th>
+            <th className="right">Last</th>
+            <th>Tyre</th>
+            <th className="right">Stop</th>
+          </tr>
+        </thead>
+        <tbody>
+          {live.order.map((row) => (
+            <tr
+              key={row.car_number}
+              onClick={() => onFollow(follow === row.car_number ? null : row.car_number)}
+              className={[
+                row.is_player ? 'you' : '',
+                row.retired ? 'dim' : '',
+                follow === row.car_number ? 'followed' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <td className="pos">{row.position ?? '—'}</td>
+              <td style={{ width: 4, padding: 0 }}>
+                <span
+                  style={{
+                    display: 'block',
+                    width: 3,
+                    height: 18,
+                    borderRadius: 2,
+                    background: colourOf(row.team),
+                    opacity: row.retired ? 0.4 : 1,
+                  }}
+                />
+              </td>
+              <td>
+                {row.driver}
+                {row.fastest_lap && (
+                  <span className="tag" style={{ marginLeft: 6, color: '#CC79A7' }}>
+                    FL
+                  </span>
+                )}
+                <span className="tower-team muted">{row.team}</span>
+              </td>
+              <td className="right num">
+                {row.retired ? '' : row.position === 1 ? '—' : row.gap}
+              </td>
+              <td
+                className={`right num ${
+                  !row.retired && row.position !== 1 && row.interval.startsWith('+0.')
+                    ? 'good'
+                    : 'dim'
+                }`}
+              >
+                {row.retired ? <Pill tone="warn">DNF</Pill> : row.position === 1 ? '—' : row.interval}
+              </td>
+              <td className="right num dim">{lapTime(row.last_lap)}</td>
+              <td>
+                <Tyre compound={row.compound} age={row.tyre_age} />
+              </td>
+              <td className="right num dim">
+                <Change gained={row.gained} /> <span className="dim">{row.stops}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function RaceBoard({ live }: { live: LiveRace }) {
+  const track = useAsync(() => api.track(), [])
+  const [follow, setFollow] = useState<number | null>(null)
+  const [corners, setCorners] = useState(false)
+
+  const colourOf = teamColours(live.order.map((row) => row.team))
+  const cars: CarOnTrack[] = live.order.map((row: LiveRaceRow) => ({
+    carNumber: row.car_number,
+    distance: row.distance,
+    label: String(row.position ?? ''),
+    colour: colourOf(row.team),
+    isPlayer: row.is_player,
+    retired: row.retired,
+  }))
+  const followed = live.order.find((row) => row.car_number === follow)
+
   return (
     <>
-      <div className="scroll-tall">
-        <table>
-          <thead>
-            <tr>
-              <th className="right">#</th>
-              <th>Driver</th>
-              <th>Team</th>
-              <th className="right">Gap</th>
-              <th className="right">Interval</th>
-            </tr>
-          </thead>
-          <tbody>
-            {live.order.map((row) => (
-              <tr
-                key={row.car_number}
-                className={`${row.is_player ? 'you' : ''} ${row.retired ? 'dim' : ''}`}
-              >
-                <td className="pos">{row.position ?? '—'}</td>
-                <td>{row.driver}</td>
-                <td className="muted">{row.team}</td>
-                <td className="right num">{row.retired ? '' : row.position === 1 ? '—' : row.gap}</td>
-                <td className="right num dim">
-                  {row.retired ? <Pill tone="warn">DNF</Pill> : row.position === 1 ? '—' : row.interval}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="broadcast">
+        <div>
+          {track.data ? (
+            <TrackMap
+              geometry={track.data}
+              cars={cars}
+              height={360}
+              showCorners={corners}
+              follow={follow}
+            />
+          ) : (
+            <div className="empty" style={{ height: 360 }}>
+              Drawing the circuit…
+            </div>
+          )}
+          <div className="inline" style={{ marginTop: 8 }}>
+            <button className="ghost" onClick={() => setCorners((c) => !c)}>
+              {corners ? 'Hide corners' : 'Show corners'}
+            </button>
+            {followed ? (
+              <button className="ghost" onClick={() => setFollow(null)}>
+                Following {followed.driver} — stop
+              </button>
+            ) : (
+              <span className="subtitle" style={{ margin: 0 }}>
+                Pick a car in the tower to follow it. Scroll to zoom, drag to pan.
+              </span>
+            )}
+          </div>
+        </div>
+        <Tower live={live} colourOf={colourOf} follow={follow} onFollow={setFollow} />
       </div>
       {live.fastest_lap && (
         <p className="subtitle" style={{ marginBottom: 0, marginTop: 10 }}>

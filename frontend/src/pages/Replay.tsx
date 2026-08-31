@@ -13,19 +13,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
+import TelemetryTrace from '../components/TelemetryTrace'
 import TrackMap, { type CarOnTrack } from '../components/TrackMap'
+import { teamColours } from '../components/teamColour'
 import { lapTime, titleCase } from '../components/format'
 import { ErrorNotice, Empty, Loading, PageHead, Panel, Pill } from '../components/ui'
 import { useAsync } from '../hooks/useAsync'
 import { useLoadedGame } from '../hooks/useGame'
 import { api } from '../services/api'
-
-/** Colour-blind-safe, and stable per team so a car keeps its colour. */
-const PALETTE = [
-  '#0072B2', '#E69F00', '#009E73', '#CC79A7',
-  '#56B4E9', '#D55E00', '#F0E442', '#8c8c8c',
-  '#7B68EE', '#2E8B57',
-]
 
 const SPEEDS = [1, 2, 5, 10, 30]
 
@@ -56,6 +51,8 @@ export default function Replay() {
   )
 
   const [step, setStep] = useState(0)
+  /** Cars whose telemetry is on screen. Two compare; more is a tangle. */
+  const [picked, setPicked] = useState<number[]>([])
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(5)
   const timer = useRef<number | null>(null)
@@ -101,8 +98,7 @@ export default function Replay() {
   }
   if (!data || !geometry.data) return <Empty>Nothing to play back yet.</Empty>
 
-  const teams = [...new Set(data.cars.map((car) => car.team))].sort()
-  const colourOf = (teamId: string) => PALETTE[teams.indexOf(teamId) % PALETTE.length]
+  const colourOf = teamColours(data.cars.map((car) => car.team))
 
   const order = [...data.cars]
     .map((car) => ({ car, distance: car.distances[Math.min(step, steps - 1)] ?? 0 }))
@@ -120,6 +116,24 @@ export default function Replay() {
 
   const leader = order[0]?.distance ?? 0
   const lap = Math.min(data.laps, Math.floor(leader / data.lap_length) + 1)
+
+  // Whatever is being watched: the lap on screen, for the cars picked out of
+  // the running order.  A lap run behind a safety car was never simulated as a
+  // lap, so it has no trace and the panel says so rather than drawing nothing.
+  const traced = picked
+    .map((carNumber) => {
+      const car = data.cars.find((c) => c.car_number === carNumber)
+      const samples = data.telemetry?.[String(carNumber)]?.[String(lap)]
+      return car && samples
+        ? {
+            carNumber,
+            driver: car.driver_name,
+            colour: colourOf(car.team),
+            samples,
+          }
+        : null
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
 
   return (
     <>
@@ -225,7 +239,20 @@ export default function Replay() {
                   return (
                     <tr
                       key={car.car_number}
-                      className={car.team === game.player_team ? 'you' : ''}
+                      onClick={() =>
+                        setPicked((now) =>
+                          now.includes(car.car_number)
+                            ? now.filter((n) => n !== car.car_number)
+                            : [...now, car.car_number].slice(-2),
+                        )
+                      }
+                      className={[
+                        car.team === game.player_team ? 'you' : '',
+                        picked.includes(car.car_number) ? 'followed' : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      style={{ cursor: 'pointer' }}
                     >
                       <td className="pos">{index + 1}</td>
                       <td>
@@ -257,6 +284,21 @@ export default function Replay() {
           </div>
         </Panel>
       </div>
+
+      <Panel
+        title={`Telemetry — lap ${lap}`}
+        note="The engine's own lap simulation, kept as the race ran. Pick a car in the order to trace it; two compare."
+      >
+        {traced.length ? (
+          <TelemetryTrace cars={traced} lapLength={data.lap_length} />
+        ) : (
+          <Empty>
+            {picked.length
+              ? `No trace for lap ${lap} — a lap run behind a safety car is not simulated as one.`
+              : 'Pick a car in the running order above.'}
+          </Empty>
+        )}
+      </Panel>
 
       {data.events.length > 0 && (
         <Panel title="What happened" note={`${data.events.length} moments`}>

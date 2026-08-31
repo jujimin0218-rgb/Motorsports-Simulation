@@ -282,6 +282,16 @@ export interface LiveRaceRow extends LiveRow {
   gap: string
   interval: string
   retired: boolean
+  /** Metres round the lap, for the map. Interpolated, unlike the order. */
+  distance: number
+  last_lap: number
+  compound: string | null
+  tyre_age: number
+  stops: number
+  started: number | null
+  /** Places made up on the grid slot, or null for a car that is out. */
+  gained: number | null
+  fastest_lap: boolean
 }
 
 export interface LiveRace {
@@ -508,6 +518,9 @@ export interface ReplayEvent {
   detail?: string
 }
 
+/** One lap of one car: [distance m, speed kph, throttle, brake, DRS]. */
+export type TelemetryLap = number[][]
+
 export interface Replay {
   race_id: string
   track: string
@@ -517,6 +530,8 @@ export interface Replay {
   interval: number
   cars: ReplayCar[]
   events: ReplayEvent[]
+  /** By car number, then by lap. Laps run behind a safety car are absent. */
+  telemetry: Record<string, Record<string, TelemetryLap>>
 }
 
 

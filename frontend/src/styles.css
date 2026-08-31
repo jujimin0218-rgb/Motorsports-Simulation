@@ -441,3 +441,77 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
   .nav-group { display: none; }
   .main { padding: 16px; }
 }
+
+/* -- the circuit, close up ------------------------------------------------ */
+
+.trackmap { position: relative; }
+
+/* Over the map rather than beside it: the controls belong to the picture, and
+   a circuit is wide enough that a column next to it wastes the width. */
+.trackmap-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 8px;
+  background: rgba(12, 14, 18, 0.72);
+  border: 1px solid var(--line);
+}
+.trackmap-zoom button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+.trackmap-zoom .num { font-size: 11px; color: var(--dim); padding: 0 4px; }
+
+/* -- watching a session --------------------------------------------------- */
+
+/* The map and the tower side by side, the way a broadcast puts them, and
+   stacked once there is no longer room for both. */
+.broadcast {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .broadcast { grid-template-columns: minmax(0, 1fr); }
+}
+
+.tower td { padding: 5px 8px; }
+/* A name that wraps doubles the row height and halves how much of the race
+   fits on screen, so the column keeps them on one line. */
+.tower td:nth-child(3) { white-space: nowrap; }
+.tower tbody tr { cursor: pointer; }
+.tower tbody tr.followed td { background: rgba(77, 155, 230, 0.14); }
+.tower-team {
+  display: block;
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tyre { display: inline-flex; align-items: center; gap: 5px; }
+.tyre-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid;
+  border-radius: 50%;
+  font-size: 9.5px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+.trace-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.trace-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
