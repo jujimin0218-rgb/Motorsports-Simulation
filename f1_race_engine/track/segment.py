@@ -141,6 +141,15 @@ class TrackSegment:
     y: Metres
     heading: Radians
 
+    line_offset_start: Metres | None = None
+    line_offset_end: Metres | None = None
+    """Where that line sits across the road, m, positive to the left.
+
+    The solver works this out on its way to the curvature above and it used to
+    be thrown away, which left the road a width the physics knew about and
+    nothing was allowed to be anywhere on.  Kept, it is where a car sits when
+    it is not fighting anybody -- and the thing an overtake needs room beside."""
+
     line_curvature_start: float | None = None
     line_curvature_end: float | None = None
     """Curvature of the line a car actually drives, 1/m, when it differs.
@@ -289,6 +298,20 @@ class TrackSegment:
         return self.line_curvature_start + (
             self.line_curvature_end - self.line_curvature_start
         ) * fraction
+
+    def line_offset_at(self, distance: Metres) -> Metres:
+        """Where the racing line is across the road here, m.
+
+        Zero -- the centreline -- on a circuit whose geometry already describes
+        a driven line, which is what every hand-authored one does.
+        """
+        if self.line_offset_start is None or self.line_offset_end is None:
+            return 0.0
+        if self.length <= 0.0:
+            return self.line_offset_start
+        return lerp(
+            self.line_offset_start, self.line_offset_end, self.local_fraction(distance)
+        )
 
     def elevation_at(self, distance: Metres) -> Metres:
         """Elevation at ``distance``, m."""

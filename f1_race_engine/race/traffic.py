@@ -40,10 +40,44 @@ from ..core.units import MetresPerSecond, Seconds
 from ..driver.model import DriverAttributes
 from ..simulation.traffic import CLEAR, TrafficState
 from ..track.model import Track
+from ..track.racing_line import CAR_WIDTH
 from .timing import TimingTower
 from .wake import CLEAN_AIR, WakeEffect, wake_effect
 
 __all__ = ["OvertakeAttempt", "Traffic"]
+
+#: Metres across the road a car can move per metre along it.
+#:
+#: A line change is a manoeuvre, not a teleport.  At this rate covering a car's
+#: width takes about two hundred metres of road, which at racing speed is the
+#: two or three seconds a real move alongside actually lasts -- and long enough
+#: that a replay sampling every couple of seconds sees the fight rather than
+#: only its result.
+LINE_CHANGE_RATE = 0.01
+
+#: Car lengths behind at which a driver stops sitting directly behind.
+#:
+#: Not the same as being able to pass.  This close the car in front is taking
+#: the air, so the one behind eases off the line to find some -- which is also
+#: where it would have to be to have a look, so a fight starts here rather than
+#: at the moment the move is on.
+LOOKING_LENGTHS = 5.0
+
+#: How much of a car width a driver takes while only looking.
+LOOKING_FRACTION = 0.6
+
+#: Extra metres an attacker aims for beyond simply being alongside.
+#:
+#: Aiming at exactly a car width leaves a move that never quite lands: the car
+#: being passed is moving across too, so the two of them chase each other and
+#: settle a handful of centimetres short of the room a pass needs.
+CLAIM_MARGIN = 0.4
+
+#: How far off the line, m, counts as being on the dirty part of the road.
+#:
+#: Beyond it the car is where the marbles are, which the surface model already
+#: prices; inside it the car is still on the rubber.
+OFF_LINE = 0.75
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,6 +158,9 @@ class Traffic:
     _passed: set[int] = field(default_factory=set, repr=False)
     _was_behind: set[int] = field(default_factory=set, repr=False)
     _last_distance: float = field(default=0.0, repr=False)
+    offset: float = field(default=0.0, repr=False)
+    """Where this car is across the road, m from the line, left positive."""
+
     passes: list[OvertakeAttempt] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
@@ -164,7 +201,9 @@ class Traffic:
         cfg = self.config
         here = self.track.state_at(distance)
         return TrafficState(
-            wake=self._wake(gap, self._is_passable(here.curvature, speed)),
+            wake=self._wake(
+                gap, self._is_passable(here.curvature, speed, here.usable_half_width)
+            ),
             drs_allowed=self._drs_allowed(distance, elapsed, car),
             speed_limit=ahead_speed if gap <= cfg.minimum_gap else float("inf"),
         )
@@ -183,11 +222,19 @@ class Traffic:
         # here whether it took a lunge down the inside or ten laps of pressure.
         overtook = self._check_passed(distance, elapsed)
 
+        here = self.track.state_at(distance)
+        room = here.usable_half_width
+
         nearest = self._nearest_ahead(distance, elapsed, speed)
         if nearest is None:
             self._target = None
+            # Nobody to race: back to the line, at the rate a car changes line.
+            self.offset = self._hold_line(0.0, room, step)
             return TrafficState(
-                wake=CLEAN_AIR, off_line=overtook is not None, passed=overtook
+                wake=CLEAN_AIR,
+                off_line=abs(self.offset) > OFF_LINE,
+                offset=self.offset,
+                passed=overtook,
             )
 
         car, road_gap, ahead_speed = nearest
@@ -195,8 +242,7 @@ class Traffic:
         cfg = self.config
         drs = self._drs_allowed(distance, elapsed, car)
 
-        here = self.track.state_at(distance)
-        passable = self._is_passable(here.curvature, speed)
+        passable = self._is_passable(here.curvature, speed, room)
         wake = self._wake(gap, passable)
         required = self._required_overlap(car)
 
@@ -214,20 +260,53 @@ class Traffic:
             and car not in self._blocked
             and (car, self.car_number) not in self.lap_passes
         )
+
+        # Where to put the car.  A driver who has caught somebody does not wait
+        # until the move is on to leave the line: they sit out of the worst of
+        # the dirty air and show a wheel, and then take the rest of the road
+        # when the move is actually there.  So there are two distances here --
+        # lining up, and committed.
+        theirs = self.timing.offset_at(car, elapsed)
+        committed = move_on and road_gap <= cfg.car_length * cfg.commitment_gap
+        lining_up = road_gap <= cfg.car_length * LOOKING_LENGTHS
+        target = 0.0
+        if committed or lining_up:
+            wanted = (
+                CAR_WIDTH + CLAIM_MARGIN if committed else CAR_WIDTH * LOOKING_FRACTION
+            )
+            # Take the side of the road there is more of.
+            side = 1.0 if theirs <= 0.0 else -1.0
+            target = theirs + side * wanted
+            if abs(target) > room:
+                target = theirs - side * wanted
+                if abs(target) > room:
+                    target = self.offset
+                    committed = False
+        self.offset = self._hold_line(target, room, step)
+
+        # The car in front cannot be driven through, and it cannot be driven
+        # *over* either: getting past means getting alongside first, which
+        # takes road and time.  Until the two of them are a car's width apart
+        # the follower is held at a car length, which is what makes a fight
+        # something that happens over a stretch of track rather than a swap
+        # that resolves the instant the maths says it can.
+        alongside = abs(self.offset - theirs) >= CAR_WIDTH
         closing = max(speed - ahead_speed, 0.0) * step / max(speed, 1.0)
         floor = (
-            0.0 if move_on
+            0.0 if move_on and alongside
             else (cfg.car_length if passable else cfg.minimum_gap * max(speed, 1.0))
         )
         limit = (
             float("inf") if floor <= 0.0
             else (ahead_speed if road_gap - closing <= floor else float("inf"))
         )
+
         return TrafficState(
             wake=wake,
             drs_allowed=drs,
             speed_limit=limit,
-            off_line=move_on and road_gap <= cfg.car_length * cfg.commitment_gap,
+            off_line=abs(self.offset) > OFF_LINE,
+            offset=self.offset,
             passed=overtook,
         )
 
@@ -404,17 +483,37 @@ class Traffic:
         edge = theirs.racecraft - self.attributes.racecraft
         return max(self.config.defence_margin * edge, 0.0)
 
-    def _is_passable(self, curvature: float, speed: MetresPerSecond) -> bool:
+    def _is_passable(
+        self, curvature: float, speed: MetresPerSecond, room: float
+    ) -> bool:
         """Whether a move can be completed here.
 
         Where the road is straight and the car is quick -- which is the end of
         a straight and the braking zone at the end of it, because that is where
-        a car carrying more speed ends up alongside.
+        a car carrying more speed ends up alongside -- *and* where the road is
+        wide enough to hold two cars at once.  A driver alongside on a road
+        with room for one is not overtaking, it is crashing.
         """
         if speed < self.config.passing_speed:
             return False
+        if room < CAR_WIDTH:
+            return False
         radius = math.inf if curvature == 0.0 else abs(1.0 / curvature)
         return radius > self.config.passing_radius
+
+    def _hold_line(self, target: float, room: float, step: float) -> float:
+        """Move this car across the road towards ``target``, as far as it can.
+
+        A car changes line at a speed, not instantly: the rate is metres across
+        per metre along, which is what keeps a dive to the inside a manoeuvre
+        rather than a teleport.
+        """
+        target = max(-room, min(room, target))
+        allowed = LINE_CHANGE_RATE * max(step, 0.0)
+        delta = target - self.offset
+        if abs(delta) <= allowed:
+            return target
+        return self.offset + math.copysign(allowed, delta)
 
     # -- reporting -----------------------------------------------------------
 

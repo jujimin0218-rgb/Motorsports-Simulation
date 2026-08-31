@@ -132,7 +132,7 @@ class Position:
 class TimingTower:
     """Every car's progress, and the questions you can ask of it."""
 
-    __slots__ = ("lap_length", "_records", "_times", "_distances")
+    __slots__ = ("lap_length", "_records", "_times", "_distances", "_offsets")
 
     def __init__(self, lap_length: float) -> None:
         if lap_length <= 0.0:
@@ -142,6 +142,10 @@ class TimingTower:
         # Progress tables, one per car: strictly increasing and index-aligned.
         self._times: dict[int, list[float]] = {}
         self._distances: dict[int, list[float]] = {}
+        # Where across the road the car was, m, left positive.  Index-aligned
+        # with the two above: a car is somewhere on a road that has width, and
+        # a screen that draws it on the centreline cannot show two cars racing.
+        self._offsets: dict[int, list[float]] = {}
 
     # -- filling it in -------------------------------------------------------
 
@@ -150,6 +154,7 @@ class TimingTower:
         self._records.setdefault(car_number, [])
         self._times[car_number] = [elapsed]
         self._distances[car_number] = [0.0]
+        self._offsets[car_number] = [0.0]
 
     def record(self, record: LapRecord, *, sector_lengths: tuple[float, ...] = ()) -> None:
         """Log a completed lap.
@@ -190,6 +195,7 @@ class TimingTower:
         elapsed: float,
         distance: float,
         *,
+        offset: float = 0.0,
         authoritative: bool = False,
     ) -> None:
         """Add one sample, if it is genuinely later and further on than the last.
@@ -208,19 +214,26 @@ class TimingTower:
         """
         times = self._times[car_number]
         distances = self._distances[car_number]
+        offsets = self._offsets[car_number]
         if authoritative:
             while len(times) > 1 and (
                 times[-1] >= elapsed or distances[-1] >= distance
             ):
                 times.pop()
                 distances.pop()
+                offsets.pop()
         if elapsed <= times[-1] or distance <= distances[-1]:
             return
         times.append(elapsed)
         distances.append(distance)
+        offsets.append(offset)
 
     def record_trace(
-        self, car_number: int, times: Sequence[float], distances: Sequence[float]
+        self,
+        car_number: int,
+        times: Sequence[float],
+        distances: Sequence[float],
+        offsets: Sequence[float] | None = None,
     ) -> None:
         """Add fine-grained progress samples for one car.
 
@@ -232,8 +245,9 @@ class TimingTower:
         """
         if car_number not in self._times:
             self.start(car_number)
-        for elapsed, distance in zip(times, distances):
-            self._append(car_number, elapsed, distance)
+        across = offsets if offsets is not None else [0.0] * len(times)
+        for elapsed, distance, offset in zip(times, distances, across):
+            self._append(car_number, elapsed, distance, offset=offset)
 
     # -- asking questions of it ----------------------------------------------
 
@@ -276,6 +290,23 @@ class TimingTower:
         index = bisect.bisect_right(times, time)
         return _interpolate(
             time, times[index - 1], times[index], distances[index - 1], distances[index]
+        )
+
+    def offset_at(self, car_number: int, time: Seconds) -> float:
+        """Where across the road this car was at ``time``, m, left positive.
+
+        Held at the ends rather than extrapolated: a car that has stopped is
+        parked where it stopped, not still drifting across the road.
+        """
+        times = self._times[car_number]
+        offsets = self._offsets[car_number]
+        if time <= times[0]:
+            return offsets[0]
+        if time >= times[-1]:
+            return offsets[-1]
+        index = bisect.bisect_right(times, time)
+        return _interpolate(
+            time, times[index - 1], times[index], offsets[index - 1], offsets[index]
         )
 
     def recorded_until(self, car_number: int) -> Seconds:

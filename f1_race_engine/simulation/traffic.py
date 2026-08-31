@@ -41,6 +41,13 @@ class TrafficState:
     """Whether the car is off the racing line -- committed to a move, and on
     the surface where the marbles are."""
 
+    offset: float = 0.0
+    """Where the car is across the road, m from the line, left positive.
+
+    The road has a width and this is the car's place on it.  Two cars are
+    racing side by side when their offsets differ by a car width, and a move
+    only exists at all where the road is wide enough to hold both."""
+
     passed: int | None = None
     """Car number just overtaken, if the move completed on this segment."""
 
@@ -54,6 +61,7 @@ class TrafficState:
             "drs_allowed": self.drs_allowed,
             "speed_limit": None if self.speed_limit == float("inf") else self.speed_limit,
             "off_line": self.off_line,
+            "offset": self.offset,
             "passed": self.passed,
         }
 

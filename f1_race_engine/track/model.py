@@ -33,6 +33,7 @@ from ..core.units import Curvature, Metres, Radians, radius_from_curvature
 from .banking import BankingProfile
 from .curvature import CurvatureProfile, curvature_profile, summarise_corners
 from .drs import DrsMap
+from .racing_line import CAR_WIDTH, USABLE_FRACTION
 from .elevation import ElevationProfile
 from .geometry import Centerline, centerline_from_segments
 from .segment import KerbType, SegmentKind, SurfaceType, TrackSegment
@@ -76,10 +77,33 @@ class TrackState:
     x: Metres
     y: Metres
     heading: Radians
+    line_offset: Metres = 0.0
+    """Where the racing line sits across the road here, m, left positive.
+
+    A car not fighting anybody is on it.  A car fighting somebody is beside it,
+    which is what the width above is for."""
+
     # Session-dependent surface state; neutral until Phase 10 drives it.
     rubber: float = 0.0
     marbles: float = 0.0
     water_depth: float = 0.0
+
+    @property
+    def usable_half_width(self) -> Metres:
+        """How far either side of the line a car's centre may sit, m.
+
+        The road less the bit nobody uses -- kerbs, the dusty foot by the wall
+        -- and less half a car, because the number is where the middle of the
+        car goes.  Two cars are alongside when their offsets differ by a car
+        width, so this is what says whether a move fits here at all.
+        """
+        room = self.track_width * USABLE_FRACTION * 0.5 - CAR_WIDTH * 0.5
+        return max(room, 0.0)
+
+    def is_alongside(self, offset: Metres, other: Metres) -> bool:
+        """Whether two cars at these offsets are beside each other, not on
+        top of each other."""
+        return abs(offset - other) >= CAR_WIDTH
 
     @property
     def is_corner(self) -> bool:
@@ -282,6 +306,7 @@ class Track:
             x=segment.x,
             y=segment.y,
             heading=segment.heading_at(wrapped),
+            line_offset=segment.line_offset_at(wrapped),
             rubber=rubber,
             marbles=marbles,
             water_depth=water,

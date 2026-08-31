@@ -421,7 +421,9 @@ class RaceSession:
                     traffic=traffic,
                     stride=self._interaction_stride(),
                     run=traffic is None,
-                    on_step=self._recorder(entry.car_number, elapsed[entry.car_number], lap),
+                    on_step=self._recorder(
+                        entry.car_number, elapsed[entry.car_number], lap, traffic
+                    ),
                     start_speed=launch.exit_speed if launch is not None else None,
                 )
 
@@ -791,14 +793,21 @@ class RaceSession:
             key=lambda e: (elapsed[e.car_number], e.car_number),
         )
 
-    def _recorder(self, car: int, started: Seconds, lap: int):
+    def _recorder(self, car: int, started: Seconds, lap: int, traffic: Any = None):
         """A callback that puts this car's progress on the timing tower as it
-        happens, so everybody racing it can see where it is now."""
+        happens, so everybody racing it can see where it is now.
+
+        Where it is includes where across the road it is: the car racing this
+        one reads that to decide whether there is room beside it, and the
+        screen reads it to draw two cars side by side rather than one on top of
+        the other.
+        """
         base = (lap - 1) * self.track.length
         timing = self.timing
 
         def record(at: Seconds, covered: float) -> None:
-            timing.record_trace(car, (started + at,), (base + covered,))
+            across = 0.0 if traffic is None else traffic.offset
+            timing.record_trace(car, (started + at,), (base + covered,), (across,))
 
         return record
 

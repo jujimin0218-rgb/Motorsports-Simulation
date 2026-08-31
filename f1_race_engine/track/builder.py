@@ -439,6 +439,8 @@ def _apply_racing_line(segments: list[TrackSegment]) -> list[TrackSegment]:
             line_curvature_start=0.5 * (line.curvature[i - 1] + line.curvature[i]),
             line_curvature_end=0.5
             * (line.curvature[i] + line.curvature[(i + 1) % count]),
+            line_offset_start=0.5 * (line.offset[i - 1] + line.offset[i]),
+            line_offset_end=0.5 * (line.offset[i] + line.offset[(i + 1) % count]),
         )
         for i, segment in enumerate(segments)
     ]
