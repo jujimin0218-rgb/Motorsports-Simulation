@@ -19,6 +19,7 @@ import { lapTime, ordinal, percent, titleCase } from '../components/format'
 import LiveTiming from '../components/LiveTiming'
 import WeatherPanel from '../components/WeatherPanel'
 import { ErrorNotice, Notice, PageHead, Panel, Pill } from '../components/ui'
+import { useAsync } from '../hooks/useAsync'
 import { useGame, useLoadedGame } from '../hooks/useGame'
 import { ApiFailure, api, runJob } from '../services/api'
 import type {
@@ -54,6 +55,11 @@ const LABEL: Record<RoundPhase, string> = {
 export default function RaceWeekend() {
   const game = useLoadedGame()
   const { refresh } = useGame()
+
+  // Fetched when the page opens rather than when the race starts: the circuit
+  // is a few hundred kilobytes and the server is busy simulating by then, so
+  // asking for it at lights-out leaves the first laps on the schematic.
+  const world = useAsync(() => api.trackWorld(), [])
 
   const [busy, setBusy] = useState<string | null>(null)
   const [job, setJob] = useState<Job<unknown> | null>(null)
@@ -145,7 +151,7 @@ export default function RaceWeekend() {
       <ErrorNotice error={error} />
 
       {job && (job.status === 'pending' || job.status === 'running') && (
-        <LiveTiming job={job} />
+        <LiveTiming job={job} world={world.data} />
       )}
 
       {!job && (

@@ -21,7 +21,14 @@ import { teamColours } from './teamColour'
 import { Pill } from './ui'
 import { useAsync } from '../hooks/useAsync'
 import { api } from '../services/api'
-import type { Job, LiveQualifying, LiveRace, LiveRaceRow, WorldCar } from '../types/api'
+import type {
+  Job,
+  LiveQualifying,
+  LiveRace,
+  LiveRaceRow,
+  TrackWorld,
+  WorldCar,
+} from '../types/api'
 import { isLiveRace } from '../types/api'
 
 /** Seconds since the job started, for a session that cannot say how far along it is. */
@@ -155,9 +162,8 @@ function Tower({
   )
 }
 
-function RaceBoard({ live }: { live: LiveRace }) {
+function RaceBoard({ live, world }: { live: LiveRace; world: TrackWorld | null }) {
   const track = useAsync(() => api.track(), [])
-  const world = useAsync(() => api.trackWorld(), [])
   const [follow, setFollow] = useState<number | null>(null)
   const [corners, setCorners] = useState(false)
   // Two pictures of the same race: the schematic for where everybody is round
@@ -179,9 +185,9 @@ function RaceBoard({ live }: { live: LiveRace }) {
   }))
   const followed = live.order.find((row) => row.car_number === follow)
 
-  const placed: WorldCar[] = world.data
+  const placed: WorldCar[] = world
     ? live.order.map((row) => {
-        const at = placeOnWorld(world.data!, row.distance, row.offset)
+        const at = placeOnWorld(world, row.distance, row.offset)
         return {
           car_number: row.car_number,
           x: at.x,
@@ -203,8 +209,8 @@ function RaceBoard({ live }: { live: LiveRace }) {
 
   return (
     <div className="raceview">
-      {laidOut && world.data ? (
-        <WorldMap world={world.data} cars={placed} height="100%" follow={follow} />
+      {laidOut && world ? (
+        <WorldMap world={world} cars={placed} height="100%" follow={follow} />
       ) : track.data ? (
         <TrackMap
           geometry={track.data}
@@ -301,7 +307,14 @@ function QualifyingBoard({ live }: { live: LiveQualifying }) {
   )
 }
 
-export default function LiveTiming({ job }: { job: Job<unknown> }) {
+export default function LiveTiming({
+  job,
+  world = null,
+}: {
+  job: Job<unknown>
+  /** The laid-out circuit, fetched by the page before the race starts. */
+  world?: TrackWorld | null
+}) {
   const live = job.live
   const racing = job.kind === 'race'
 
@@ -317,7 +330,7 @@ export default function LiveTiming({ job }: { job: Job<unknown> }) {
 
   // A race with cars on the road takes the screen; anything else -- qualifying,
   // or the moment before the first lap lands -- is a panel like any other.
-  if (live && isLiveRace(live)) return <RaceBoard live={live} />
+  if (live && isLiveRace(live)) return <RaceBoard live={live} world={world} />
 
   return (
     <div className="panel">
