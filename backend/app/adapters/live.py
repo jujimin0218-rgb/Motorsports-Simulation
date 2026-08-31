@@ -121,15 +121,13 @@ def build_live(
     split the replay adapter works either side of.
     """
     tower = session.timing
-    running = {entry.car_number for entry in session.entries if entry.running}
+    entries = {entry.car_number: entry for entry in session.entries}
+    running = {car for car, entry in entries.items() if entry.running}
 
     # Ranked on laps done and then race time at the line, which is how a
-    # classification is built -- rather than on where the cars are between two
-    # lines, which is a guess made by interpolation.  The engine anchors every
-    # car's trace at time zero even though a standing start releases them one
-    # to three seconds apart, so that guess has the whole field away together
-    # and gets the opening laps wrong.  A lap record does not: the launch is
-    # inside the elapsed time it carries.
+    # classification is built, rather than on a position interpolated between
+    # two lines.  A lap record needs no interpolation and carries the launch
+    # inside its elapsed time.
     standings: list[tuple[int, float, int]] = []
     for car in tower.cars:
         records = tower.records(car)
@@ -140,12 +138,16 @@ def build_live(
     standings.sort(key=lambda row: (-row[0], row[1]))
 
     leader_laps, leader_elapsed, _ = standings[0]
+    fastest = tower.fastest_lap()
 
     order: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
     previous: tuple[int, float] | None = None
     for done, elapsed, car in standings:
         label = labels.get(car, {})
+        records = tower.records(car)
+        last = records[-1]
+        stops = [index for index, r in enumerate(records) if getattr(r, "pitted", False)]
         entry = {
             "car_number": car,
             "driver": label.get("driver") or str(car),
@@ -155,6 +157,16 @@ def build_live(
             "gap": _gap(done, elapsed, leader_laps, leader_elapsed),
             "interval": "—" if previous is None else _gap(done, elapsed, *previous),
             "retired": car not in running,
+            # Where the car is on the road, for the map.  Interpolated, which is
+            # right for drawing a dot and wrong for deciding an order -- so it
+            # is used for one and not the other.
+            "distance": round(tower.distance_at(car, leader_elapsed), 1),
+            "last_lap": round(last.lap_time, 3),
+            "compound": getattr(last, "compound", None),
+            "tyre_age": done - (stops[-1] + 1) if stops else done,
+            "stops": len(stops),
+            "started": getattr(entries.get(car), "grid_position", None),
+            "fastest_lap": fastest is not None and fastest.car_number == car,
         }
         # A car that has stopped is not racing anybody, so it drops out of the
         # order rather than holding a position on the road it is parked beside.
@@ -164,8 +176,11 @@ def build_live(
 
     for position, entry in enumerate(order, start=1):
         entry["position"] = position
+        started = entry["started"]
+        entry["gained"] = None if not started else started - position
     for entry in out:
         entry["position"] = None
+        entry["gained"] = None
 
     fastest = tower.fastest_lap()
     return {

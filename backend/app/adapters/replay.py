@@ -14,7 +14,7 @@ show its own history.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from f1_race_engine.race import RaceResult
@@ -42,6 +42,11 @@ class Replay:
     interval: float
     cars: tuple[dict[str, Any], ...]
     events: tuple[dict[str, Any], ...]
+    telemetry: dict[str, dict[str, list[list[float]]]] = field(default_factory=dict)
+    """What the car was doing, by car number then lap.
+
+    The engine's own lap simulation, kept rather than recomputed: the numbers
+    in here are the ones that produced the lap time above them."""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -53,6 +58,7 @@ class Replay:
             "interval": self.interval,
             "cars": list(self.cars),
             "events": list(self.events),
+            "telemetry": self.telemetry,
         }
 
 
@@ -63,11 +69,14 @@ def build_replay(
     lap_length: float,
     labels: dict[int, dict[str, str]],
     interval: float = SAMPLE_SECONDS,
+    telemetry: dict[str, dict[str, list[list[float]]]] | None = None,
 ) -> Replay:
     """Sample the race into a track that can be played back.
 
     ``labels`` maps a car number to its driver and team ids, because the engine
-    knows car numbers and the game knows who was in them.
+    knows car numbers and the game knows who was in them.  ``telemetry`` is what
+    the cars were doing while they covered that distance, collected as the race
+    ran because the lap that produced it is gone by the time it finishes.
     """
     timing = result.timing
     numbers = list(timing.cars)
@@ -155,6 +164,7 @@ def build_replay(
         interval=interval,
         cars=tuple(cars),
         events=tuple(events),
+        telemetry=telemetry or {},
     )
 
 

@@ -242,7 +242,7 @@ class RaceSession:
         "track", "entries", "laps", "ambient", "conditions", "config",
         "rng", "events", "timing", "weather", "evolution", "pit_lane",
         "standing_start", "launches", "racing", "overtakes",
-        "race_control", "incidents", "hazards",
+        "race_control", "incidents", "hazards", "telemetry",
         "_simulators", "_sector_lengths", "_ahead_of", "_just_passed",
         "_combat_laps", "_green_reference", "_green_profiles",
     )
@@ -264,6 +264,7 @@ class RaceSession:
         pit_lane: PitLane | None = None,
         standing_start: bool = False,
         hazards: bool = True,
+        telemetry: int = 0,
     ) -> None:
         self.entries = tuple(entries)
         if not self.entries:
@@ -295,6 +296,10 @@ class RaceSession:
         against and a much faster thing to run."""
 
         self.hazards = hazards
+        # Keep every Nth sample of each car's lap, or nothing at zero.  A race
+        # is twenty cars simulated on every lap, so recording all of it is a
+        # deliberate choice a caller makes rather than the default.
+        self.telemetry = telemetry
         """Whether cars can break, spin and hit each other.
 
         On by default, because a race simulation in which nothing ever goes
@@ -411,7 +416,8 @@ class RaceSession:
                     tyre_state=entry.tyres,
                     ers_state=entry.energy,
                     qualifying=qualifying,
-                    record_telemetry=False,
+                    record_telemetry=self.telemetry > 0,
+                    telemetry_stride=max(1, self.telemetry),
                     traffic=traffic,
                     stride=self._interaction_stride(),
                     run=traffic is None,

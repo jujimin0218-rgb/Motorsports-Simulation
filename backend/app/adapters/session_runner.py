@@ -214,6 +214,7 @@ def run_race(
     laps: int | None = None,
     on_lap: Callable[..., None] | None = None,
     on_start: Callable[..., None] | None = None,
+    telemetry: int = 0,
 ) -> tuple[RaceResult, list[FieldEntry], RoundConditions]:
     """Run the grand prix.
 
@@ -258,6 +259,7 @@ def run_race(
         racing=racing,
         hazards=hazards,
         standing_start=True,
+        telemetry=telemetry,
     )
     if on_start is not None:
         on_start(session, field)

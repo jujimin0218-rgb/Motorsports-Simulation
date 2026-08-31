@@ -45,6 +45,34 @@ __all__ = [
     "start_round",
 ]
 
+#: Keep every Nth telemetry sample of every lap of every car.
+#:
+#: The lap simulation produces a sample every few metres, which is more than a
+#: trace needs to be read: at ten it is about seventy-five points a lap, one
+#: every seventy metres, which draws every braking zone and puts a quarter
+#: distance race under a megabyte rather than over twenty.
+TELEMETRY_STRIDE = 10
+
+
+def _trace(samples: Any) -> list[list[float]]:
+    """One lap, as the few channels a chart actually draws.
+
+    Compact on purpose: a race is twenty cars over every lap, and named keys
+    per sample would be most of the file.  Gear is not here because the engine
+    does not model a gearbox -- it reports ``None`` -- and a column of nulls is
+    worse than an honest absence.
+    """
+    return [
+        [
+            round(sample.distance, 1),
+            round(sample.speed_kph, 1),
+            round(sample.throttle, 3),
+            round(sample.brake, 3),
+            1 if sample.drs else 0,
+        ]
+        for sample in samples
+    ]
+
 
 @dataclass(frozen=True, slots=True)
 class RoundReport:
@@ -214,14 +242,29 @@ def run_race(
         raise RaceAlreadyCompleted(f"round {entry.number} has already been run")
 
     grid_numbers = _grid_car_numbers(state, entry)
+
+    # The lap that produced a telemetry trace is gone once the race moves on,
+    # so it is kept here as it happens rather than recomputed afterwards from a
+    # car whose tyres and fuel have since changed.
+    traces: dict[str, dict[str, list[list[float]]]] = {}
+
+    def collect(race_entry: Any, lap_result: Any) -> None:
+        samples = getattr(lap_result, "telemetry", None)
+        if samples:
+            car = traces.setdefault(str(race_entry.car_number), {})
+            car[str(lap_result.lap)] = _trace(samples)
+        if on_lap is not None:
+            on_lap(race_entry, lap_result)
+
     result, field, weather = session_runner.run_race(
         state,
         entry.number,
         grid=grid_numbers,
         hazards=hazards and state.settings.hazards,
         laps=state.laps_for(entry.number),
-        on_lap=on_lap,
+        on_lap=collect,
         on_start=on_start,
+        telemetry=TELEMETRY_STRIDE,
     )
     pole = grid_numbers[0] if grid_numbers else None
 
@@ -261,6 +304,7 @@ def run_race(
                 }
                 for item in field
             },
+            telemetry=traces,
         ).to_dict(),
     )
 

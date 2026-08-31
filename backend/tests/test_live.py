@@ -3,11 +3,14 @@
 Three things are worth pinning here, and each one was a bug.
 
 The race stopped advancing at the first retirement, because the car that
-stopped never reported another lap.  The order was read off interpolated
-positions, which the engine anchors at time zero for every car even though a
-standing start releases them a second and a half apart -- so the opening laps
-came out scrambled.  And qualifying arrived in three jumps rather than building
-up as the laps were set.
+stopped never reported another lap.  The order was read off positions
+interpolated between two lines rather than off the lap records, which are what
+a classification is actually built from.  And qualifying arrived in three jumps
+rather than building up as the laps were set.
+
+The order and the dot on the map come from different places on purpose: an
+order is a fact the lap records already carry, and a position between two lines
+is a guess -- fine for drawing a car, not for deciding who is ahead.
 """
 
 from __future__ import annotations
@@ -15,9 +18,15 @@ from __future__ import annotations
 from app.adapters.live import build_live, build_live_qualifying, field_lap
 
 
+LAP_LENGTH = 5412.0
+
+
 class _Record:
-    def __init__(self, elapsed: float) -> None:
+    def __init__(self, elapsed: float, lap_time: float, *, pitted: bool = False) -> None:
         self.elapsed = elapsed
+        self.lap_time = lap_time
+        self.compound = "medium"
+        self.pitted = pitted
 
 
 class _Tower:
@@ -27,9 +36,15 @@ class _Tower:
     who is quicker without inventing a physics model.
     """
 
-    def __init__(self, laps: dict[int, int], pace: dict[int, float] | None = None) -> None:
+    def __init__(
+        self,
+        laps: dict[int, int],
+        pace: dict[int, float] | None = None,
+        stops: dict[int, int] | None = None,
+    ) -> None:
         self._laps = laps
         self._pace = pace or {}
+        self._stops = stops or {}
 
     @property
     def cars(self) -> tuple[int, ...]:
@@ -40,16 +55,26 @@ class _Tower:
 
     def records(self, car: int) -> tuple[_Record, ...]:
         lap_time = 90.0 + self._pace.get(car, 0.0)
-        return tuple(_Record((n + 1) * lap_time) for n in range(self._laps[car]))
+        stopped_on = self._stops.get(car)
+        return tuple(
+            _Record((n + 1) * lap_time, lap_time, pitted=(n + 1) == stopped_on)
+            for n in range(self._laps[car])
+        )
+
+    def distance_at(self, car: int, time: float) -> float:
+        lap_time = 90.0 + self._pace.get(car, 0.0)
+        done = min(self._laps[car], time / lap_time)
+        return done * LAP_LENGTH
 
     def fastest_lap(self):
         return None
 
 
 class _Entry:
-    def __init__(self, car: int, running: bool) -> None:
+    def __init__(self, car: int, running: bool, grid_position: int | None = None) -> None:
         self.car_number = car
         self.running = running
+        self.grid_position = grid_position if grid_position is not None else car
 
 
 class _Session:
@@ -58,8 +83,9 @@ class _Session:
         laps: dict[int, int],
         retired: set[int],
         pace: dict[int, float] | None = None,
+        stops: dict[int, int] | None = None,
     ) -> None:
-        self.timing = _Tower(laps, pace)
+        self.timing = _Tower(laps, pace, stops)
         self.entries = tuple(_Entry(car, car not in retired) for car in sorted(laps))
 
 
@@ -228,3 +254,46 @@ def test_a_running_segment_is_not_a_result():
     )
 
     assert running["complete"] is False and settled["complete"] is True
+
+
+# -- what the broadcast screen needs ------------------------------------------
+
+
+def test_a_row_carries_where_the_car_is_for_the_map():
+    """The order comes off lap records; the dot on the circuit cannot -- a car
+    between two lines has to be interpolated, and that is what this is for."""
+    live = build_live(_Session({1: 4, 2: 4}, retired=set(), pace={2: 30.0}), LABELS, lap=4, laps=14)
+
+    leader, second = live["order"]
+    assert leader["distance"] == 4 * LAP_LENGTH
+    assert 0 < second["distance"] < leader["distance"], "still short of the line"
+
+
+def test_a_row_carries_the_tyre_and_the_stops():
+    session = _Session({1: 10, 2: 10}, retired=set(), stops={1: 6})
+
+    live = build_live(session, LABELS, lap=10, laps=14)
+    by_car = {row["car_number"]: row for row in live["order"]}
+
+    assert by_car[1]["stops"] == 1
+    assert by_car[1]["tyre_age"] == 4, "four laps since it came out of the pits"
+    assert by_car[2]["stops"] == 0
+    assert by_car[2]["tyre_age"] == 10, "never stopped, so the tyres are the race"
+    assert by_car[1]["compound"] == "medium"
+
+
+def test_a_row_says_what_the_car_has_gained_on_its_grid_slot():
+    # Car 2 starts second and leads; car 1 starts first and is second.
+    session = _Session({1: 8, 2: 8}, retired=set(), pace={1: 0.5})
+
+    live = build_live(session, LABELS, lap=8, laps=14)
+    by_car = {row["car_number"]: row for row in live["order"]}
+
+    assert (by_car[2]["position"], by_car[2]["started"], by_car[2]["gained"]) == (1, 2, 1)
+    assert (by_car[1]["position"], by_car[1]["started"], by_car[1]["gained"]) == (2, 1, -1)
+
+
+def test_a_row_carries_the_last_lap_it_set():
+    live = build_live(_Session({1: 3}, retired=set(), pace={1: 2.25}), LABELS, lap=3, laps=14)
+
+    assert live["order"][0]["last_lap"] == 92.25
