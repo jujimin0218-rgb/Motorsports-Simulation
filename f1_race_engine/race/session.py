@@ -351,12 +351,17 @@ class RaceSession:
     ) -> RaceResult:
         """Run the session and classify it."""
         elapsed = {entry.car_number: 0.0 for entry in self.entries}
-        for entry in self.entries:
-            self.timing.start(entry.car_number)
         if self.standing_start:
             self.launches = self._launch_field()
             for car, launch in self.launches.items():
                 elapsed[car] = launch.total
+        # Each car joins the tower when it reaches the line, not when the
+        # lights go out.  Anchoring the whole field at zero has them away
+        # together, and everything that reads a position between two lines --
+        # the running order, a gap, whether a car is close enough to attack --
+        # then works off a first lap that never happened.
+        for entry in self.entries:
+            self.timing.start(entry.car_number, elapsed=elapsed[entry.car_number])
 
         for lap in range(1, self.laps + 1):
             lap_times: list[float] = []
