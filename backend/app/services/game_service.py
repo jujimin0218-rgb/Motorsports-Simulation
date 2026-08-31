@@ -17,6 +17,7 @@ import logging
 import threading
 from typing import Any
 
+from ..adapters.live import build_live, build_live_qualifying, field_lap
 from ..game.calendar import RoundPhase
 from ..game.errors import InvalidGamePhase, SaveNotFound, UnknownEntity
 from ..game.newgame import available_teams, new_game
@@ -315,38 +316,97 @@ class GameService:
             raise InvalidGamePhase("the season is over")
         entry.require(RoundPhase.QUALIFYING)
 
+        session: Any = None
+        labels: dict[int, dict[str, Any]] = {}
+
+        def on_start(started: Any, field: Any) -> None:
+            nonlocal session
+            session = started
+            labels.update(_labels_for(state, field))
+
+        segments_done = 0
+
         def work(job: Job) -> dict[str, Any]:
+            # Every flying lap that counts moves the board, so the order builds
+            # up the way it does on a timing screen rather than arriving in
+            # three jumps.
+            def lap_set(lap: Any) -> None:
+                job.live = build_live_qualifying(
+                    session,
+                    labels,
+                    segment=lap.segment,
+                    done=segments_done,
+                    total=len(session.format),
+                    complete=False,
+                )
+
             def segment_done(name: str, done: int, total: int) -> None:
+                nonlocal segments_done
+                segments_done = done
                 job.detail = f"{name} complete"
                 job.progress = done / total
+                # A finished segment is a result of its own -- who is through
+                # and who is out -- so it is marked as one.
+                job.live = build_live_qualifying(
+                    session,
+                    labels,
+                    segment=name,
+                    done=done,
+                    total=total,
+                    complete=True,
+                )
 
             with self._lock:
                 job.detail = "Q1 running"
-                report = round_service.run_qualifying(state, on_segment=segment_done)
+                report = round_service.run_qualifying(
+                    state,
+                    on_segment=segment_done,
+                    on_lap=lap_set,
+                    on_start=on_start,
+                )
                 self._touch()
                 return report.to_dict()
 
         return self._jobs.submit("qualifying", work, detail="qualifying")
 
     def run_race_job(self) -> Job:
-        """Start the grand prix, reporting laps as it goes."""
+        """Start the grand prix, showing it as it goes.
+
+        The job carries the timing screen, not just a fraction: a race is
+        minutes long and a bar creeping across says the same thing whether the
+        player is leading it or three laps down.
+        """
         state = self.state
         entry = state.current_round
         if entry is None:
             raise InvalidGamePhase("the season is over")
         entry.require(RoundPhase.STRATEGY)
         total = max(1, state.laps_for(entry.number))
-        seen: dict[int, int] = {}
+
+        session: Any = None
+        labels: dict[int, dict[str, Any]] = {}
+        published = 0
+
+        def on_start(started: Any, field: Any) -> None:
+            nonlocal session
+            session = started
+            labels.update(_labels_for(state, field))
 
         def on_lap(race_entry: Any, lap_result: Any) -> None:
-            done = seen.get(race_entry.car_number, 0) + 1
-            seen[race_entry.car_number] = done
-            job.progress = min(0.99, min(seen.values()) / total)
+            nonlocal published
+            lap = field_lap(session)
+            if lap <= published:
+                return
+            published = lap
+            job.progress = min(0.99, lap / total)
+            job.live = build_live(session, labels, lap=lap, laps=total)
 
         def work(current: Job) -> dict[str, Any]:
             with self._lock:
                 current.detail = f"racing {total} laps"
-                report = round_service.run_race(state, on_lap=on_lap)
+                report = round_service.run_race(
+                    state, on_lap=on_lap, on_start=on_start
+                )
                 self._touch()
                 return report.to_dict()
 
@@ -496,3 +556,19 @@ class GameService:
             )
             self._touch()
             return result
+
+
+def _labels_for(state: GameState, field: Any) -> dict[int, dict[str, Any]]:
+    """Who is in which car, for a screen that shows a session as it runs.
+
+    The engine works in car numbers and the game knows the names behind them,
+    which is the same seam the replay is built across.
+    """
+    return {
+        item.car_number: {
+            "driver": state.driver(item.driver_id).name,
+            "team": state.team(item.team_id).name,
+            "is_player": item.team_id == state.player_team,
+        }
+        for item in field
+    }

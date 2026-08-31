@@ -128,18 +128,29 @@ def run_practice(state: GameState) -> RoundReport:
     )
 
 
-def run_qualifying(state: GameState, *, on_segment: Any = None) -> RoundReport:
+def run_qualifying(
+    state: GameState,
+    *,
+    on_segment: Any = None,
+    on_lap: Any = None,
+    on_start: Any = None,
+) -> RoundReport:
     """Run the engine's knockout qualifying and set the grid.
 
     ``on_segment`` is the engine's per-segment callback, passed straight
     through -- which is how a job reports progress on something that takes a
-    couple of minutes.
+    couple of minutes.  ``on_start`` goes with it, and is what lets that job
+    show each segment's order rather than only how many are done.
     """
     entry = _current(state)
     entry.require(RoundPhase.QUALIFYING)
 
     result, field, weather = session_runner.run_qualifying(
-        state, entry.number, on_segment=on_segment
+        state,
+        entry.number,
+        on_segment=on_segment,
+        on_lap=on_lap,
+        on_start=on_start,
     )
     by_number = {item.car_number: item for item in field}
     entry.grid = [
@@ -184,6 +195,7 @@ def run_race(
     *,
     hazards: bool = True,
     on_lap: Any = None,
+    on_start: Any = None,
 ) -> RoundReport:
     """Run the grand prix, score it, and file it.
 
@@ -193,6 +205,8 @@ def run_race(
 
     ``on_lap`` is the engine's own per-lap callback, passed straight through --
     which is how a job reports progress on something that takes minutes.
+    ``on_start`` goes with it, and is what lets that job show the race rather
+    than only how far through it is.
     """
     entry = _current(state)
     entry.require(RoundPhase.STRATEGY)
@@ -207,6 +221,7 @@ def run_race(
         hazards=hazards and state.settings.hazards,
         laps=state.laps_for(entry.number),
         on_lap=on_lap,
+        on_start=on_start,
     )
     pole = grid_numbers[0] if grid_numbers else None
 

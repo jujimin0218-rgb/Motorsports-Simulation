@@ -45,6 +45,14 @@ class Job:
     """0 to 1, when the work can say.  A race reports the laps it has run."""
 
     detail: str = ""
+    live: Any = None
+    """What the work can show *while* it runs.
+
+    A grand prix is minutes long and the interesting part is the middle of it.
+    A bar creeping along says only that something is happening; this is where
+    the work says what -- who is leading, by how much, on which lap -- so the
+    client can show the race rather than a wait for one."""
+
     result: Any = None
     error: str = ""
     error_code: str = ""
@@ -61,6 +69,8 @@ class Job:
             "started_at": self.started_at,
             "finished_at": self.finished_at,
         }
+        if self.live is not None:
+            payload["live"] = self.live
         if self.status is JobStatus.DONE:
             payload["result"] = self.result
         if self.status is JobStatus.FAILED:

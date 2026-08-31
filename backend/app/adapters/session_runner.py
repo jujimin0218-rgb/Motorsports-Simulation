@@ -169,6 +169,8 @@ def run_qualifying(
     *,
     ambient: AmbientConditions | None = None,
     on_segment: Callable[[str, int, int], None] | None = None,
+    on_lap: Callable[..., None] | None = None,
+    on_start: Callable[..., None] | None = None,
 ) -> tuple[QualifyingResult, list[FieldEntry], RoundConditions]:
     """Run knockout qualifying and produce a grid.
 
@@ -196,7 +198,9 @@ def run_qualifying(
         evolution=weather.evolution,
         fuel_mass=QUALIFYING_FUEL_KG,
     )
-    return session.run(on_segment), field, weather
+    if on_start is not None:
+        on_start(session, field)
+    return session.run(on_segment, on_lap=on_lap), field, weather
 
 
 def run_race(
@@ -209,12 +213,19 @@ def run_race(
     hazards: bool = True,
     laps: int | None = None,
     on_lap: Callable[..., None] | None = None,
+    on_start: Callable[..., None] | None = None,
 ) -> tuple[RaceResult, list[FieldEntry], RoundConditions]:
     """Run the grand prix.
 
     ``grid`` is the qualifying order as car numbers.  Left empty, the field
     lines up in entry order -- which is what a round run without qualifying
     does, and is useful for testing and for a quick simulation.
+
+    ``on_start`` is handed the session and the field once both are built and
+    before a wheel turns.  A caller that wants to show the race while it runs
+    needs the timing tower it is being written into and the names to put
+    against the car numbers, and this is the only moment both exist and the
+    race has not started.
     """
     circuit = state.circuit_for(round_number)
     entry_round = state.round(round_number)
@@ -248,6 +259,8 @@ def run_race(
         hazards=hazards,
         standing_start=True,
     )
+    if on_start is not None:
+        on_start(session, field)
     return session.run(on_lap=on_lap), field, weather
 
 
