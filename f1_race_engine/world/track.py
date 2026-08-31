@@ -110,10 +110,36 @@ class SurfaceBand:
     outer: tuple[float, ...]
 
     def polygon(self, centre: tuple[Vec2, ...]) -> tuple[Vec2, ...]:
-        """The band as a closed ring, ready to be filled."""
+        """The band as one closed ring round the whole lap."""
         near = project_polyline(centre, self.inner)
         far = project_polyline(centre, self.outer)
         return near + tuple(reversed(far))
+
+    def rings(self, centre: tuple[Vec2, ...], *, least: float = 0.05) -> list[tuple[Vec2, ...]]:
+        """The band as the pieces of it that actually have width.
+
+        A gravel trap exists at the corners and nowhere else, and grass exists
+        everywhere the gravel does not.  Carried as one ring round the lap each
+        would be mostly a line of zero width -- points that draw nothing and
+        cost as much to send as the ones that do.
+        """
+        near = project_polyline(centre, self.inner)
+        far = project_polyline(centre, self.outer)
+        out: list[tuple[Vec2, ...]] = []
+        run: list[int] = []
+        count = len(centre)
+        for index in range(count + 1):
+            at = index % count
+            wide = abs(self.outer[at] - self.inner[at]) > least
+            if wide and index < count:
+                run.append(at)
+                continue
+            if len(run) > 1:
+                out.append(
+                    tuple(near[i] for i in run) + tuple(far[i] for i in reversed(run))
+                )
+            run = []
+        return out
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,12 +301,10 @@ class TrackWorld:
             "bands": [
                 {
                     "surface": band.surface.value,
-                    "polygon": [
-                        [round(p.x, 2), round(p.y, 2)]
-                        for p in band.polygon(self.centre)
-                    ],
+                    "polygon": [[round(p.x, 2), round(p.y, 2)] for p in ring],
                 }
                 for band in self.bands
+                for ring in band.rings(self.centre)
             ],
             "barriers": [
                 [[round(p.x, 2), round(p.y, 2)] for p in wall.points]
@@ -362,6 +386,15 @@ def build_world(track: Track, *, step: float = STEP_M) -> TrackWorld:
     )
 
     bands: list[SurfaceBand] = []
+    # The road itself, so a renderer fills what it is given in the order it
+    # arrives rather than working out where the asphalt is a second time.
+    bands.append(
+        SurfaceBand(
+            Surface.TRACK,
+            tuple(-w for w in half),
+            tuple(half),
+        )
+    )
     for side in (1.0, -1.0):
         white = tuple(side * w for w in half)
         kerb_out = tuple(side * (half[i] + kerbed[i]) for i in range(count))

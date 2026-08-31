@@ -15,12 +15,13 @@
 import { useState } from 'react'
 
 import TrackMap, { type CarOnTrack } from './TrackMap'
+import WorldMap, { placeOnWorld } from './WorldMap'
 import { lapTime } from './format'
 import { teamColours } from './teamColour'
 import { Pill } from './ui'
 import { useAsync } from '../hooks/useAsync'
 import { api } from '../services/api'
-import type { Job, LiveQualifying, LiveRace, LiveRaceRow } from '../types/api'
+import type { Job, LiveQualifying, LiveRace, LiveRaceRow, WorldCar } from '../types/api'
 import { isLiveRace } from '../types/api'
 
 /** Seconds since the job started, for a session that cannot say how far along it is. */
@@ -156,8 +157,12 @@ function Tower({
 
 function RaceBoard({ live }: { live: LiveRace }) {
   const track = useAsync(() => api.track(), [])
+  const world = useAsync(() => api.trackWorld(), [])
   const [follow, setFollow] = useState<number | null>(null)
   const [corners, setCorners] = useState(false)
+  // Two pictures of the same race: the schematic for where everybody is round
+  // the lap, the laid-out circuit for what is happening on a piece of road.
+  const [laidOut, setLaidOut] = useState(true)
 
   const colourOf = teamColours(live.order.map((row) => row.team))
   const cars: CarOnTrack[] = live.order.map((row: LiveRaceRow) => ({
@@ -174,13 +179,33 @@ function RaceBoard({ live }: { live: LiveRace }) {
   }))
   const followed = live.order.find((row) => row.car_number === follow)
 
+  const placed: WorldCar[] = world.data
+    ? live.order.map((row) => {
+        const at = placeOnWorld(world.data!, row.distance, row.offset)
+        return {
+          car_number: row.car_number,
+          x: at.x,
+          y: at.y,
+          heading: at.heading,
+          label: String(row.position ?? ''),
+          colour: colourOf(row.team),
+          is_player: row.is_player,
+          retired: row.retired,
+          drs: row.drs,
+          in_wake: row.in_wake,
+        }
+      })
+    : []
+
   const racing = live.order.filter((row) => !row.retired)
   const inWake = racing.filter((row) => row.in_wake).length
   const withDrs = racing.filter((row) => row.drs).length
 
   return (
     <div className="raceview">
-      {track.data ? (
+      {laidOut && world.data ? (
+        <WorldMap world={world.data} cars={placed} height="100%" follow={follow} />
+      ) : track.data ? (
         <TrackMap
           geometry={track.data}
           cars={cars}
@@ -216,9 +241,14 @@ function RaceBoard({ live }: { live: LiveRace }) {
       </div>
 
       <div className="raceview-panel raceview-foot">
-        <button className="ghost" onClick={() => setCorners((c) => !c)}>
-          {corners ? 'Hide corners' : 'Corners'}
+        <button className="ghost" onClick={() => setLaidOut((on) => !on)}>
+          {laidOut ? 'Schematic' : 'Track'}
         </button>
+        {!laidOut && (
+          <button className="ghost" onClick={() => setCorners((c) => !c)}>
+            {corners ? 'Hide corners' : 'Corners'}
+          </button>
+        )}
         {followed ? (
           <button className="ghost" onClick={() => setFollow(null)}>
             Following {followed.driver} — stop

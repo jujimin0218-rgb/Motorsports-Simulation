@@ -286,6 +286,21 @@ class GameService:
         geometry = build_geometry(track_for(circuit))
         return {**geometry.to_dict(), "circuit": circuit.to_dict()}
 
+    def track_world(self, round_number: int | None = None) -> dict[str, Any]:
+        """The circuit a round is driven on, as a place rather than a line.
+
+        The same circuit as the plan view above, laid out with everything
+        outside the white line: kerbs, run-off, grass, gravel, the walls and
+        the pit lane.  What a screen needs to show a car leaving the road.
+        """
+        from ..adapters.session_runner import track_for
+        from ..adapters.world2d import world_payload
+
+        state = self.state
+        number = round_number or state.current_round_number
+        circuit = state.circuit_for(min(number, len(state.calendar)))
+        return {**world_payload(track_for(circuit)), "circuit": circuit.to_dict()}
+
     def history(self) -> list[dict[str, Any]]:
         return [record.to_dict() for record in self.state.history]
 

@@ -206,6 +206,14 @@ def read_track(
     return service.track_geometry(round)
 
 
+@router.get("/track/world", summary="The same circuit as a place, with what is beside it")
+def read_track_world(
+    round: int | None = Query(default=None, description="Defaults to the current round."),
+    service: GameService = Depends(get_service),
+) -> dict[str, Any]:
+    return service.track_world(round)
+
+
 # -- jobs --------------------------------------------------------------------
 
 

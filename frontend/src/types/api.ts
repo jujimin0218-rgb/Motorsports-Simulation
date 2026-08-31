@@ -505,6 +505,40 @@ export interface TrackGeometry {
   circuit: Circuit
 }
 
+/** A strip of one surface, as a closed ring in metres. */
+export interface WorldBand {
+  surface: string
+  polygon: [number, number][]
+}
+
+/** The circuit as a place: what is under a car and what is beside the road. */
+export interface TrackWorld {
+  name: string
+  length: number
+  step: number
+  centre: [number, number][]
+  half_width: number[]
+  bands: WorldBand[]
+  barriers: [number, number][][]
+  pit_path: [number, number][]
+  bounds: [number, number, number, number]
+  circuit: Circuit
+}
+
+/** A car on that place, at the size the physics collides. */
+export interface WorldCar {
+  car_number: number
+  x: number
+  y: number
+  heading: number
+  label: string
+  colour: string
+  is_player?: boolean
+  retired?: boolean
+  drs?: boolean
+  in_wake?: boolean
+}
+
 export interface ReplayCar {
   car_number: number
   driver: string

@@ -35,6 +35,7 @@ import type {
   Standings,
   TeamRow,
   TrackGeometry,
+  TrackWorld,
   Upgrade,
   WinterReport,
 } from '../types/api'
@@ -159,6 +160,8 @@ export const api = {
   replay: (raceId: string) => get<Replay>(`/api/race/${raceId}/replay`),
   track: (round?: number) =>
     get<TrackGeometry>(`/api/track${round ? `?round=${round}` : ''}`),
+  trackWorld: (round?: number) =>
+    get<TrackWorld>(`/api/track/world${round ? `?round=${round}` : ''}`),
 
   // -- running a weekend ---------------------------------------------------
   startRound: () => post<Record<string, unknown>>('/api/round/start'),

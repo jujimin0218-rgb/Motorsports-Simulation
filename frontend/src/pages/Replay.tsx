@@ -15,6 +15,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import TelemetryTrace from '../components/TelemetryTrace'
 import TrackMap, { type CarOnTrack } from '../components/TrackMap'
+import WorldMap, { placeOnWorld } from '../components/WorldMap'
 import { teamColours } from '../components/teamColour'
 import { lapTime, titleCase } from '../components/format'
 import { ErrorNotice, Empty, Loading, PageHead, Panel, Pill } from '../components/ui'
@@ -52,11 +53,16 @@ export default function Replay() {
     () => api.track(finished > 0 ? finished : undefined),
     [finished],
   )
+  const world = useAsync(
+    () => api.trackWorld(finished > 0 ? finished : undefined),
+    [finished],
+  )
 
   const [step, setStep] = useState(0)
   /** Cars whose telemetry is on screen. Two compare; more is a tangle. */
   const [picked, setPicked] = useState<number[]>([])
   const [corners, setCorners] = useState(false)
+  const [laidOut, setLaidOut] = useState(true)
   /** A car to keep centred, so a fight can be watched rather than found. */
   const [follow, setFollow] = useState<number | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -187,13 +193,35 @@ export default function Replay() {
       />
 
       <div className="raceview">
-        <TrackMap
-          geometry={geometry.data}
-          cars={cars}
-          height="100%"
-          showCorners={corners}
-          follow={follow}
-        />
+        {laidOut && world.data ? (
+          <WorldMap
+            world={world.data}
+            cars={order.map(({ car, distance, offset }, index) => {
+              const at = placeOnWorld(world.data!, distance, offset)
+              return {
+                car_number: car.car_number,
+                x: at.x,
+                y: at.y,
+                heading: at.heading,
+                label: String(index + 1),
+                colour: colourOf(car.team),
+                is_player: car.team === game.player_team,
+                retired: car.stopped_at !== null && elapsed >= car.stopped_at,
+                in_wake: index > 0 && order[index - 1].distance - distance < WAKE_METRES,
+              }
+            })}
+            height="100%"
+            follow={follow}
+          />
+        ) : (
+          <TrackMap
+            geometry={geometry.data}
+            cars={cars}
+            height="100%"
+            showCorners={corners}
+            follow={follow}
+          />
+        )}
 
         <div className="raceview-panel raceview-head">
           <h2>
@@ -263,9 +291,14 @@ export default function Replay() {
                 </option>
               ))}
             </select>
-            <button className="ghost" onClick={() => setCorners((c) => !c)}>
-              {corners ? 'Hide corners' : 'Corners'}
+            <button className="ghost" onClick={() => setLaidOut((on) => !on)}>
+              {laidOut ? 'Schematic' : 'Track'}
             </button>
+            {!laidOut && (
+              <button className="ghost" onClick={() => setCorners((c) => !c)}>
+                {corners ? 'Hide corners' : 'Corners'}
+              </button>
+            )}
           </div>
         </div>
 
