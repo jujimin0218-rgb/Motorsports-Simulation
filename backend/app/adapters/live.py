@@ -99,6 +99,14 @@ def field_lap(session: Any) -> int:
     return min((session.timing.laps_completed(car) for car in running), default=0)
 
 
+def _gap(laps: int, elapsed: float, to_laps: int, to_elapsed: float) -> str:
+    """How far behind a car is: laps if it has lost one, otherwise seconds."""
+    if laps < to_laps:
+        down = to_laps - laps
+        return f"+{down}L"
+    return f"+{elapsed - to_elapsed:.3f}"
+
+
 def build_live(
     session: Any,
     labels: dict[int, dict[str, Any]],
@@ -115,38 +123,44 @@ def build_live(
     tower = session.timing
     running = {entry.car_number for entry in session.entries if entry.running}
 
-    # Read the tower at the moment the leader completed this lap.  Only cars
-    # still circulating can say when that was: a car that stopped on lap two
-    # has its last record back there, and taking the earliest of *those* would
-    # show the race as it stood when it retired rather than as it stands now.
-    started = [car for car in tower.cars if tower.laps_completed(car) > 0]
-    if not started:
+    # Ranked on laps done and then race time at the line, which is how a
+    # classification is built -- rather than on where the cars are between two
+    # lines, which is a guess made by interpolation.  The engine anchors every
+    # car's trace at time zero even though a standing start releases them one
+    # to three seconds apart, so that guess has the whole field away together
+    # and gets the opening laps wrong.  A lap record does not: the launch is
+    # inside the elapsed time it carries.
+    standings: list[tuple[int, float, int]] = []
+    for car in tower.cars:
+        records = tower.records(car)
+        if records:
+            standings.append((len(records), records[-1].elapsed, car))
+    if not standings:
         return {"lap": lap, "laps": laps, "order": [], "retired": 0}
-    circulating = [car for car in started if car in running]
-    at = (
-        min(tower.recorded_until(car) for car in circulating)
-        if circulating
-        # Nobody left running: show where the race got to, not where it began.
-        else max(tower.recorded_until(car) for car in started)
-    )
+    standings.sort(key=lambda row: (-row[0], row[1]))
+
+    leader_laps, leader_elapsed, _ = standings[0]
 
     order: list[dict[str, Any]] = []
     out: list[dict[str, Any]] = []
-    for row in tower.snapshot_at(at):
-        label = labels.get(row.car_number, {})
+    previous: tuple[int, float] | None = None
+    for done, elapsed, car in standings:
+        label = labels.get(car, {})
         entry = {
-            "car_number": row.car_number,
-            "driver": label.get("driver") or str(row.car_number),
+            "car_number": car,
+            "driver": label.get("driver") or str(car),
             "team": label.get("team") or "",
             "is_player": bool(label.get("is_player")),
-            "laps_completed": row.laps_completed,
-            "gap": row.gap_to_leader.formatted,
-            "interval": row.interval.formatted,
-            "retired": row.car_number not in running,
+            "laps_completed": done,
+            "gap": _gap(done, elapsed, leader_laps, leader_elapsed),
+            "interval": "—" if previous is None else _gap(done, elapsed, *previous),
+            "retired": car not in running,
         }
         # A car that has stopped is not racing anybody, so it drops out of the
         # order rather than holding a position on the road it is parked beside.
         (out if entry["retired"] else order).append(entry)
+        if not entry["retired"]:
+            previous = (done, elapsed)
 
     for position, entry in enumerate(order, start=1):
         entry["position"] = position
@@ -159,7 +173,7 @@ def build_live(
         "laps": laps,
         "order": order + out,
         "retired": len(out),
-        "leader_elapsed": round(at, 2),
+        "leader_elapsed": round(leader_elapsed, 2),
         "fastest_lap": None
         if fastest is None
         else {

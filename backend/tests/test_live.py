@@ -1,9 +1,13 @@
-"""A race shown while it is still running.
+"""A session shown while it is still running.
 
-Two things here, and the first is why the second exists.  A grand prix is
-minutes of simulation, so the client is shown something as it goes -- and what
-it was shown before was a fraction that stopped moving at the first
-retirement, because the car that stopped never reported another lap.
+Three things are worth pinning here, and each one was a bug.
+
+The race stopped advancing at the first retirement, because the car that
+stopped never reported another lap.  The order was read off interpolated
+positions, which the engine anchors at time zero for every car even though a
+standing start releases them a second and a half apart -- so the opening laps
+came out scrambled.  And qualifying arrived in three jumps rather than building
+up as the laps were set.
 """
 
 from __future__ import annotations
@@ -11,13 +15,21 @@ from __future__ import annotations
 from app.adapters.live import build_live, build_live_qualifying, field_lap
 
 
-class _Tower:
-    """The slice of the engine's timing tower a live screen asks for."""
+class _Record:
+    def __init__(self, elapsed: float) -> None:
+        self.elapsed = elapsed
 
-    def __init__(self, laps: dict[int, int]) -> None:
+
+class _Tower:
+    """The slice of the engine's timing tower a live screen asks for.
+
+    ``pace`` is seconds a lap on top of ninety, which is how these tests say
+    who is quicker without inventing a physics model.
+    """
+
+    def __init__(self, laps: dict[int, int], pace: dict[int, float] | None = None) -> None:
         self._laps = laps
-        self.asked_at: float | None = None
-        """The moment the screen was read at, which is the thing worth checking."""
+        self._pace = pace or {}
 
     @property
     def cars(self) -> tuple[int, ...]:
@@ -26,32 +38,12 @@ class _Tower:
     def laps_completed(self, car: int) -> int:
         return self._laps[car]
 
-    def recorded_until(self, car: int) -> float:
-        return 90.0 * self._laps[car]
+    def records(self, car: int) -> tuple[_Record, ...]:
+        lap_time = 90.0 + self._pace.get(car, 0.0)
+        return tuple(_Record((n + 1) * lap_time) for n in range(self._laps[car]))
 
     def fastest_lap(self):
         return None
-
-    def snapshot_at(self, time: float):
-        self.asked_at = time
-        return tuple(
-            _Position(index + 1, car, self._laps[car])
-            for index, car in enumerate(sorted(self._laps, key=lambda c: -self._laps[c]))
-        )
-
-
-class _Gap:
-    def __init__(self, text: str) -> None:
-        self.formatted = text
-
-
-class _Position:
-    def __init__(self, position: int, car: int, laps: int) -> None:
-        self.position = position
-        self.car_number = car
-        self.laps_completed = laps
-        self.gap_to_leader = _Gap("+1.204")
-        self.interval = _Gap("+0.512")
 
 
 class _Entry:
@@ -61,8 +53,13 @@ class _Entry:
 
 
 class _Session:
-    def __init__(self, laps: dict[int, int], retired: set[int]) -> None:
-        self.timing = _Tower(laps)
+    def __init__(
+        self,
+        laps: dict[int, int],
+        retired: set[int],
+        pace: dict[int, float] | None = None,
+    ) -> None:
+        self.timing = _Tower(laps, pace)
         self.entries = tuple(_Entry(car, car not in retired) for car in sorted(laps))
 
 
@@ -73,9 +70,12 @@ LABELS = {
 }
 
 
+# -- how far the race has got -------------------------------------------------
+
+
 def test_a_retirement_does_not_stop_the_race_advancing():
-    """The bug this file exists for: car 3 stopped on lap 2 and the race went
-    on without it, so the race is on lap 9, not lap 2."""
+    """Car 3 stopped on lap 2 and the race went on without it, so the race is
+    on lap 9 -- not parked on lap 2 for the rest of the afternoon."""
     session = _Session({1: 10, 2: 9, 3: 2}, retired={3})
 
     assert field_lap(session) == 9
@@ -93,13 +93,47 @@ def test_a_field_that_has_all_stopped_reports_nothing_rather_than_raising():
     assert field_lap(session) == 0
 
 
+# -- the order ----------------------------------------------------------------
+
+
+def test_the_order_is_laps_first_then_time_at_the_line():
+    """Car 2 is quicker but a lap down, and a lap beats a second."""
+    session = _Session({1: 10, 2: 9, 3: 10}, retired=set(), pace={2: -5.0, 3: 1.0})
+
+    live = build_live(session, LABELS, lap=9, laps=14)
+
+    assert [row["car_number"] for row in live["order"]] == [1, 3, 2]
+    assert live["order"][2]["gap"] == "+1L"
+
+
+def test_the_gap_is_the_time_the_lap_record_carries():
+    """Not a distance interpolated between two lines -- which is the reading
+    the standing start makes wrong."""
+    session = _Session({1: 5, 2: 5}, retired=set(), pace={2: 0.4})
+
+    live = build_live(session, LABELS, lap=5, laps=14)
+
+    assert live["order"][0]["gap"] == "+0.000"
+    assert live["order"][1]["gap"] == "+2.000", "0.4s a lap over five laps"
+    assert live["order"][1]["interval"] == "+2.000"
+    assert live["leader_elapsed"] == 450.0
+
+
+def test_the_interval_is_to_the_car_ahead_not_to_the_leader():
+    session = _Session({1: 4, 2: 4, 3: 4}, retired=set(), pace={2: 0.5, 3: 1.0})
+
+    live = build_live(session, LABELS, lap=4, laps=14)
+
+    assert [row["gap"] for row in live["order"]] == ["+0.000", "+2.000", "+4.000"]
+    assert [row["interval"] for row in live["order"]] == ["—", "+2.000", "+2.000"]
+
+
 def test_the_screen_names_the_drivers_and_marks_the_player():
     live = build_live(_Session({1: 10, 2: 9, 3: 2}, retired={3}), LABELS, lap=9, laps=14)
 
     assert live["lap"] == 9 and live["laps"] == 14
     assert [row["driver"] for row in live["order"]][:2] == ["Ravi Tanaka", "Leon Salgado"]
     assert live["order"][0]["is_player"] is True
-    assert live["order"][0]["gap"] and live["order"][0]["interval"]
 
 
 def test_a_stopped_car_drops_out_of_the_order_rather_than_holding_a_place():
@@ -115,12 +149,33 @@ def test_a_stopped_car_drops_out_of_the_order_rather_than_holding_a_place():
     assert live["order"][-1]["retired"], "a car that is out belongs at the bottom"
 
 
+def test_a_stopped_car_does_not_become_the_car_a_gap_is_measured_to():
+    """Car 3 parked on lap 2 with the shortest elapsed time of anybody.  It is
+    not leading, and nobody's interval is to it."""
+    session = _Session({1: 10, 2: 10, 3: 2}, retired={3})
+
+    live = build_live(session, LABELS, lap=10, laps=14)
+
+    assert live["order"][0]["car_number"] == 1
+    assert live["order"][1]["interval"] == "+0.000", "measured to car 1, not to car 3"
+
+
+def test_a_race_everybody_retired_from_still_shows_where_it_got_to():
+    live = build_live(_Session({1: 6, 2: 4}, retired={1, 2}), LABELS, lap=4, laps=14)
+
+    assert len(live["order"]) == 2 and live["retired"] == 2
+    assert all(row["position"] is None for row in live["order"])
+
+
 def test_an_unknown_car_still_gets_a_row():
     """A label that is missing is a naming problem, not a reason to lose a car."""
     live = build_live(_Session({1: 3, 9: 3}, retired=set()), LABELS, lap=3, laps=5)
 
     assert {row["car_number"] for row in live["order"]} == {1, 9}
     assert [row for row in live["order"] if row["car_number"] == 9][0]["driver"] == "9"
+
+
+# -- qualifying ---------------------------------------------------------------
 
 
 class _Lap:
@@ -173,26 +228,3 @@ def test_a_running_segment_is_not_a_result():
     )
 
     assert running["complete"] is False and settled["complete"] is True
-
-
-def test_the_screen_is_read_at_the_leaders_time_not_a_stopped_cars():
-    """The bug this caught: a car that retired on lap 2 still has its last
-    record back on lap 2, so reading the tower at the earliest record showed
-    the race as it stood when that car stopped -- and the leader appeared to
-    change every lap for the rest of the grand prix."""
-    session = _Session({1: 10, 2: 9, 3: 2}, retired={3})
-
-    build_live(session, LABELS, lap=9, laps=14)
-
-    # 90s a lap in the stub: car 2 is the slowest still running, on lap 9.
-    assert session.timing.asked_at == 90.0 * 9
-    assert session.timing.asked_at != 90.0 * 2, "that is where the retired car stopped"
-
-
-def test_a_race_everybody_retired_from_still_shows_where_it_got_to():
-    session = _Session({1: 6, 2: 4}, retired={1, 2})
-
-    live = build_live(session, LABELS, lap=4, laps=14)
-
-    assert session.timing.asked_at == 90.0 * 6
-    assert len(live["order"]) == 2 and live["retired"] == 2
