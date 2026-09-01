@@ -237,7 +237,7 @@ export class Driver {
    * other, and every fight ends in the barriers.
    */
   private targetOffset(i: number, view: RaceView, here: number): number {
-    let aim = this.aimOffset(i) + this.lateralBias(view)
+    let aim = this.aimOffset(i) + this.lateralBias(view, this.lastSpeed)
     if (view.laneHold !== null && view.laneWeight > 0) {
       aim = lerp(aim, view.laneHold, view.laneWeight)
     }
@@ -302,6 +302,7 @@ export class Driver {
     const mass = this.spec.mass + state.fuel
     const mu = this.spec.grip * view.gripFactor * tyreGrip(state)
     this.lastIndex = at.i
+    this.lastSpeed = v
     // Plan on the air the driver expects to have, not the air it has this
     // instant. A car that will still be in somebody's wake at the apex has to
     // brake for the downforce it will have *there*, and one that plans on the
@@ -639,7 +640,7 @@ export class Driver {
     if (inFront && !inFront.inPit && inFront.gap > 0 && inFront.gap < 140) {
       {
         const attacking = view.racing &&
-          (this.intent === 'attacking' || this.intent === 'switchback')
+          (this.intent === 'attacking' || this.intent === 'switchback' || this.probing)
         // The gap a driver actually holds is a time, not a distance -- half a
         // second at any speed. An attacker holds less of it, which is how it
         // gets close enough to have a look and why it is in the dirty air.
@@ -773,7 +774,7 @@ export class Driver {
    * wants it. Sitting a little offset in traffic is not decoration -- it is
    * how a driver gets air over the front wing and how they show a wheel.
    */
-  private lateralBias(view: RaceView): number {
+  private lateralBias(view: RaceView, v: number): number {
     const ahead = view.ahead
     if (!ahead || ahead.gap > FIGHT_GAP || ahead.inPit) return 0
     if (this.intent === 'attacking' || this.intent === 'switchback') return 0
@@ -784,11 +785,55 @@ export class Driver {
     const side = ahead.lateral >= 0 ? -1 : 1
     const closeness = clamp(1 - ahead.gap / FIGHT_GAP, 0, 1)
     const bending = Math.abs(this.circuit.k[this.circuit.wrap(this.lastIndex)]) > 1 / 400
+
+    // Pulling out to pass.
+    //
+    // A quicker driver on a straight does not sit in the mirrors waiting for
+    // a corner: it moves right across, into clean air and out from behind the
+    // car in front.  It also *has* to, because the car in front only stops
+    // limiting this one's speed once it is no longer in front of it -- so a
+    // driver that never pulls out can never complete a pass on a straight,
+    // however much quicker it is, which is what used to happen to all twenty
+    // of them.
+    // Only in range and only genuinely quicker, though: a driver two seconds
+    // back that sits out at the edge of the road all the way down the straight
+    // is off the line, off the grip and slower for nothing.
+    const inRange = ahead.gap < CAR_LENGTH * 4
+    const quicker = v > ahead.speed + 1.2 || view.drsAllowed
+    if (this.probing && !bending && inRange && quicker) {
+      // Away from them, and toward whichever side of the road has the room
+      // when they are near the middle of it. Eased in with the gap so it is a
+      // move across rather than a jump.
+      const edge = this.circuit.limit(this.lastIndex)
+      const out = Math.abs(ahead.offset) > 0.4
+        ? -Math.sign(ahead.offset)
+        : (this.aimOffset(this.lastIndex) >= 0 ? -1 : 1)
+      const commit = clamp(1 - (ahead.gap - CAR_LENGTH) / (CAR_LENGTH * 3), 0.25, 1)
+      const wanted = ahead.offset + out * CAR_WIDTH * 1.9 * commit
+      return clamp(wanted, -edge, edge) - this.aimOffset(this.lastIndex)
+    }
+
     return side * closeness * 0.9 * (bending ? 0.3 : 1)
   }
 
   /** Where the car was last located, for the bits that need it out of band. */
   private lastIndex = 0
+
+  /** And how fast it was going, for the same reason. */
+  private lastSpeed = 0
+
+  /**
+   * Closing the gap deliberately, to be near enough to try something.
+   *
+   * A driver who wants a move does not wait for the gap to shut itself: it
+   * shuts it, on the run down to the braking zone, and takes the dirty air
+   * that costs.  Without this the two halves of the model deadlock -- the
+   * car-following gap is half a second, a move is only on inside about a car
+   * length and a half at turn-in, and so nothing in the field ever got close
+   * enough to attempt one.  Twenty cars, five laps, three position changes and
+   * not a single overtake attempted, which is not racing.
+   */
+  private probing = false
 
   /**
    * The decision: which line to be on, and how hard to commit to it.
@@ -814,6 +859,7 @@ export class Driver {
 
     if (this.recovering > 0) {
       this.intent = 'recovering'
+      this.probing = false
       this.switchTo('racing')
       this.commitment = 0.9
       return
@@ -829,6 +875,17 @@ export class Driver {
 
     // -- am I racing anybody? ------------------------------------------------
     const chasing = ahead !== null && !ahead.inPit && ahead.gap < FIGHT_GAP * 2.2
+
+    // Close it down when there is something to close it down for: near enough
+    // to be racing, not being pulled away from, and a driver with any interest
+    // in trying.  This is what puts the car in range for the move it decides
+    // on a moment later, and the dirty air and the tyre temperature it costs
+    // are charged by the physics, not by a rule.
+    this.probing =
+      view.racing && chasing && ahead !== null &&
+      (ahead.gap < FIGHT_GAP * 1.6 || view.drsAllowed) &&
+      v > ahead.speed - 5 &&
+      t.aggression > 0.12
 
     if (!planning || cornerAhead === null) {
       // On a straight: line up behind, take the tow, and get to whichever side
@@ -885,7 +942,13 @@ export class Driver {
       // Is there a hole? A move is on when the attacker will be close enough
       // at turn-in that it can be alongside by the apex, and there is road to
       // be alongside on.
-      const canReach = projected < 14 && projected > -2
+      // Close enough at turn-in to be alongside by the apex. Scaled by the
+      // braking zone the corner has: into a heavy one a driver can genuinely
+      // arrive from three car lengths back and be level at the apex, and a
+      // lunge from the edge of that is exactly the move that sometimes does
+      // not come off.
+      const reach = 12 + Math.min(10, cornerAhead.entryStraight * 0.035)
+      const canReach = projected < reach && projected > -2
       const worthTrying = closing > -1.5 || view.drsAllowed || ahead.gap < 8
 
       if (canReach && roomToPass && worthTrying) {

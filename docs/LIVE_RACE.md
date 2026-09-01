@@ -183,6 +183,38 @@ Where it stands now, ten laps and twenty cars at Bahrain:
 * two yellows, three virtual safety cars, one safety car;
 * fastest lap 1:27.6.
 
+**Nobody used to overtake anybody.** Twenty cars, five laps, three position
+changes and not one pass attempted — and every one of the pieces was there.
+Three things were wrong, and each of them hid the next:
+
+* **The two halves of the model deadlocked.**  The car-following gap was half
+  a second; a move was only judged on inside about a car length and a half at
+  turn-in; and the attacker only held the shorter gap once it was *already*
+  attacking.  Nothing could bootstrap.  A driver now closes the gap on purpose
+  when there is something to close it for, and takes the dirty air that costs.
+* **A quicker car could not pass on a straight at all.**  A car in front stops
+  limiting this one's speed once it is no longer in front of it — but the only
+  thing that moved a driver across was a nudge of under a metre, and the
+  threshold is three.  So a driver two seconds a lap quicker sat in the
+  mirrors for the whole race.  It now pulls out, in range and only when
+  genuinely quicker, because sitting at the edge of the road for nothing is
+  slower.
+* **Passes were reported by searching the standings for a position that had
+  not been renumbered yet**, so the car that was actually passed was never the
+  one found, and no pass was ever announced even when one happened.
+
+A pass is also now *confirmed* rather than reported the instant two rows of
+the list trade places — at that instant the two cars are level by definition,
+and off the line twenty cars accelerating abreast trade places several times a
+second.  It is announced when the car that made it is a length clear and still
+there.
+
+Eight laps, twenty cars, a field spread over twelve per cent: **154 passes,
+twenty finishers, no retirements**, fifty-six contacts, thirty spins, three
+barrier scrapes, six yellows, two VSCs and a safety car, and a car with a
+problem being picked off by nine cars in a row — which is what a race looks
+like.
+
 **Known rough edge.** The timing tower shows nine of twenty rows while a driver
 card is open; it scrolls, but a full field does not fit beside a card on a
 900-pixel window.

@@ -182,6 +182,8 @@ export class RaceCar {
   surface: Surface = 'track'
   drsArmed = false
   drsOpen = false
+  /** Seconds since the flap was last open, for crediting a pass to it. */
+  drsFor = 0
   inWake = 0
   report: StepReport | null = null
   intent = 'clear'
@@ -294,6 +296,10 @@ export class Race {
   private seed = 0
   /** Pairs that are already tangled, so one touch is one event. */
   private touching = new Map<string, number>()
+  /** Pairs that have just changed places, so one pass is one event. */
+  private passed = new Map<string, number>()
+  /** Moves that have happened but are not yet made to stick. */
+  private pending = new Map<string, { by: number; of: number; at: number; how: string }>()
 
   constructor(world: WorldPayload, entries: Entry[], options: RaceOptions) {
     this.circuit = new Circuit(world)
@@ -819,6 +825,9 @@ export class Race {
 
     car.controls = controls
     car.drsOpen = controls.drs
+    // A pass set up with the flap open is finished a moment after it shuts,
+    // so what counts is whether it was open on the run up to the move.
+    car.drsFor = controls.drs ? 1.6 : Math.max(0, car.drsFor - dt)
     const physics = stepCar(state, car.spec, controls,
       { gripFactor: grip, wake, tow }, dt)
     car.report = physics
@@ -1225,6 +1234,11 @@ export class Race {
       if (left <= 0) this.touching.delete(key)
       else this.touching.set(key, left)
     }
+    for (const key of this.passed.keys()) {
+      const left = (this.passed.get(key) ?? 0) - dt
+      if (left <= 0) this.passed.delete(key)
+      else this.passed.set(key, left)
+    }
     for (let i = 0; i < live.length; i++) {
       for (let j = i + 1; j < live.length; j++) {
         const a = live[i]
@@ -1310,6 +1324,35 @@ export class Race {
    * decided anywhere: it is the moment two rows of this list change places,
    * and it is *reported* here rather than caused here.
    */
+  /**
+   * Report the moves that stuck.
+   *
+   * A car is past when it is a length clear and still there; if the order
+   * comes back the other way, or the two of them drift apart because one has
+   * pitted, there was no pass to report.
+   */
+  private settlePasses(): void {
+    for (const [key, move] of this.pending) {
+      const by = this.cars.find((c) => c.number === move.by)
+      const of = this.cars.find((c) => c.number === move.of)
+      if (!by || !of || by.status === 'retired' || of.status === 'retired') {
+        this.pending.delete(key)
+        continue
+      }
+      const lead = by.covered - of.covered
+      if (lead > CAR_LENGTH * 0.6) {
+        this.pending.delete(key)
+        this.passed.set(key, 4)
+        of.driver.notePassed()
+        this.emit('overtake', by.number, of.number,
+          `${by.entry.abbrev} passes ${of.entry.abbrev} ${move.how} for P${by.position}`,
+          { x: by.state.x, y: by.state.y }, 0.7)
+      } else if (lead < -CAR_LENGTH * 0.6 || this.time - move.at > 6) {
+        this.pending.delete(key)
+      }
+    }
+  }
+
   private classify(): void {
     const running = this.cars.filter((c) => c.status !== 'retired')
     const previous = new Map(running.map((c) => [c.number, c.position]))
@@ -1333,20 +1376,39 @@ export class Race {
       car.interval = front ? (front.covered - car.covered) / Math.max(speedOf(car.state), 12) : 0
       const was = previous.get(car.number)
       if (was && was > car.position && this.started && !this.finished) {
-        // Somebody was passed. Which one, and where, comes from the list.
-        const lost = running.find((c) => c.position === was)
-        if (lost && lost.number !== car.number && Math.abs(wrapDelta(lost.s - car.s, this.circuit.length)) < 60) {
-          lost.driver.notePassed()
-          const how = car.lineId === 'dive' ? 'down the inside'
-            : car.lineId === 'outside' ? 'around the outside'
-            : car.lineId === 'switchback' ? 'with the switchback'
-            : car.drsOpen ? 'with DRS' : 'on the run'
-          this.emit('overtake', car.number, lost.number,
-            `${car.entry.abbrev} passes ${lost.entry.abbrev} ${how} for P${car.position}`,
-            { x: car.state.x, y: car.state.y }, 0.7)
+        // Somebody was passed: whoever *used to* hold the position this car
+        // has just taken. Looked up in the snapshot, not in the list -- the
+        // list is being renumbered as this loop walks it, so every car behind
+        // this one still carries last frame's number and the car that was
+        // actually passed is never the one found by searching for it.
+        const lost = running.find(
+          (c) => c.number !== car.number && previous.get(c.number) === car.position,
+        )
+        // The move is noted here and reported when it sticks.
+        //
+        // At the instant two rows of the list trade places the two cars are,
+        // by definition, level -- so there is nothing to measure yet. Off the
+        // line twenty cars accelerating abreast trade places several times a
+        // second, and reporting each of those buried the real moves under a
+        // hundred and sixty of them. So the pass is remembered, and announced
+        // once the car that made it is actually past.
+        if (lost && Math.abs(wrapDelta(lost.s - car.s, this.circuit.length)) < 60) {
+          const key = car.number < lost.number
+            ? `${car.number}:${lost.number}` : `${lost.number}:${car.number}`
+          if (!this.pending.has(key) && !this.passed.has(key)) {
+            this.pending.set(key, {
+              by: car.number, of: lost.number, at: this.time,
+              how: car.lineId === 'dive' ? 'down the inside'
+                : car.lineId === 'outside' ? 'around the outside'
+                : car.lineId === 'switchback' ? 'with the switchback'
+                : car.drsFor > 0 ? 'with DRS' : 'on the run',
+            })
+          }
         }
       }
     })
+
+    this.settlePasses()
     let retiredAt = running.length
     for (const car of this.cars) if (car.status === 'retired') car.position = ++retiredAt
   }
