@@ -106,6 +106,17 @@ export interface RaceView {
   wake: number
   /** Yellow flags: no overtaking, and slow down. */
   caution: number
+  /**
+   * Whether the race is actually running.
+   *
+   * False under a virtual safety car, behind a safety car and under a red
+   * flag. Nobody races, nobody defends, and the gap a driver holds to the car
+   * in front closes right up -- which is what a field behind a safety car
+   * looks like, and is also the thing that stops one incident becoming five.
+   */
+  racing: boolean
+  /** A speed race control is imposing, m/s, or null when it is not. */
+  controlCap: number | null
   /** Metres of pit lane speed limit, or null on the circuit. */
   speedLimit: number | null
 }
@@ -524,7 +535,7 @@ export class Driver {
    * `corneringSpeed` is smaller and the driver can feel it.
    */
   private speedPlan(
-    state: CarState, view: RaceView, at: { i: number; s: number },
+    state: CarState, view: RaceView, at: { i: number; s: number; lat: number },
     v: number, mass: number, mu: number,
   ): {
     target: number
@@ -542,7 +553,25 @@ export class Driver {
     const stride = Math.max(1, Math.round(5 / circuit.ds))
     const available = brakingLimit(this.spec, mass, v, mu, view.wake)
 
-    const hereRadius = 1 / Math.max(Math.abs(this.aimCurvature(at.i)), 1e-6)
+    // How far off its own line the car actually is, and therefore what radius
+    // it is *actually* on.
+    //
+    // This is the whole of racing wheel to wheel. A car with somebody on its
+    // inside cannot take the line: it is displaced outward, or -- worse --
+    // squeezed toward the inside, and a path a metre inside the line through a
+    // sixty metre corner is a tighter corner. The driver has to be slower for
+    // it. One that is not arrives at the apex needing grip that is not there,
+    // and then goes wide, into the run-off, or into the other car, depending
+    // on where the road ran out. Nothing chooses between those three: they are
+    // what is left when the tyres are gone.
+    const displaced = at.lat - this.aimOffset(at.i)
+    const squeeze = (k: number, fade: number) => {
+      const d = displaced * fade
+      const denom = 1 - d * k
+      return Math.abs(denom) < 0.25 ? k * 4 : k / denom
+    }
+
+    const hereRadius = 1 / Math.max(Math.abs(squeeze(this.aimCurvature(at.i), 1)), 1e-6)
     let target = corneringSpeed(this.spec, mass, hereRadius, mu, view.wake)
     let bindLimit = target
     let bindDistance = 0
@@ -555,7 +584,10 @@ export class Driver {
 
     for (let q = 2; q <= steps; q += stride) {
       const i = circuit.wrap(at.i + q)
-      const bend = Math.abs(this.aimCurvature(i))
+      // Being off line matters where the car is and less where it expects to
+      // be back on it, so the displacement fades over the next hundred metres.
+      const fade = clamp(1 - (q * circuit.ds) / 100, 0, 1)
+      const bend = Math.abs(squeeze(this.aimCurvature(i), fade))
       bendSum += bend
       bendCount++
       const radius = 1 / Math.max(bend, 1e-6)
@@ -606,12 +638,21 @@ export class Driver {
     const inFront = view.blocker
     if (inFront && !inFront.inPit && inFront.gap > 0 && inFront.gap < 140) {
       {
-        const attacking = this.intent === 'attacking' || this.intent === 'switchback'
+        const attacking = view.racing &&
+          (this.intent === 'attacking' || this.intent === 'switchback')
         // The gap a driver actually holds is a time, not a distance -- half a
         // second at any speed. An attacker holds less of it, which is how it
         // gets close enough to have a look and why it is in the dirty air.
-        const timeGap = attacking ? 0.14 : 0.30 + (1 - this.traits.aggression) * 0.40
-        const desired = CAR_LENGTH * (attacking ? 1.05 : 1.3) + v * timeGap
+        const timeGap = !view.racing
+          ? 0.30
+          : attacking
+            ? 0.14
+            : 0.30 + (1 - this.traits.aggression) * 0.40
+        // Behind a safety car the field runs nose to tail on purpose: a couple
+        // of car lengths, not a racing gap.
+        const desired = !view.racing
+          ? CAR_LENGTH * 2.0 + v * timeGap
+          : CAR_LENGTH * (attacking ? 1.05 : 1.3) + v * timeGap
         // Settle onto that gap smoothly: match their speed, plus a bit for
         // however far off the gap is. Braking hard every time somebody is a
         // metre closer than ideal is what locks a front wheel.
@@ -663,7 +704,7 @@ export class Driver {
     // alongside. Traffic anywhere near also makes the limit less knowable, and
     // a driver who cannot be sure of the limit leaves more of it alone.
     const near = view.ahead && !view.ahead.inPit && view.ahead.gap < 70
-    const crowded = (view.alongside ? 0.09 : 0) + (near ? 0.06 : 0)
+    const crowded = (view.alongside ? 0.04 : 0) + (near ? 0.025 : 0)
     // Nobody drives at a hundred per cent of a computed limit. The limit is not
     // known exactly -- the tyre is a little different every lap, the air is
     // never quite clean, the road is never quite the same -- so a driver runs
@@ -784,7 +825,7 @@ export class Driver {
     // -- am I being raced? ---------------------------------------------------
     const threatened =
       behind !== null && !behind.inPit && -behind.gap < FIGHT_GAP * 1.4 &&
-      behind.speed > v - 3 && view.caution < 0.5
+      behind.speed > v - 3 && view.racing
 
     // -- am I racing anybody? ------------------------------------------------
     const chasing = ahead !== null && !ahead.inPit && ahead.gap < FIGHT_GAP * 2.2
@@ -801,7 +842,7 @@ export class Driver {
         this.target = null
       }
       if (this.line !== 'racing' && !threatened) this.switchTo('racing')
-      if (threatened && this.line !== 'defend' && t.defence > 0.35 && view.caution < 0.5) {
+      if (threatened && this.line !== 'defend' && t.defence > 0.35 && view.racing) {
         // Covering the inside on the straight before the braking zone.
         this.switchTo('defend')
         this.intent = 'defending'
@@ -815,7 +856,7 @@ export class Driver {
     const room = circuit.limit(cornerAhead.apex) * 2
 
     // -- defending -----------------------------------------------------------
-    if (threatened && view.caution < 0.5) {
+    if (threatened && view.racing) {
       // The defender takes the inside if it thinks it is genuinely under
       // threat. It costs exit speed -- and that cost is charged by the
       // defensive line's own smaller exit radius, not by a penalty.
@@ -833,7 +874,7 @@ export class Driver {
     }
 
     // -- attacking -----------------------------------------------------------
-    if (chasing && ahead && view.caution < 0.5) {
+    if (chasing && ahead && view.racing) {
       this.target = ahead.car
       const closing = v - ahead.speed
       // Where the gap will be by the time both cars are at the braking point.
@@ -890,7 +931,7 @@ export class Driver {
     }
 
     // -- clear air -----------------------------------------------------------
-    this.intent = view.caution > 0.5 ? 'cruising' : 'clear'
+    this.intent = view.racing ? 'clear' : 'cruising'
     this.target = null
     this.switchTo('racing')
     // Even alone, nobody hits the same braking point twice. This is the whole

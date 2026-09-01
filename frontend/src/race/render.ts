@@ -150,21 +150,25 @@ export class Renderer {
   /** Build every piece of circuit geometry that never changes. */
   private buildStatics(): Static {
     const c = this.circuit
-    const prof = this.race.surfaceProfile()
+    const surf = this.race.surfaces
     const half = (i: number) => c.halfWidth[i]
-    const kerbOut = (i: number) => half(i) + prof.kerb[i]
-    const wallAt = (i: number) => kerbOut(i) + prof.runoff[i]
-    const gravelIn = (i: number) => kerbOut(i) + prof.runoff[i] * prof.gravelFrom[i]
+    // Index 0 is the left of the road, 1 the right -- the same convention the
+    // surface model uses, so what is drawn and what a car slides onto are the
+    // same numbers.
+    const kerbOut = (side: 0 | 1, i: number) => half(i) + surf.kerb[side][i]
+    const wallAt = (side: 0 | 1, i: number) => surf.wall[side][i]
+    const gravelIn = (side: 0 | 1, i: number) =>
+      kerbOut(side, i) + surf.runoff[side][i] * surf.gravelFrom[side][i]
 
     const grass = new Path2D()
-    const outer = band(c, (i) => -(wallAt(i) + 260), (i) => wallAt(i) + 260, 3)
-    grass.addPath(outer)
+    grass.addPath(band(c, (i) => -(wallAt(1, i) + 260), (i) => wallAt(0, i) + 260, 3))
 
     const gravel: Path2D[] = []
     const runoff: Path2D[] = []
-    for (const side of [1, -1]) {
-      runoff.push(band(c, (i) => side * kerbOut(i), (i) => side * gravelIn(i), 2))
-      gravel.push(band(c, (i) => side * gravelIn(i), (i) => side * wallAt(i), 2))
+    for (const side of [0, 1] as const) {
+      const sign = side === 0 ? 1 : -1
+      runoff.push(band(c, (i) => sign * kerbOut(side, i), (i) => sign * gravelIn(side, i), 2))
+      gravel.push(band(c, (i) => sign * gravelIn(side, i), (i) => sign * wallAt(side, i), 2))
     }
 
     const track = band(c, (i) => -half(i), (i) => half(i), 2)
@@ -173,24 +177,25 @@ export class Renderer {
     // only where there is a kerb at all -- which is at the corners.
     const kerbs: { path: Path2D; alt: boolean }[] = []
     const blockLen = Math.max(2, Math.round(2.6 / c.ds))
-    for (const side of [1, -1]) {
+    for (const side of [0, 1] as const) {
+      const sign = side === 0 ? 1 : -1
       let i = 0
       let alt = false
       while (i < c.n) {
-        if (prof.kerb[i] <= 0) { i++; continue }
+        if (surf.kerb[side][i] <= 0.25) { i++; continue }
         const from = i
         let to = i
-        while (to + 1 < c.n && prof.kerb[to + 1] > 0 && to - from < blockLen) to++
+        while (to + 1 < c.n && surf.kerb[side][to + 1] > 0.25 && to - from < blockLen) to++
         const path = new Path2D()
         for (let q = from; q <= to; q++) {
-          const o = side * half(q)
+          const o = sign * half(q)
           const x = c.x[q] + c.nx[q] * o
           const y = c.y[q] + c.ny[q] * o
           if (q === from) path.moveTo(x, y)
           else path.lineTo(x, y)
         }
         for (let q = to; q >= from; q--) {
-          const o = side * kerbOut(q)
+          const o = sign * kerbOut(side, q)
           path.lineTo(c.x[q] + c.nx[q] * o, c.y[q] + c.ny[q] * o)
         }
         path.closePath()
@@ -205,8 +210,9 @@ export class Renderer {
     edges.addPath(trace(c, (i) => half(i) - 0.12, 2))
 
     const walls: Path2D[] = []
-    for (const side of [1, -1]) {
-      walls.push(band(c, (i) => side * wallAt(i), (i) => side * (wallAt(i) + 1.1), 2))
+    for (const side of [0, 1] as const) {
+      const sign = side === 0 ? 1 : -1
+      walls.push(band(c, (i) => sign * wallAt(side, i), (i) => sign * (wallAt(side, i) + 1.1), 2))
     }
 
     const pitGeo = this.race.pitGeometry()
@@ -237,7 +243,7 @@ export class Renderer {
 
     let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity
     for (let i = 0; i < c.n; i++) {
-      const reach = wallAt(i) + 16
+      const reach = Math.max(wallAt(0, i), wallAt(1, i)) + 16
       minx = Math.min(minx, c.x[i] - reach)
       maxx = Math.max(maxx, c.x[i] + reach)
       miny = Math.min(miny, c.y[i] - reach)

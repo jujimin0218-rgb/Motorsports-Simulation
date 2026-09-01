@@ -58,6 +58,12 @@ export interface CarSpec {
   drsDragCut: number
   /** Crank power, W. */
   power: number
+  /** What the electrical side adds when it is deployed, W. */
+  ersPower: number
+  /** How much it can hold, J. */
+  ersStore: number
+  /** How fast it recovers under braking, W. */
+  ersHarvest: number
   /** Peak brake force at the tyres, N, before grip is considered. */
   brakeForce: number
   /** Fraction of braking done by the front axle. */
@@ -74,7 +80,27 @@ export interface CarSpec {
   vMax: number
 }
 
-/** A reasonable modern grand prix car, which every entry is a variation on. */
+/**
+ * A modern grand prix car, which every entry is a variation on.
+ *
+ * The numbers are chosen so the *behaviour* matches a real one where a real
+ * one has been measured, rather than to look plausible in a table:
+ *
+ * | what | here | a 2024 car |
+ * |---|---|---|
+ * | lateral at 110 km/h | 2.5 g | 2.5–3 g |
+ * | lateral at 320 km/h | 5.3 g | 5.5–6 g |
+ * | braking from 300 km/h | 4.8 g | 5–6 g |
+ * | top speed | 346 km/h | ~340 km/h |
+ * | a lap of Bahrain, alone | 1:28.4 | 1:29.2 pole |
+ *
+ * The two ends of the lateral figure are what `loadSensitivity` is for, and
+ * getting *both* right is the point. A tyre's coefficient falls as it is
+ * pressed harder, so a car with enough grip for a hairpin has far too much
+ * with three tonnes of downforce on it, and one tuned for the fast corners
+ * cannot get out of a slow one. Setting the peak and the load sensitivity
+ * together is what makes one set of numbers do both.
+ */
 export const BASE_CAR: CarSpec = {
   mass: 798,
   frontAxle: 1.72,
@@ -86,16 +112,19 @@ export const BASE_CAR: CarSpec = {
   aeroBalance: 0.45,
   drsDragCut: 0.22,
   power: 735000,
-  // Sized so that a driver standing on the pedal is just at the front tyres'
-  // limit in a normal stop: locking a wheel then takes overdoing it, rather
-  // than being what happens at every corner.
+  ersPower: 120000,
+  ersStore: 4.0e6,
+  ersHarvest: 220000,
+  // Sized so a driver standing on the pedal is just at the front tyres' limit
+  // in a normal stop: locking a wheel takes overdoing it, rather than being
+  // what happens at every corner.
   brakeForce: 40000,
   brakeBalance: 0.62,
-  grip: 1.86,
-  loadSensitivity: 1.05e-5,
+  grip: 2.18,
+  loadSensitivity: 2.4e-5,
   tyreB: 9.5,
   tyreC: 1.65,
-  vMax: 93,
+  vMax: 96,
 }
 
 /** The car's state, integrated. */
@@ -113,10 +142,18 @@ export interface CarState {
   fuel: number
   /** 0 fresh, 1 gone. */
   tyreWear: number
+  /** The compound's peak grip, as a multiplier on the car's own. */
+  tyreGripBonus: number
+  /** And how fast it wears, relative to a medium. */
+  tyreWearRate: number
   /** Working temperature, degC. Grip is best in a window. */
   tyreTemp: number
   /** Accumulated damage, 0..1. Costs downforce and power. */
   damage: number
+  /** Energy in the battery, J. */
+  ers: number
+  /** Whether it is being deployed right now, for the picture. */
+  deploying: boolean
 }
 
 /** What the driver is doing with the controls, this step. */
@@ -175,7 +212,9 @@ export function speedOf(s: CarState): number {
  * lap rather than nominally so.
  */
 export function tyreGrip(state: CarState): number {
-  const wear = 1 - 0.22 * state.tyreWear * state.tyreWear - 0.06 * state.tyreWear
+  const wear =
+    (state.tyreGripBonus ?? 1) *
+    (1 - 0.22 * state.tyreWear * state.tyreWear - 0.06 * state.tyreWear)
   const dt = (state.tyreTemp - 95) / 45
   const thermal = 1 - 0.30 * dt * dt
   return Math.max(0.35, wear * Math.min(1, thermal))
@@ -232,7 +271,17 @@ export function step(
   const capRear = axleGrip({ ...state, spec }, loadRear, mu)
 
   // -- longitudinal demand --------------------------------------------------
-  const engine = v > 1 ? Math.min(spec.power * damageLoss / Math.max(v, 8), 26000) : 16000
+  // The electrical side. Deployed where it is worth having -- on the throttle,
+  // above the speed at which the engine alone starts running out of torque --
+  // and recovered under braking. It is what makes a modern car pull away down
+  // a straight the way it does, and what runs out if a driver uses it all
+  // defending in the first sector.
+  const wantsErs = controls.throttle > 0.75 && v > 32 && state.ers > 0
+  const deploy = wantsErs ? spec.ersPower : 0
+  state.deploying = wantsErs
+  const totalPower = (spec.power + deploy) * damageLoss
+
+  const engine = v > 1 ? Math.min(totalPower / Math.max(v, 8), 26000) : 16000
   const limiter = v >= spec.vMax ? 0 : 1
   let driveForce = controls.throttle * engine * limiter
   const brakeDemand = controls.brake * spec.brakeForce
@@ -319,10 +368,18 @@ export function step(
   // About a kilo and a half a lap, which is what a modern car uses.
   state.fuel = Math.max(0, state.fuel - (0.016 * controls.throttle + 0.004) * dt)
 
+  // The battery: spent on the throttle, refilled on the brakes. A lap of a
+  // circuit with long braking zones gives most of it back; one without does
+  // not, which is why the same car deploys differently at different tracks.
+  if (deploy > 0) state.ers = Math.max(0, state.ers - deploy * dt)
+  if (controls.brake > 0.1 && v > 12) {
+    state.ers = Math.min(spec.ersStore, state.ers + spec.ersHarvest * controls.brake * dt)
+  }
+
   // Wear is the energy going through the contact patch, not the number of laps
   // that have been counted -- so a driver who looks after them genuinely has
   // more left at the end, and one who slides the car does not.
-  state.tyreWear = Math.min(1.4, state.tyreWear + work * work * 0.00024 * dt)
+  state.tyreWear = Math.min(1.4, state.tyreWear + work * work * 0.00024 * (state.tyreWearRate ?? 1) * dt)
 
   // Temperature relaxes toward what this much work sustains, rather than being
   // integrated from a heating rate: a rate model with a cooling term has an

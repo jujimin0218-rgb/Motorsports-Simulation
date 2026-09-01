@@ -19,54 +19,47 @@ import {
   CAR_LENGTH, CAR_WIDTH, Circuit, WorldPayload, clamp, lerp, smoothstep, wrapDelta,
 } from './geometry'
 import { LineSet, buildLines } from './lines'
+import { SURFACE_GRIP, Surface, TrackSurface } from './surface'
+import { COMPOUNDS, Compound, callStrategy } from './strategy'
 import { Driver, DriverTraits, Neighbour, RaceView, specFrom } from './ai'
 import {
   CarSpec, CarState, Controls, StepReport, speedOf, step as stepCar,
 } from './physics'
 
 // -- surfaces ----------------------------------------------------------------
-// The same conventions the server used to lay the circuit out, so what a car
-// slides onto is what the picture shows underneath it.
-const KERB_M = 1.2
-const RUNOFF_STRAIGHT_M = 6.0
-const RUNOFF_CORNER_M = 26.0
-/**
- * Where gravel starts inside a corner's run-off, as a fraction of its depth.
- *
- * Deep. A modern circuit is mostly asphalt run-off with gravel at the back of
- * it, and the difference is whether a car that runs wide rejoins or is out:
- * with gravel close in, every excursion slid to the barrier and every barrier
- * was a retirement, and the field was gone by half distance.
- */
-const GRAVEL_FROM = 0.72
+// The road, and what is beside it, come from `TrackSurface`: a continuous
+// per-side profile derived from how fast a car arrives at each piece of road,
+// rather than a "corner or not" flag with two fixed depths.
 
-/** How far outside the white line the pit lane runs, m. */
-const PIT_LANE_GAP = 9.0
-/**
- * How far either side of the lane's centre is still tarmac, m.
- *
- * Generous, and deliberately so: the lane and its tapers are wide, and a car
- * judged to be on the grass at eighty km/h in the pit lane spins there. Every
- * car spun on the way to its first stop until this was widened.
- */
-const PIT_LANE_WIDTH = 9.0
 /** The pit lane speed limit, m/s. */
 const PIT_SPEED = 80 / 3.6
+/** How far outside the white line the pit lane runs, m. */
+const PIT_LANE_GAP = 9.0
+/** How far either side of the lane's centre is still tarmac, m. */
+const PIT_LANE_WIDTH = 9.0
 /** How far out of the lane a car sits while its crew works on it, m. */
 const PIT_BOX_OFFSET = 3.6
 
-export type Surface = 'track' | 'kerb' | 'runoff' | 'gravel' | 'grass' | 'wall'
+/** What fraction of the circuit's own pace each of the flags allows. */
+const VSC_PACE = 0.62
+const SC_PACE = 0.5
+/** And what a red flag allows, m/s: enough to reach the pit lane. */
+const RED_PACE = 16
 
-const SURFACE_GRIP: Record<Surface, number> = {
-  track: 1.0, kerb: 0.88, runoff: 0.72, gravel: 0.34, grass: 0.40, wall: 0.1,
-}
+/** How long each state runs for, s, before race control looks again. */
+const YELLOW_TIME = 9
+const VSC_TIME = 35
+const SC_TIME = 70
+const RED_TIME = 55
 
 export { CAR_LENGTH, CAR_WIDTH }
+export type { Surface }
 
 export type EventKind =
   | 'formation' | 'lights' | 'green' | 'overtake' | 'lockup' | 'spin' | 'off'
   | 'contact' | 'wall' | 'pit-in' | 'pit-stop' | 'pit-out' | 'fastest-lap'
-  | 'retire' | 'yellow' | 'clear' | 'blue' | 'flag' | 'finish' | 'drs'
+  | 'retire' | 'yellow' | 'vsc' | 'safety-car' | 'red' | 'clear' | 'blue'
+  | 'flag' | 'finish' | 'drs'
 
 export interface RaceEvent {
   id: number
@@ -101,6 +94,29 @@ export interface Entry {
 
 export type CarStatus = 'grid' | 'racing' | 'pit' | 'finished' | 'retired'
 
+/**
+ * What race control is showing.
+ *
+ * Not decoration. Each of these changes what every driver may do, and the
+ * difference between them is what a driver is *allowed* to make up: under a
+ * local yellow, nothing at that corner; under a virtual safety car, nothing
+ * anywhere, but everyone keeps their gap; behind a safety car, the field
+ * closes up and whatever anybody had is gone.
+ */
+export type FlagState = 'green' | 'yellow' | 'vsc' | 'safety-car' | 'red'
+
+export interface RaceControl {
+  state: FlagState
+  /** Session time the current state runs until. */
+  until: number
+  /** Why, for the screen. */
+  reason: string
+  /** Sample index of the incident, for a local yellow. */
+  at: number
+  /** How long the field has been bunched behind the safety car, s. */
+  bunchedFor: number
+}
+
 /** Something the renderer can animate: a puff of smoke, a shower of sparks. */
 export interface Effect {
   kind: 'smoke' | 'dust' | 'spark' | 'gravel' | 'debris' | 'flash'
@@ -132,10 +148,17 @@ export class RaceCar {
   lapStarted = 0
   lastLap = 0
   bestLap = 0
+  /** Which sector the car is in, 0..2. */
   sector = 0
   sectorStart = 0
-  sectors: number[] = []
-  bestSectors: number[] = []
+  /** This lap's sector times so far, and the last complete set. */
+  sectors: number[] = [0, 0, 0]
+  lastSectors: number[] = [0, 0, 0]
+  bestSectors: number[] = [0, 0, 0]
+  /** Laps this set of tyres has done. */
+  tyreAge = 0
+  /** What the strategist last decided, for the screen. */
+  strategyNote = 'on the opening stint'
 
   /** Where this car started across the road, and how far round it started. */
   gridOffset = 0
@@ -150,7 +173,9 @@ export class RaceCar {
   gapToLeader = 0
   interval = 0
   stops = 0
-  compound: 'soft' | 'medium' | 'hard' = 'medium'
+  compound: Compound = 'medium'
+  /** The compound the crew has ready for the next stop. */
+  nextCompound: Compound = 'medium'
 
   surface: Surface = 'track'
   drsArmed = false
@@ -244,7 +269,15 @@ export class Race {
   /** 0 = green. Rises where there has been an incident. */
   cautionUntil = 0
   cautionAt = -1
+  /** What race control is showing, and why. */
+  control: RaceControl = { state: 'green', until: 0, reason: '', at: -1, bunchedFor: 0 }
+  /** Cars in the pit lane on their way to a box, which is a queue. */
+  pitQueue = 0
+  /** When cars have gone out lately, for spotting a multi-car accident. */
+  private recentRetirements: number[] = []
   private eventId = 1
+  /** The road and everything beside it. */
+  surfaces: TrackSurface
   private drsZones: DrsZone[] = []
   private pitLine: ReturnType<Circuit['makeLine']> | null = null
   private pitEntryS = 0
@@ -260,6 +293,7 @@ export class Race {
 
   constructor(world: WorldPayload, entries: Entry[], options: RaceOptions) {
     this.circuit = new Circuit(world)
+    this.surfaces = new TrackSurface(this.circuit)
     this.lines = buildLines(this.circuit)
     this.laps = options.laps
     let a = options.seed >>> 0
@@ -398,6 +432,8 @@ export class Race {
         x: place.x, y: place.y, yaw: place.h,
         vx: 0, vy: 0, yawRate: 0,
         fuel: this.laps * 1.7 + 4, tyreWear: 0, tyreTemp: 92, damage: 0,
+        tyreGripBonus: COMPOUNDS.medium.grip, tyreWearRate: COMPOUNDS.medium.wear,
+        ers: spec.ersStore, deploying: false,
       }
       const driver = new Driver(circuit, this.lines, spec, entry.traits, entry.car, entry.car * 7919 + index)
       const car = new RaceCar(entry, spec, state, driver)
@@ -449,61 +485,9 @@ export class Race {
 
   // -- what is under a car ---------------------------------------------------
 
-  /** Which surface a lateral offset lands on at a given sample. */
+  /** What is under a point on the road. */
   surfaceAt(i: number, lat: number): Surface {
-    const half = this.circuit.halfWidth[this.circuit.wrap(i)]
-    const distance = Math.abs(lat)
-    if (distance <= half) return 'track'
-    const edge = distance - half
-    const corner = this.nearCorner(i)
-    const kerb = corner ? KERB_M : 0
-    if (edge <= kerb) return 'kerb'
-    const depth = corner ? RUNOFF_CORNER_M : RUNOFF_STRAIGHT_M
-    if (edge <= kerb + depth) {
-      if (!corner) return 'grass'
-      return edge >= kerb + depth * GRAVEL_FROM ? 'gravel' : 'runoff'
-    }
-    return 'wall'
-  }
-
-  /**
-   * The edges of every surface, per sample, so the picture can be drawn from
-   * the same numbers the cars are driving on.
-   *
-   * The server sends its own surface polygons, but those are its conventions
-   * rather than these, and a picture that disagrees with the physics is worse
-   * than no picture: a car slides onto what looks like asphalt and behaves as
-   * though it were gravel, and nobody watching can tell whether the simulation
-   * or the drawing is wrong.
-   */
-  surfaceProfile(): {
-    kerb: Float64Array
-    runoff: Float64Array
-    gravelFrom: Float64Array
-    corner: Uint8Array
-  } {
-    const n = this.circuit.n
-    const kerb = new Float64Array(n)
-    const runoff = new Float64Array(n)
-    const gravelFrom = new Float64Array(n)
-    const corner = new Uint8Array(n)
-    for (let i = 0; i < n; i++) {
-      const bend = this.nearCorner(i)
-      corner[i] = bend ? 1 : 0
-      kerb[i] = bend ? KERB_M : 0
-      runoff[i] = bend ? RUNOFF_CORNER_M : RUNOFF_STRAIGHT_M
-      gravelFrom[i] = bend ? GRAVEL_FROM : 1
-    }
-    return { kerb, runoff, gravelFrom, corner }
-  }
-
-  /** Corner run-off reaches into the braking zone and out past the exit. */
-  private nearCorner(i: number): boolean {
-    const reach = Math.round(60 / this.circuit.ds)
-    for (let q = -reach; q <= reach; q += 4) {
-      if (this.circuit.cornerAt[this.circuit.wrap(i + q)] >= 0) return true
-    }
-    return false
+    return this.surfaces.at(i, lat)
   }
 
   private drsAt(s: number): DrsZone | null {
@@ -533,6 +517,7 @@ export class Race {
     // a touch a hundred and sixty times a second turns a brush of wheels into
     // a fatal accident, and re-sorting the field that often costs more than
     // the physics does.
+    this.pitQueue = this.cars.filter((c) => c.status === 'pit' && c.wantsPit).length
     this.contacts(dt)
     this.classify()
     this.advanceEffects(dt)
@@ -556,10 +541,7 @@ export class Race {
     for (let index = 0; index < order.length; index++) {
       this.driveCar(order[index], order, index, dt)
     }
-    if (this.cautionAt >= 0 && this.time > this.cautionUntil) {
-      this.cautionAt = -1
-      this.emit('clear', null, null, 'Track clear — green flag')
-    }
+    this.stepControl(dt)
   }
 
   /** Cars in the order they are lying on the road, wrapped. */
@@ -697,12 +679,26 @@ export class Race {
     const grip = SURFACE_GRIP[car.surface]
 
     // -- yellow flags --------------------------------------------------------
+    // A local yellow is a corner; the rest of the lap is green. A virtual
+    // safety car is the whole lap at a fraction of the circuit's own pace. A
+    // safety car is that, and the field closing up behind the leader.
     let caution = 0
-    if (this.cautionAt >= 0) {
-      const distance = Math.abs(wrapDelta(circuit.s[this.cautionAt] - car.s, circuit.length))
-      if (distance < 340 && wrapDelta(circuit.s[this.cautionAt] - car.s, circuit.length) > -60) {
-        caution = clamp(1 - distance / 340, 0, 1)
-      }
+    if (this.control.at >= 0 && this.control.state === 'yellow') {
+      const along = wrapDelta(circuit.s[this.control.at] - car.s, circuit.length)
+      const distance = Math.abs(along)
+      if (distance < 240 && along > -60) caution = clamp(1 - distance / 240, 0, 1)
+    }
+    let controlCap: number | null = null
+    let racing = true
+    if (this.control.state === 'vsc') {
+      controlCap = this.surfaces.reference[car.i] * VSC_PACE
+      racing = false
+    } else if (this.control.state === 'safety-car') {
+      controlCap = this.surfaces.reference[car.i] * SC_PACE
+      racing = false
+    } else if (this.control.state === 'red') {
+      controlCap = RED_PACE
+      racing = false
     }
 
     // -- the pit lane --------------------------------------------------------
@@ -752,10 +748,16 @@ export class Race {
       }
     }
 
+    if (controlCap !== null) {
+      speedLimit = speedLimit === null ? controlCap : Math.min(speedLimit, controlCap)
+    }
+
     const view: RaceView = {
       ahead, behind, now: this.time,
       alongside,
       blocker,
+      racing,
+      controlCap,
       laneHold: laneWeight > 0 ? laneOffset : null,
       laneWeight,
       drsAllowed, gripFactor: grip, wake, tow, caution, speedLimit,
@@ -777,10 +779,19 @@ export class Race {
       car.pitHold -= dt
       controls.throttle = 0
       controls.brake = 1
+      // Held for traffic. A crew does not release a car into the path of one
+      // coming down the road at three hundred, and neither does this: the stop
+      // is extended until the exit is clear, which is a couple of tenths lost
+      // rather than two cars out of the race.
+      if (car.pitHold <= 0 && this.exitBusy(car)) car.pitHold = 0.25
       if (car.pitHold <= 0) {
         car.stops += 1
+        car.tyreAge = 0
+        car.compound = car.nextCompound
         car.state.tyreWear = 0
         car.state.tyreTemp = 70
+        car.state.tyreGripBonus = COMPOUNDS[car.compound].grip
+        car.state.tyreWearRate = COMPOUNDS[car.compound].wear
         this.emit('pit-stop', car.number, null,
           `${car.entry.abbrev} — stop ${car.stops}, fresh ${car.compound}s`,
           { x: state.x, y: state.y }, 0.5)
@@ -814,6 +825,7 @@ export class Race {
     car.s = wrapped
 
     this.reactToSurface(car, physics, dt)
+    this.splitSectors(car)
     if (crossedLine) this.completeLap(car)
     this.animate(car, physics, dt)
   }
@@ -840,7 +852,11 @@ export class Race {
       car.stoppedFor += dt
       const beached = car.surface !== 'track' && car.surface !== 'kerb'
       if (car.stoppedFor > (beached ? 7.0 : 12.0)) {
-        this.raiseCaution(car.i, 8)
+        // A car stopped *on* the road is a safety car; one in the run-off is
+        // a virtual one. The difference is whether anybody has to drive round
+        // it at three hundred km/h.
+        this.report(car.i, beached ? 0.36 : 0.6,
+          `${car.entry.abbrev} stopped ${beached ? 'in the run-off' : 'on track'}`)
         this.retire(car, beached ? 'stopped in the run-off' : 'stopped on track')
         return
       }
@@ -850,9 +866,7 @@ export class Race {
 
     if (car.surface === 'wall' && car.status !== 'pit') {
       // The barrier. Stop the car going any further out, and charge for it.
-      const half = this.circuit.halfWidth[car.i]
-      const depth = this.nearCorner(car.i) ? RUNOFF_CORNER_M : RUNOFF_STRAIGHT_M
-      const limit = half + KERB_M + depth
+      const limit = this.surfaces.wallFor(car.i, car.lat)
       const sign = Math.sign(car.lat) || 1
       const place = this.circuit.place(car.s, sign * (limit - 0.4))
       state.x = place.x
@@ -875,7 +889,12 @@ export class Race {
           `${car.entry.abbrev} into the barrier at ${(hit * 3.6).toFixed(0)} km/h`,
           { x: state.x, y: state.y }, clamp(harm + 0.3, 0, 1))
         car.driver.noteExcursion(2.5)
-        if (hit > 14) this.raiseCaution(car.i, 8)
+        // How big a shunt it was decides what comes out: a scrape is a yellow,
+        // a real hit brings the marshals out.
+        if (hit > 10) {
+          this.report(car.i, clamp(0.12 + harm * 0.9, 0, 0.8),
+            `${car.entry.abbrev} in the barrier at ${this.cornerName(car.i)}`)
+        }
       }
       if (state.damage > 0.85 || hit > 34) this.retire(car, 'accident damage')
       return
@@ -888,7 +907,7 @@ export class Race {
       // waits for a crane, and its race is over.
       car.stuckFor = speed < 2.5 && car.surface === 'gravel' ? car.stuckFor + dt : 0
       if (car.stuckFor > 5.0) {
-        this.raiseCaution(car.i, 8)
+        this.report(car.i, 0.34, `${car.entry.abbrev} beached at ${this.cornerName(car.i)}`)
         this.retire(car, 'beached in the gravel')
         return
       }
@@ -910,7 +929,9 @@ export class Race {
             : `${car.entry.abbrev} runs wide at ${this.cornerName(car.i)}` +
               (car.lineId === 'dive' ? ' — the lunge did not stick' : ''),
           { x: state.x, y: state.y }, car.surface === 'gravel' ? 0.8 : 0.4)
-        if (car.surface === 'gravel' && speed > 45) this.raiseCaution(car.i, 6)
+        if (car.surface === 'gravel' && speed > 45) {
+          this.report(car.i, 0.16, `${car.entry.abbrev} in the gravel at ${this.cornerName(car.i)}`)
+        }
       }
     } else {
       car.offTrackFor = 0
@@ -934,7 +955,9 @@ export class Race {
         `${car.entry.abbrev} spins at ${this.cornerName(car.i)}!`,
         { x: state.x, y: state.y }, 0.85)
       // Only a spin that leaves a car where it should not be brings out flags.
-      if (speed < 12 || car.surface === 'gravel') this.raiseCaution(car.i, 6)
+      if (speed < 12 || car.surface === 'gravel') {
+        this.report(car.i, 0.14, `${car.entry.abbrev} spun at ${this.cornerName(car.i)}`)
+      }
     } else if (!spun && Math.abs(physics.slip) < 0.2) {
       car.spinning = false
     }
@@ -975,12 +998,91 @@ export class Race {
     return best ? best.name : 'the corner'
   }
 
-  private raiseCaution(i: number, seconds: number): void {
-    if (this.cautionAt < 0) {
-      this.emit('yellow', null, null, `Yellow flags — incident at ${this.cornerName(i)}`)
+  /**
+   * Something happened. Decide what race control does about it.
+   *
+   * Graded, because the grades are what a race actually looks like: most
+   * incidents are a corner's worth of yellow and nothing else; a car stopped
+   * somewhere awkward is a virtual safety car; a car in a barrier where the
+   * marshals have to go and get it is a safety car and the field bunches up;
+   * and once in a while the track is blocked and the race stops.
+   *
+   * It is also, deliberately, the thing that breaks a cascade. Half the
+   * retirements in this simulation used to come from cars arriving at full
+   * speed at somebody else's accident.
+   */
+  private report(i: number, severity: number, reason: string): void {
+    const now = this.time
+    // Never downgrade: a safety car does not become a yellow because somebody
+    // spun a moment later.
+    const rank: Record<FlagState, number> = {
+      green: 0, yellow: 1, vsc: 2, 'safety-car': 3, red: 4,
+    }
+    let want: FlagState = 'yellow'
+    let time = YELLOW_TIME
+    if (severity >= 0.85) { want = 'red'; time = RED_TIME }
+    else if (severity >= 0.55) { want = 'safety-car'; time = SC_TIME }
+    else if (severity >= 0.3) { want = 'vsc'; time = VSC_TIME }
+
+    if (rank[want] < rank[this.control.state] && now < this.control.until) {
+      // Already under something bigger: extend it rather than replace it.
+      this.control.until = Math.max(this.control.until, now + time * 0.5)
+      this.control.at = i
+      return
+    }
+    const changed = want !== this.control.state
+    this.control = {
+      state: want,
+      until: now + time,
+      reason,
+      at: i,
+      bunchedFor: want === 'safety-car' ? 0 : this.control.bunchedFor,
     }
     this.cautionAt = i
-    this.cautionUntil = Math.max(this.cautionUntil, this.time + seconds)
+    this.cautionUntil = now + time
+    if (!changed) return
+    const text =
+      want === 'red' ? `Red flag — ${reason}`
+      : want === 'safety-car' ? `Safety car — ${reason}`
+      : want === 'vsc' ? `Virtual safety car — ${reason}`
+      : `Yellow flags — ${reason}`
+    this.emit(want === 'yellow' ? 'yellow' : want, null, null, text, undefined,
+      want === 'yellow' ? 0.45 : 0.95)
+  }
+
+  /**
+   * Race control, one step at a time.
+   *
+   * The field has to be *let go* again, and that is not a timer: a safety car
+   * comes in when the field is bunched and the track is clear, and a red flag
+   * ends when everybody has been gathered up. Doing it on a stopwatch alone
+   * releases twenty cars in a queue at different speeds, which is another
+   * accident.
+   */
+  private stepControl(dt: number): void {
+    const c = this.control
+    if (c.state === 'green') return
+
+    if (c.state === 'safety-car') {
+      // Bunched when nobody on the lead lap is more than a couple of seconds
+      // from the car in front.
+      const train = this.cars.filter((x) => x.status === 'racing')
+      const spread = train.every((x) => x.position === 1 || x.interval < 2.2)
+      c.bunchedFor = spread ? c.bunchedFor + dt : 0
+    }
+
+    if (this.time < c.until) return
+    if (c.state === 'safety-car' && c.bunchedFor < 6) {
+      // Not ready: hold the field a little longer.
+      c.until = this.time + 4
+      return
+    }
+    const was = c.state
+    this.control = { state: 'green', until: 0, reason: '', at: -1, bunchedFor: 0 }
+    this.cautionAt = -1
+    this.emit('clear', null, null,
+      was === 'yellow' ? 'Track clear — green flag' : 'Green flag — racing resumes',
+      undefined, was === 'yellow' ? 0.3 : 0.8)
   }
 
   private retire(car: RaceCar, why: string): void {
@@ -988,8 +1090,41 @@ export class Race {
     car.status = 'retired'
     car.state.vx = 0
     car.state.vy = 0
+    // Cars going out together is a different thing from cars going out one at
+    // a time: an accident that takes three at once blocks the road, and the
+    // race stops while it is cleared.
+    this.recentRetirements = this.recentRetirements.filter((t) => this.time - t < 6)
+    this.recentRetirements.push(this.time)
+    if (this.recentRetirements.length >= 3) {
+      this.recentRetirements = []
+      this.report(car.i, 0.9, 'multiple cars involved, the track is blocked')
+    }
     this.emit('retire', car.number, null, `${car.entry.driver} is out — ${why}`,
       { x: car.state.x, y: car.state.y }, 0.9)
+  }
+
+  /**
+   * Sector splits, taken where the car crosses a third of the lap.
+   *
+   * Three of them, because three is what a timing screen shows and because a
+   * lap time on its own does not say *where* somebody is quick.
+   */
+  private splitSectors(car: RaceCar): void {
+    const third = this.circuit.length / 3
+    const now = Math.min(2, Math.floor(car.s / third))
+    if (now === car.sector) return
+    const split = this.time - car.sectorStart
+    if (split > 3 && car.lap > 0) {
+      car.sectors[car.sector] = split
+      if (car.bestSectors[car.sector] === 0 || split < car.bestSectors[car.sector]) {
+        car.bestSectors[car.sector] = split
+      }
+    }
+    car.sectorStart = this.time
+    // Wrapping back to sector 0 is a new lap's worth of splits, so the set that
+    // was being filled becomes the last complete one.
+    if (now === 0) car.lastSectors = [...car.sectors]
+    car.sector = now
   }
 
   /** The line. Lap times, sectors, strategy and the flag all hang off it. */
@@ -1010,17 +1145,38 @@ export class Race {
     car.driver.noteLap()
     this.leaderLap = Math.max(this.leaderLap, car.lap)
 
-    // Strategy: a plan made before the race, re-judged against the tyres that
-    // are actually on the car.
-    const worn = car.state.tyreWear
-    if (car.stops === 0 && car.status === 'racing' && car.lap < this.laps - 1) {
-      if (car.lap >= car.pitLap || worn > 0.78) {
+    car.tyreAge += 1
+
+    // Strategy: not a lap number drawn before the start, but the question a
+    // strategist actually answers each time the car goes past -- is the set on
+    // it costing more than a stop would?
+    if (car.status === 'racing' && !car.wantsPit) {
+      const call = callStrategy(
+        {
+          lap: car.lap,
+          laps: this.laps,
+          wear: car.state.tyreWear,
+          tyreAge: car.tyreAge,
+          compound: car.compound,
+          stops: car.stops,
+          pitLoss: this.pitLoss(),
+          // A stop under the flags is most of the way to free, because
+          // everybody else is going slowly too.
+          discount:
+            this.control.state === 'safety-car' ? 0.72
+            : this.control.state === 'vsc' ? 0.55
+            : 0,
+          queue: this.pitQueue,
+          racing: this.control.state === 'green',
+          behind: car.interval,
+        },
+        this.rng,
+      )
+      car.strategyNote = call.why
+      if (call.pit) {
         car.wantsPit = true
-        car.compound = car.lap > this.laps * 0.6 ? 'soft' : 'medium'
+        car.nextCompound = call.compound
       }
-    } else if (car.status === 'racing' && worn > 0.9 && car.lap < this.laps - 2) {
-      car.wantsPit = true
-      car.compound = 'soft'
     }
 
     if (car.lap > this.laps) {
@@ -1128,7 +1284,10 @@ export class Race {
           ? `Big contact — ${a.entry.abbrev} and ${b.entry.abbrev} at ${this.cornerName(a.i)}`
           : `Wheel to wheel — ${a.entry.abbrev} and ${b.entry.abbrev} at ${this.cornerName(a.i)}`,
         { x: a.state.x, y: a.state.y }, severity)
-      if (severity > 0.5) this.raiseCaution(a.i, 8)
+      if (severity > 0.4) {
+        this.report(a.i, clamp(severity * 0.8, 0, 0.75),
+          `contact between ${a.entry.abbrev} and ${b.entry.abbrev}`)
+      }
     }
   }
 
@@ -1206,6 +1365,48 @@ export class Race {
       e.vy *= 1 - 1.6 * dt
       if (e.kind === 'smoke' || e.kind === 'dust') e.size += dt * 2.4
     }
+  }
+
+  /**
+   * What a stop costs here, in seconds.
+   *
+   * The lane at its limit against the same road at racing speed, plus the time
+   * the car is stationary. Computed rather than assumed, so a circuit with a
+   * long pit lane genuinely discourages stopping.
+   */
+  pitLoss(): number {
+    const geo = this.pitGeometry()
+    if (!geo.line) return 22
+    const span = ((geo.exitS - geo.entryS) + this.circuit.length) % this.circuit.length
+    let onTrack = 0
+    const from = this.circuit.idxAt(geo.entryS)
+    const steps = Math.round(span / this.circuit.ds)
+    for (let q = 0; q < steps; q++) {
+      const i = this.circuit.wrap(from + q)
+      onTrack += this.circuit.ds / Math.max(this.surfaces.reference[i], 5)
+    }
+    const inLane = span / geo.speedLimit
+    return inLane - onTrack + 2.8
+  }
+
+  /**
+   * Is somebody about to arrive at the pit exit?
+   *
+   * Answered in time rather than distance: a car two hundred metres away at
+   * three hundred km/h is two seconds away, and two seconds is not enough.
+   */
+  private exitBusy(car: RaceCar): boolean {
+    const geo = this.pitGeometry()
+    const toExit = wrapDelta(geo.exitS - car.s, this.circuit.length)
+    const need = clamp(toExit / geo.speedLimit, 2, 14)
+    for (const other of this.cars) {
+      if (other === car || other.status !== 'racing') continue
+      const gap = wrapDelta(geo.exitS - other.s, this.circuit.length)
+      if (gap < -20) continue
+      const arrives = gap / Math.max(speedOf(other.state), 8)
+      if (arrives < need + 1.4) return true
+    }
+    return false
   }
 
   /** The classification, for the tower. */
