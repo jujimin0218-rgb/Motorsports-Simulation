@@ -211,18 +211,27 @@ function guardWideCorners(circuit: Circuit, offsets: Float64Array): Float64Array
     const next = Float64Array.from(off)
     for (const cn of circuit.corners) {
       const len = ((cn.to - cn.from + circuit.n) % circuit.n) + 1
+      // The middle of the corner, not its edges: the turn-in and the exit are
+      // *supposed* to be curved -- that is where the line crosses the road --
+      // and measuring them makes the transitions look like the tightest part
+      // and hides the thing this is looking for.
+      const from = Math.floor(len * 0.18)
+      const to = Math.ceil(len * 0.82)
       let tightest = 0
-      for (let q = 0; q < len; q++) {
+      for (let q = from; q < to; q++) {
         tightest = Math.max(tightest, Math.abs(line.k[circuit.wrap(cn.from + q)]))
       }
       const lineRadius = 1 / Math.max(tightest, 1e-6)
-      // A little better than the road, not merely equal: a line that is only
-      // as good as the centreline is not a racing line either.
-      const wanted = cn.radius * 1.02
+      // Comfortably better than the road, not merely equal. A line only as good
+      // as the centreline is not a racing line, and one a hair tighter is five
+      // seconds at the absolute limit with nothing in hand -- which, on the one
+      // long constant-radius corner at Bahrain, was where the cars kept ending
+      // up in the barrier.
+      const wanted = cn.radius * 1.06
       if (lineRadius >= wanted) continue
       changed = true
       const ease = Math.round(30 / circuit.ds)
-      const shrink = clamp(lineRadius / wanted, 0.5, 0.97)
+      const shrink = clamp(lineRadius / wanted, 0.45, 0.94)
       for (let q = -ease; q < len + ease; q++) {
         const i = circuit.wrap(cn.from + q)
         const edge = Math.min(

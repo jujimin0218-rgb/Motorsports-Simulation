@@ -663,7 +663,7 @@ export class Driver {
     // alongside. Traffic anywhere near also makes the limit less knowable, and
     // a driver who cannot be sure of the limit leaves more of it alone.
     const near = view.ahead && !view.ahead.inPit && view.ahead.gap < 70
-    const crowded = (view.alongside ? 0.05 : 0) + (near ? 0.03 : 0)
+    const crowded = (view.alongside ? 0.09 : 0) + (near ? 0.06 : 0)
     // Nobody drives at a hundred per cent of a computed limit. The limit is not
     // known exactly -- the tyre is a little different every lap, the air is
     // never quite clean, the road is never quite the same -- so a driver runs
@@ -685,7 +685,13 @@ export class Driver {
       // this way is what lets a driver brake hard without locking a wheel --
       // and what makes the pedal saturate, and the wheel lock, exactly when
       // they have asked for more than the car has.
-      demand = clamp((required * mass) / this.spec.brakeForce, 0, 1)
+      // Not all of the pedal. A driver brakes as hard as they trust themselves
+      // to, and trusting yourself to stand on it right up to the point the
+      // front tyre lets go is a skill -- so the ceiling is one. Without it
+      // every car in the field flat-spots a tyre at the heaviest stop on the
+      // lap, every lap, because the plan asks for the whole pedal there.
+      const ceiling = 0.88 + this.traits.racecraft * 0.14
+      demand = clamp((required * mass) / this.spec.brakeForce, 0, ceiling)
       const stopping = (v * v - bindLimit * bindLimit) / (2 * Math.max(bindBrake * this.commitment, 1))
       toBraking = bindDistance - stopping
     }

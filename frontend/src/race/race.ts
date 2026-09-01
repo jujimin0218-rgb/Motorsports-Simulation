@@ -945,8 +945,8 @@ export class Race {
       if (this.rng() < 0.25) this.spawn('smoke', state.x, state.y, 2, 3, 0.7, 0.9)
       // A momentary lock is not news; a wheel that stays locked long enough to
       // flat-spot a tyre and miss an apex is.
-      if (car.lockedFor > 0.30 && car.lockNoted <= 0) {
-        car.lockNoted = 4
+      if (car.lockedFor > 0.35 && car.lockNoted <= 0) {
+        car.lockNoted = 20
         this.emit('lockup', car.number, null,
           `${car.entry.abbrev} locks the fronts into ${this.cornerName(car.i)}`,
           { x: state.x, y: state.y }, 0.35)
