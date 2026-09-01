@@ -77,6 +77,26 @@ A weekend is thousands of simulated laps, so it takes minutes rather than
 seconds. `examples/17_race_weekend.py` takes `--laps` and `--practice` if you
 want to trade fidelity for time.
 
+## Watching a race being driven
+
+The engine decides a race in the distance domain — a speed profile, a lap time,
+a traffic model on top.  There is now a second thing beside it: a field of cars
+that are **driven**, in two dimensions, at sixty frames a second, by a driver
+model whose whole interface to the world is a steering angle, a throttle and a
+brake.  Lap times, positions, overtakes and mistakes are read off that loop
+rather than computed anywhere.
+
+    pip install -e ".[server]"
+    python play.py            # then: Live race
+
+The racing line is the minimum-curvature path the road can hold, which is
+out-in-out because that is what the answer looks like; the defensive, diving and
+switchback lines come off it and pay their own costs through their own
+curvature.  Three cameras — the whole circuit, chase, and onboard — and clicking
+a car or a row in the timing tower switches to it.
+
+See `docs/LIVE_RACE.md`, which also says what is still rough.
+
 ## What is here
 
 | Layer | Contents |

@@ -53,6 +53,16 @@ qualifying lap within 1.75 s of the real 2024 pole.  Eleven of the twenty-two
 calendar circuits are like this; the rest are still synthetic.  See
 `docs/CIRCUITS.md`.
 
+## The live race
+
+`Live race` in the sidebar is a different thing from the timing tower on the
+weekend screen.  That one reads back a session the engine has already
+simulated; this one *is* the simulation — twenty cars with their own physics and
+their own drivers being driven round the circuit in front of you.
+
+Click a car, or a row in the tower, to watch from it.  **Onboard** puts the
+camera on the car and rotates the world round it; **Chase** sits behind it.
+
 ## What is worth poking at
 
 - **The same car is quicker in different places.**  Take a power-biased team
