@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import type { RaceMark } from '../hooks/useRaceMarks'
 import type { TrackWorld, WorldCar } from '../types/api'
 
 const PAD = 30
@@ -29,6 +30,15 @@ const SURFACE: Record<string, string> = {
   kerb: '#7a2b34',
   track: '#22272f',
   pit: '#2a2f38',
+}
+
+/** One colour per kind of thing that can happen, matching the tower's. */
+const MARK_TONE: Record<RaceMark['kind'], string> = {
+  overtake: '#35c07a',
+  pit: '#4d9be6',
+  out: '#e2544a',
+  wide: '#e3a33a',
+  battle: '#cc79a7',
 }
 
 const toScreenY = (y: number, minY: number, maxY: number) => minY + maxY - y
@@ -55,6 +65,8 @@ export default function WorldMap({
   height = '100%',
   follow = null,
   debug = false,
+  lines = true,
+  marks = [],
 }: {
   world: TrackWorld
   cars?: WorldCar[]
@@ -63,6 +75,10 @@ export default function WorldMap({
   follow?: number | null
   /** Draw the collision rectangles and contact points over the top. */
   debug?: boolean
+  /** Draw the racing line and the two lines either side of it. */
+  lines?: boolean
+  /** Things that just happened, to flash where they happened. */
+  marks?: RaceMark[]
 }) {
   const [minX, minY, maxX, maxY] = world.bounds
   const full = { w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 }
@@ -216,6 +232,33 @@ export default function WorldMap({
         aria-label={`${world.name}, laid out`}
       >
         <g transform={`scale(1,-1) translate(0,${-(minY + maxY)})`}>
+          {/* The furniture goes down first: it is beside the circuit, so the
+              circuit is drawn over it rather than the other way round. */}
+          {(world.decor?.grandstands ?? []).map((stand, index) => (
+            <g key={`stand${index}`}>
+              <path d={ring(stand.polygon)} fill="#2b3140" stroke="#3a4152" strokeWidth={0.6} />
+              {/* A few banks of seating, so a stand reads as a stand rather
+                  than as a grey box beside the road. */}
+              {Array.from({ length: stand.rows }, (_, row) => {
+                const t = (row + 1) / (stand.rows + 1)
+                const [a, b, c, d] = stand.polygon
+                const p = (u: [number, number], v: [number, number]): [number, number] => [
+                  u[0] + (v[0] - u[0]) * t,
+                  u[1] + (v[1] - u[1]) * t,
+                ]
+                return (
+                  <path
+                    key={row}
+                    d={line([p(a, d), p(b, c)])}
+                    stroke="#454d61"
+                    strokeWidth={0.5}
+                    fill="none"
+                  />
+                )
+              })}
+            </g>
+          ))}
+
           {world.bands.map((band, index) => (
             <path
               key={index}
@@ -234,6 +277,55 @@ export default function WorldMap({
             strokeLinecap="round"
             strokeLinejoin="round"
           />
+          {/* Painted on the road: where a lap starts and where it is timed. */}
+          {world.decor?.start_line && (
+            <path
+              d={line(world.decor.start_line)}
+              stroke="#e6e9ee"
+              strokeWidth={Math.max(0.5, 1.2 * px)}
+              opacity={0.9}
+            />
+          )}
+          {(world.decor?.sector_lines ?? []).map((pair, index) => (
+            <path
+              key={`sector${index}`}
+              d={line(pair)}
+              stroke="#8b94a3"
+              strokeWidth={Math.max(0.3, 0.7 * px)}
+              strokeDasharray={`${2 * px} ${2 * px}`}
+              opacity={0.7}
+            />
+          ))}
+
+          {/* The three lines. The racing line is the one a car drives when
+              nobody is in the way; the other two are where a driver goes to
+              defend or to have a look, and they are drawn faintly because
+              they are options rather than a road. */}
+          {lines && (
+            <g fill="none" strokeLinejoin="round">
+              <path
+                d={linePath(world, 'inside')}
+                stroke="#e3a33a"
+                strokeWidth={Math.max(0.25, 0.5 * px)}
+                strokeDasharray={`${3 * px} ${3 * px}`}
+                opacity={0.5}
+              />
+              <path
+                d={linePath(world, 'outside')}
+                stroke="#4d9be6"
+                strokeWidth={Math.max(0.25, 0.5 * px)}
+                strokeDasharray={`${3 * px} ${3 * px}`}
+                opacity={0.45}
+              />
+              <path
+                d={linePath(world, 'optimal')}
+                stroke="#35c07a"
+                strokeWidth={Math.max(0.35, 0.8 * px)}
+                opacity={0.75}
+              />
+            </g>
+          )}
+
           {world.barriers.map((wall, index) => (
             <path
               key={index}
@@ -273,6 +365,35 @@ export default function WorldMap({
             </g>
           ))}
 
+          {/* What just happened, where it happened. Each mark grows and fades
+              once and then it is gone -- a race is read at a glance, and a
+              glance wants movement rather than a legend. */}
+          {marks.map((mark) => {
+            const car = cars.find((c) => c.car_number === mark.car)
+            if (!car) return null
+            const tone = MARK_TONE[mark.kind]
+            return (
+              <g key={mark.id} transform={`translate(${car.x} ${car.y})`}>
+                <circle r={2.5} fill="none" stroke={tone} strokeWidth={0.6}>
+                  <animate
+                    attributeName="r"
+                    from="2.5"
+                    to="11"
+                    dur="1.1s"
+                    repeatCount="indefinite"
+                  />
+                  <animate
+                    attributeName="opacity"
+                    from="0.85"
+                    to="0"
+                    dur="1.1s"
+                    repeatCount="indefinite"
+                  />
+                </circle>
+              </g>
+            )
+          })}
+
           {debug &&
             cars.map((car) => (
               <g key={`d${car.car_number}`}>
@@ -285,6 +406,26 @@ export default function WorldMap({
               </g>
             ))}
         </g>
+
+        {/* Corner numbers sit outside the flip, like the car labels, so that
+            text is the right way up however the plane is oriented. They fade
+            out when the whole circuit is in view, where fourteen of them are
+            clutter rather than information. */}
+        {zoom > 2 &&
+          (world.decor?.corner_marks ?? []).map((mark, index) => (
+            <text
+              key={`corner${index}`}
+              x={mark.x}
+              y={toScreenY(mark.y, minY, maxY)}
+              fill="#8b94a3"
+              fontSize={Math.max(4, 9 * px)}
+              fontWeight={600}
+              textAnchor="middle"
+              style={{ pointerEvents: 'none' }}
+            >
+              {mark.label}
+            </text>
+          ))}
 
         {cars.map((car) => (
           <text
@@ -343,9 +484,46 @@ export function placeOnWorld(
   const x = x0 + (x1 - x0) * nudge
   const y = y0 + (y1 - y0) * nudge
   const heading = Math.atan2(y1 - y0, x1 - x0)
+  // The race says how far a car is from the *racing line*, because that is
+  // what a driver moves off and comes back onto. The world measures from the
+  // middle of the road. Adding the line's own offset is the whole of the
+  // conversion, and without it a car sitting perfectly on the line is drawn
+  // halfway to the grass through every corner.
+  const across = lineOffsetAt(world, 'optimal', exact) + offset
   return {
-    x: x - Math.sin(heading) * offset,
-    y: y + Math.cos(heading) * offset,
+    x: x - Math.sin(heading) * across,
+    y: y + Math.cos(heading) * across,
     heading,
   }
+}
+
+/** Where one of the three lines is across the road, at a fractional sample. */
+function lineOffsetAt(
+  world: TrackWorld,
+  which: 'optimal' | 'inside' | 'outside',
+  exact: number,
+): number {
+  const table = world.lines?.[which]
+  if (!table || table.length === 0) return 0
+  const index = Math.floor(exact)
+  const nudge = exact - index
+  const here = table[index % table.length]
+  const there = table[(index + 1) % table.length]
+  return here + (there - here) * nudge
+}
+
+/** One of the three lines, as a path in metres. */
+function linePath(world: TrackWorld, which: 'optimal' | 'inside' | 'outside'): string {
+  const table = world.lines?.[which]
+  if (!table || table.length < 3) return ''
+  const count = world.centre.length
+  const points: [number, number][] = []
+  for (let index = 0; index < count; index += 1) {
+    const [x0, y0] = world.centre[index]
+    const [x1, y1] = world.centre[(index + 1) % count]
+    const heading = Math.atan2(y1 - y0, x1 - x0)
+    const offset = table[index % table.length]
+    points.push([x0 - Math.sin(heading) * offset, y0 + Math.cos(heading) * offset])
+  }
+  return ring(points)
 }

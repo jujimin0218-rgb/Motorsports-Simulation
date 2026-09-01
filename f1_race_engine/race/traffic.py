@@ -41,6 +41,8 @@ from ..driver.model import DriverAttributes
 from ..simulation.traffic import CLEAR, TrafficState
 from ..track.model import Track
 from ..track.racing_line import CAR_WIDTH
+from ..world.track import TrackWorld
+from .racecraft import bias_of_offset, corner_scale, holds_the_line
 from .timing import TimingTower
 from .wake import CLEAN_AIR, WakeEffect, wake_effect
 
@@ -124,6 +126,14 @@ class Traffic:
     The lap simulation counts from zero every lap; everybody else is somewhere
     on a race clock.  This is the only place the two are reconciled."""
 
+    world: TrackWorld | None = None
+    """The circuit as a place, which is where the lines are.
+
+    Optional so that a race can still be run without one -- qualifying builds a
+    :class:`Traffic` with nobody in it -- but with one the car's place across
+    the road becomes a *line*, and the line has a radius that the physics
+    charges it for."""
+
     others: dict[int, DriverAttributes] = field(default_factory=dict)
     config: OvertakingConfig | None = None
     wake_config: WakeConfig | None = None
@@ -160,6 +170,14 @@ class Traffic:
     _last_distance: float = field(default=0.0, repr=False)
     offset: float = field(default=0.0, repr=False)
     """Where this car is across the road, m from the line, left positive."""
+
+    _planned: dict[int, float] = field(default_factory=dict, repr=False)
+    """The cornering scale this car's lap was *planned* with, per sample.
+
+    Filled in by :meth:`preview` while the lap is being worked out and read
+    back by :meth:`at` while it is being driven.  The gap between the two is a
+    driver committing to something after the plan was made, and it is the whole
+    of how a car ends up off the road."""
 
     passes: list[OvertakeAttempt] = field(default_factory=list, repr=False)
 
@@ -200,12 +218,26 @@ class Traffic:
         gap = road_gap / max(speed, 1.0)
         cfg = self.config
         here = self.track.state_at(distance)
+
+        # A driver lining somebody up plans to be off the racing line by the
+        # time they get there, and plans the corner for the line they will be
+        # on.  Recording it is what lets the driven lap tell a move that was
+        # set up from one that was decided at the braking point -- the second
+        # is the one that puts a car in the run-off.
+        planned_bias = 0.0
+        if road_gap <= cfg.car_length * LOOKING_LENGTHS:
+            planned_bias = LOOKING_FRACTION
+        scale = self._line_scale(distance, planned_bias)
+        self._planned[self._sample(distance)] = scale
+
         return TrafficState(
             wake=self._wake(
                 gap, self._is_passable(here.curvature, speed, here.usable_half_width)
             ),
             drs_allowed=self._drs_allowed(distance, elapsed, car),
             speed_limit=ahead_speed if gap <= cfg.minimum_gap else float("inf"),
+            bias=planned_bias,
+            corner_scale=scale,
         )
 
     def at(
@@ -230,11 +262,15 @@ class Traffic:
             self._target = None
             # Nobody to race: back to the line, at the rate a car changes line.
             self.offset = self._hold_line(0.0, room, step)
+            bias, scale, wide, _ = self._line_state(distance, self.offset)
             return TrafficState(
                 wake=CLEAN_AIR,
                 off_line=abs(self.offset) > OFF_LINE,
                 offset=self.offset,
                 passed=overtook,
+                bias=bias,
+                corner_scale=scale,
+                ran_wide=wide,
             )
 
         car, road_gap, ahead_speed = nearest
@@ -301,14 +337,78 @@ class Traffic:
             else (ahead_speed if road_gap - closing <= floor else float("inf"))
         )
 
+        bias, scale, wide, _ = self._line_state(distance, self.offset)
         return TrafficState(
             wake=wake,
             drs_allowed=drs,
             speed_limit=limit,
-            off_line=abs(self.offset) > OFF_LINE,
+            off_line=abs(self.offset) > OFF_LINE or wide,
             offset=self.offset,
             passed=overtook,
+            bias=bias,
+            corner_scale=scale,
+            ran_wide=wide,
         )
+
+    # -- which line, and what it costs ---------------------------------------
+
+    def _sample(self, distance: float) -> int:
+        """Which world sample a lap distance falls on."""
+        if self.world is None:
+            return 0
+        return self.world.sample_of(distance)
+
+    def _line_scale(self, distance: float, bias: float) -> float:
+        """What driving line ``bias`` here does to cornering speed.
+
+        One over the square root of how much tighter the path is than the
+        racing line.  Everything a driver gains or loses by their choice of
+        line goes through this number and nothing else does.
+        """
+        if self.world is None or self.world.lines is None:
+            return 1.0
+        index = self.world.sample_of(distance)
+        road = self.world.lines.optimal.curvature[index]
+        line = self.world.curvature_of_line(distance, bias)
+        return corner_scale(road, line)
+
+    def _line_state(
+        self, distance: float, offset: float
+    ) -> tuple[float, float, bool, str]:
+        """The line this car is on, its price, and whether it can hold it.
+
+        Called once per step of the driven lap.  The car's place across the
+        road has already been decided by the racing logic above; this says what
+        the choice was in the language the physics understands.
+        """
+        if self.world is None or self.world.lines is None:
+            return 0.0, 1.0, False, "line"
+
+        index = self.world.sample_of(distance)
+        # The race carries a car's place as metres from the *racing line*,
+        # because that is what a driver moves off and back onto.  The world
+        # measures from the middle of the road.  Adding the line's own offset
+        # is the whole of the conversion, and leaving it out reads a car
+        # sitting perfectly on the line as one halfway to the grass.
+        across = self.world.lines.optimal.offsets[index] + offset
+        bias = bias_of_offset(self.world.lines, index, across)
+        scale = self._line_scale(distance, bias)
+
+        # The lap was planned for a line.  If the car is now on a tighter one,
+        # the speed it is carrying was worked out for a bigger radius, and the
+        # difference has to come out of the grip the driver kept back.
+        planned = self._planned.get(index, 1.0)
+        wide = not holds_the_line(planned, scale, self.attributes.racecraft)
+
+        if wide:
+            intent = "wide"
+        elif bias > 0.15:
+            intent = "attack" if self._target is not None else "defend"
+        elif bias < -0.15:
+            intent = "around"
+        else:
+            intent = "line"
+        return bias, scale, wide, intent
 
     def _covered(self, distance: float) -> float:
         """How far this car has come since the start, m."""

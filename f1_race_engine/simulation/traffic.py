@@ -51,6 +51,25 @@ class TrafficState:
     passed: int | None = None
     """Car number just overtaken, if the move completed on this segment."""
 
+    bias: float = 0.0
+    """Which line the car is on: -1 hard outside, 0 the racing line, +1 hard
+    inside.  Where ``offset`` is the metres, this is the choice that produced
+    them, and it is the choice that has a radius."""
+
+    corner_scale: float = 1.0
+    """What this car's line does to its cornering speed, as a multiplier.
+
+    The whole price of racecraft, in one number.  A car on the racing line goes
+    round the radius the circuit was authored with and this is 1.0; a car
+    holding the inside to defend is on a tighter path, and since
+    ``v = sqrt(a / kappa)`` its corner speed scales by the square root of the
+    ratio of the two curvatures.  Nothing adds a penalty for defending: the
+    defender is simply driving a smaller circle."""
+
+    ran_wide: bool = False
+    """Whether the car asked for more than its line and its grip could give and
+    is on its way off the road because of it."""
+
     @property
     def is_clear(self) -> bool:
         return self.speed_limit == float("inf") and not self.wake.in_traffic
@@ -63,6 +82,9 @@ class TrafficState:
             "off_line": self.off_line,
             "offset": self.offset,
             "passed": self.passed,
+            "bias": self.bias,
+            "corner_scale": self.corner_scale,
+            "ran_wide": self.ran_wide,
         }
 
 

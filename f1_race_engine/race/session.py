@@ -36,6 +36,7 @@ from ..track.surface import TrackConditions
 from .entry import PitStop, RaceEntry
 from .grid import Launch, launch_from_rest, reaction_time, starting_grid
 from .pitlane import PitLane, pit_loss
+from ..world import world_for
 from .timing import Gap, LapRecord, TimingTower
 from ..events import (
     ContactRisk,
@@ -850,6 +851,7 @@ class RaceSession:
             return None
         return Traffic(
             track=self.track,
+            world=world_for(self.track),
             timing=self.timing,
             car_number=entry.car_number,
             lap=lap,

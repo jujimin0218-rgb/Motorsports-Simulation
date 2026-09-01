@@ -525,8 +525,24 @@ class LapSimulator:
             config=self.config.speed_profile,
         )
 
+        # What each car's chosen line does to its cornering speed.  A car on
+        # the racing line drives the authored radius and this is all ones; a
+        # car defending, or diving down the inside, is on a tighter path and
+        # this is what that costs it.  It multiplies the corner limit rather
+        # than the lap time, so the consequence propagates the way any other
+        # loss of grip does -- an earlier brake, a slower exit, and the whole
+        # of the following straight.
+        line_scale = None if wake is None else [state.corner_scale for state in wake]
+        if line_scale is not None and all(value == 1.0 for value in line_scale):
+            line_scale = None
+
         penalties = {mistake.corner_id: mistake.speed_penalty for mistake in mistakes}
-        needs_override = bool(penalties) or bool(variation.corner_bias) or wake is not None
+        needs_override = (
+            bool(penalties)
+            or bool(variation.corner_bias)
+            or wake is not None
+            or line_scale is not None
+        )
         if not needs_override:
             return compute_speed_profile(
                 self.track, self.vehicle, self.ambient,
@@ -537,6 +553,9 @@ class LapSimulator:
             )
 
         adjusted = list(base)
+        if line_scale is not None:
+            for index in range(len(adjusted)):
+                adjusted[index] *= line_scale[index]
         for index, segment in enumerate(self.track.segments):
             corner_id = segment.corner_id
             if corner_id is None:

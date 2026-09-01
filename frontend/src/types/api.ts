@@ -521,6 +521,20 @@ export interface TrackWorld {
   bands: WorldBand[]
   barriers: [number, number][][]
   pit_path: [number, number][]
+  /** The three lines, as metres left of the road's centre at each sample.
+   *  A car's place is its line's offset plus how far it has moved off it. */
+  lines: {
+    optimal?: number[]
+    inside?: number[]
+    outside?: number[]
+  }
+  /** Everything beside the road that is drawn and never raced on. */
+  decor: {
+    grandstands?: { polygon: [number, number][]; rows: number }[]
+    start_line?: [number, number][] | null
+    sector_lines?: [number, number][][]
+    corner_marks?: { x: number; y: number; label: string }[]
+  }
   bounds: [number, number, number, number]
   circuit: Circuit
 }
@@ -537,6 +551,12 @@ export interface WorldCar {
   retired?: boolean
   drs?: boolean
   in_wake?: boolean
+  /** Which line the driver chose: -1 hard outside, 0 the racing line, +1 inside. */
+  bias?: number
+  /** What the driver is doing, so the picture can say so. */
+  intent?: string
+  /** Asked for more than the line and the grip could give. */
+  ran_wide?: boolean
 }
 
 export interface ReplayCar {

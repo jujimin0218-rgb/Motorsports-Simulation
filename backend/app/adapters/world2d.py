@@ -14,21 +14,20 @@ from __future__ import annotations
 from typing import Any
 
 from f1_race_engine.track.model import Track
-from f1_race_engine.world import TrackWorld, build_world
+from f1_race_engine.world import TrackWorld, world_for as _engine_world
 
 __all__ = ["world_for", "world_payload"]
 
-_CACHE: dict[str, TrackWorld] = {}
-
-
 def world_for(track: Track) -> TrackWorld:
-    """The laid-out circuit, built once per track."""
-    key = track.name
-    world = _CACHE.get(key)
-    if world is None:
-        world = build_world(track)
-        _CACHE[key] = world
-    return world
+    """The laid-out circuit, built once per track.
+
+    Deferred to the engine's own cache rather than kept here as well: the race
+    running on the server needs the same world this hands to the browser, and
+    laying one out solves three lines over a few thousand samples.  Two caches
+    would mean doing that twice and, worse, being able to disagree about where
+    the racing line is.
+    """
+    return _engine_world(track)
 
 
 def world_payload(track: Track) -> dict[str, Any]:

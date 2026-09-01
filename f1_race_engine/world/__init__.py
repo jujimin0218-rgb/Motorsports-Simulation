@@ -11,6 +11,14 @@ had an opinion about.
 """
 
 from .geometry import Vec2
-from .track import Barrier, Surface, SurfaceBand, TrackWorld, build_world
+from .track import Barrier, Surface, SurfaceBand, TrackWorld, build_world, world_for
 
-__all__ = ["Barrier", "Surface", "SurfaceBand", "TrackWorld", "Vec2", "build_world"]
+__all__ = [
+    "Barrier",
+    "Surface",
+    "SurfaceBand",
+    "TrackWorld",
+    "Vec2",
+    "build_world",
+    "world_for",
+]

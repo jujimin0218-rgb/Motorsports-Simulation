@@ -20,6 +20,7 @@ import { lapTime } from './format'
 import { teamColours } from './teamColour'
 import { Pill } from './ui'
 import { useAsync } from '../hooks/useAsync'
+import { useRaceMarks } from '../hooks/useRaceMarks'
 import { api } from '../services/api'
 import type {
   Job,
@@ -169,6 +170,9 @@ function RaceBoard({ live, world }: { live: LiveRace; world: TrackWorld | null }
   // Two pictures of the same race: the schematic for where everybody is round
   // the lap, the laid-out circuit for what is happening on a piece of road.
   const [laidOut, setLaidOut] = useState(true)
+  const [showLines, setShowLines] = useState(true)
+  // What has happened since the last frame, so the map can flash it.
+  const marks = useRaceMarks(live)
 
   const colourOf = teamColours(live.order.map((row) => row.team))
   const cars: CarOnTrack[] = live.order.map((row: LiveRaceRow) => ({
@@ -210,7 +214,14 @@ function RaceBoard({ live, world }: { live: LiveRace; world: TrackWorld | null }
   return (
     <div className="raceview">
       {laidOut && world ? (
-        <WorldMap world={world} cars={placed} height="100%" follow={follow} />
+        <WorldMap
+          world={world}
+          cars={placed}
+          height="100%"
+          follow={follow}
+          lines={showLines}
+          marks={marks}
+        />
       ) : track.data ? (
         <TrackMap
           geometry={track.data}
@@ -250,6 +261,11 @@ function RaceBoard({ live, world }: { live: LiveRace; world: TrackWorld | null }
         <button className="ghost" onClick={() => setLaidOut((on) => !on)}>
           {laidOut ? 'Schematic' : 'Track'}
         </button>
+        {laidOut && (
+          <button className="ghost" onClick={() => setShowLines((on) => !on)}>
+            {showLines ? 'Hide lines' : 'Racing line'}
+          </button>
+        )}
         {!laidOut && (
           <button className="ghost" onClick={() => setCorners((c) => !c)}>
             {corners ? 'Hide corners' : 'Corners'}

@@ -27,13 +27,22 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from .decor import Decor, build_decor
 from .geometry import Vec2, closest_point_on_segment, project_polyline
+from .line import Lines, solve_lines
 from .space import SampleGrid
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from ..track.model import Track
 
-__all__ = ["Surface", "SurfaceBand", "Barrier", "TrackWorld", "build_world"]
+__all__ = [
+    "Surface",
+    "SurfaceBand",
+    "Barrier",
+    "TrackWorld",
+    "build_world",
+    "world_for",
+]
 
 
 #: How finely the world is laid out, m.  Fine enough that a car two metres wide
@@ -212,6 +221,18 @@ class TrackWorld:
     grid: "SampleGrid"
     """Where the samples are, so finding the nearest is not a lap-long scan."""
 
+    decor: Decor | None
+    """Grandstands, corner numbers, the start line -- everything beside the road
+    that is drawn and never raced on."""
+
+    lines: Lines | None
+    """The racing line and the two lines either side of it.
+
+    ``None`` only for a circuit too short to solve one for.  A car's place
+    across the road is chosen from these rather than given in metres, because
+    the inside of a corner is a different distance away at every point on a
+    lap."""
+
     def sample_of(self, distance: float) -> int:
         """Which sample a lap distance falls on."""
         wrapped = distance % self.length
@@ -236,6 +257,26 @@ class TrackWorld:
         heading = self.headings[index % count]
         across = Vec2(math.cos(heading), math.sin(heading)).left
         return point + across * offset, heading
+
+    def offset_of(self, distance: float, bias: float) -> float:
+        """How far left of the road's centre line ``bias`` is here, m."""
+        if self.lines is None:
+            return 0.0
+        return self.lines.at(self.sample_of(distance), bias)
+
+    def curvature_of_line(self, distance: float, bias: float) -> float:
+        """The radius a car on ``bias`` is actually going round, as 1/m.
+
+        This is what makes choosing a line cost something: the tyres are asked
+        about the path the car is on, not about the road it is on.
+        """
+        if self.lines is None:
+            return 0.0
+        from .line import curvature_between
+
+        return curvature_between(
+            self.centre, self.headings, self.lines, self.sample_of(distance), bias
+        )
 
     def surface_at(self, point: Vec2) -> Surface:
         """What is under a point on the plane.
@@ -311,6 +352,21 @@ class TrackWorld:
                 for wall in self.barriers
             ],
             "pit_path": [[round(p.x, 2), round(p.y, 2)] for p in self.pit_path],
+            # The three lines, as metres left of the road's centre at each
+            # sample.  Sent as offsets rather than as points because that is
+            # also what a car's place across the road is: the client adds the
+            # two and gets where the car is, and can draw the lines themselves
+            # from the same numbers.
+            "lines": (
+                {}
+                if self.lines is None
+                else {
+                    "optimal": [round(v, 2) for v in self.lines.optimal.offsets],
+                    "inside": [round(v, 2) for v in self.lines.inside_edge],
+                    "outside": [round(v, 2) for v in self.lines.outside_edge],
+                }
+            ),
+            "decor": {} if self.decor is None else self.decor.to_dict(),
             "bounds": self._bounds(),
         }
 
@@ -371,6 +427,19 @@ def build_world(track: Track, *, step: float = STEP_M) -> TrackWorld:
         headings.append(state.heading)
         half.append(state.track_width * 0.5)
         corner.append(abs(state.radius) < CORNER_RADIUS_M)
+
+    # What has been walked so far is the *driven line*, because that is what
+    # the circuit was authored as -- so the road has to be put back underneath
+    # it before anything is drawn around it.  Every band, kerb, wall and grid
+    # below is generated from `centre`, so replacing it here is the whole of
+    # the change: the asphalt stops being a ribbon painted along the racing
+    # line and becomes a road with a racing line weaving inside it.
+    lines = None
+    if len(centre) >= 8:
+        road, lines = solve_lines(
+            tuple(centre), tuple(headings), tuple(2.0 * w for w in half), step
+        )
+        centre = list(road)
 
     # A corner's run-off does not start at the apex and stop again four metres
     # later: it covers the braking zone before and the exit after.  Without
@@ -453,6 +522,9 @@ def build_world(track: Track, *, step: float = STEP_M) -> TrackWorld:
         for side in (1.0, -1.0)
     )
 
+    # How far out the wall is at each sample, so the furniture goes outside it.
+    reach = [half[i] + kerbed[i] + runoff[i] + 1.0 for i in range(count)]
+
     return TrackWorld(
         name=track.name,
         length=track.length,
@@ -468,6 +540,10 @@ def build_world(track: Track, *, step: float = STEP_M) -> TrackWorld:
         # Cells a few car lengths across: big enough that a lookup touches a
         # handful of samples, small enough that it is not most of the lap.
         grid=SampleGrid.of(frozen_centre, cell=max(step * 4.0, 16.0)),
+        lines=lines,
+        decor=build_decor(
+            track, frozen_centre, tuple(headings), tuple(half), tuple(reach), step
+        ),
     )
 
 
@@ -527,3 +603,21 @@ def _pit_path(
             centre[sample] - across * (half[sample] + 3.0 + 9.0 * ease)
         )
     return tuple(points)
+
+
+#: Worlds already laid out, by circuit name.
+#:
+#: Laying one out solves three lines over a few thousand samples, which is a
+#: couple of seconds -- once per circuit is nothing and once per car per lap
+#: would be the race.  A circuit does not change while it is being raced, so
+#: the answer is reusable for as long as the process lives.
+_WORLDS: dict[str, TrackWorld] = {}
+
+
+def world_for(track: "Track") -> TrackWorld:
+    """The laid-out circuit, built once per track name and kept."""
+    world = _WORLDS.get(track.name)
+    if world is None:
+        world = build_world(track)
+        _WORLDS[track.name] = world
+    return world

@@ -41,7 +41,12 @@ def test_the_centreline_advances_everywhere(world):
     ]
 
     assert min(steps) > 0.0, "two samples in the same place"
-    assert max(steps) == pytest.approx(world.step, abs=0.5)
+    # Not evenly spaced, and it should not be.  The samples are laid out by
+    # distance along the *racing line*, and the road is that line pushed
+    # sideways -- so round the outside of a corner the road covers more ground
+    # between two samples than the line does.  What matters is that it always
+    # covers some and never doubles back.
+    assert max(steps) < world.step * 1.5
 
 
 def test_a_straight_is_flanked_by_grass_and_then_a_wall(world):
