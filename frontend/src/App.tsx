@@ -19,6 +19,7 @@ import Development from './pages/Development'
 import Drivers from './pages/Drivers'
 import Finances from './pages/Finances'
 import History from './pages/History'
+import LiveRace from './pages/LiveRace'
 import NewGame from './pages/NewGame'
 import RaceWeekend from './pages/RaceWeekend'
 import Replay from './pages/Replay'
@@ -76,6 +77,7 @@ export default function App() {
           label: 'Race weekend',
           badge: round ? `R${round.number}` : 'done',
         },
+        { to: '/live', label: 'Live race', badge: 'sim' },
         { to: '/replay', label: 'Replay' },
         { to: '/calendar', label: 'Calendar' },
         { to: '/standings', label: 'Standings' },
@@ -142,6 +144,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/weekend" element={<RaceWeekend />} />
+          <Route path="/live" element={<LiveRace />} />
           <Route path="/replay" element={<Replay />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/standings" element={<Standings />} />

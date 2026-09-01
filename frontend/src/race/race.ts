@@ -21,7 +21,7 @@ import {
 import { LineSet, buildLines } from './lines'
 import { Driver, DriverTraits, Neighbour, RaceView, specFrom } from './ai'
 import {
-  CarSpec, CarState, Controls, StepReport, speedOf, step as stepCar, tyreGrip,
+  CarSpec, CarState, Controls, StepReport, speedOf, step as stepCar,
 } from './physics'
 
 // -- surfaces ----------------------------------------------------------------
@@ -249,7 +249,6 @@ export class Race {
   private pitLine: ReturnType<Circuit['makeLine']> | null = null
   private pitEntryS = 0
   private pitExitS = 0
-  private pitBoxS = 0
   private pitLimitS = 0
   private pitSide = -1
   /** The lane as drawn, and a box for every car, for the renderer. */
@@ -380,7 +379,6 @@ export class Race {
       const place = circuit.place(circuit.s[i], off[i] + side * PIT_BOX_OFFSET)
       this.pitBoxes.push({ i, s: circuit.s[i], x: place.x, y: place.y, h: place.h })
     }
-    this.pitBoxS = this.pitBoxes[0].s
   }
 
   /** Put the field on the grid, staggered the way a real one is. */
@@ -466,6 +464,37 @@ export class Race {
       return edge >= kerb + depth * GRAVEL_FROM ? 'gravel' : 'runoff'
     }
     return 'wall'
+  }
+
+  /**
+   * The edges of every surface, per sample, so the picture can be drawn from
+   * the same numbers the cars are driving on.
+   *
+   * The server sends its own surface polygons, but those are its conventions
+   * rather than these, and a picture that disagrees with the physics is worse
+   * than no picture: a car slides onto what looks like asphalt and behaves as
+   * though it were gravel, and nobody watching can tell whether the simulation
+   * or the drawing is wrong.
+   */
+  surfaceProfile(): {
+    kerb: Float64Array
+    runoff: Float64Array
+    gravelFrom: Float64Array
+    corner: Uint8Array
+  } {
+    const n = this.circuit.n
+    const kerb = new Float64Array(n)
+    const runoff = new Float64Array(n)
+    const gravelFrom = new Float64Array(n)
+    const corner = new Uint8Array(n)
+    for (let i = 0; i < n; i++) {
+      const bend = this.nearCorner(i)
+      corner[i] = bend ? 1 : 0
+      kerb[i] = bend ? KERB_M : 0
+      runoff[i] = bend ? RUNOFF_CORNER_M : RUNOFF_STRAIGHT_M
+      gravelFrom[i] = bend ? GRAVEL_FROM : 1
+    }
+    return { kerb, runoff, gravelFrom, corner }
   }
 
   /** Corner run-off reaches into the braking zone and out past the exit. */
@@ -770,7 +799,6 @@ export class Race {
 
     car.controls = controls
     car.drsOpen = controls.drs
-    const before = speedOf(state)
     const physics = stepCar(state, car.spec, controls,
       { gripFactor: grip, wake, tow }, dt)
     car.report = physics
@@ -785,7 +813,7 @@ export class Race {
     const crossedLine = wrapped < car.s - circuit.length / 2
     car.s = wrapped
 
-    this.reactToSurface(car, physics, before, dt)
+    this.reactToSurface(car, physics, dt)
     if (crossedLine) this.completeLap(car)
     this.animate(car, physics, dt)
   }
@@ -798,7 +826,7 @@ export class Race {
    * for a gap before it can come back. None of that is scripted -- the grip
    * multiplier goes into the tyre model and the rest is the same integrator.
    */
-  private reactToSurface(car: RaceCar, physics: StepReport, before: number, dt: number): void {
+  private reactToSurface(car: RaceCar, physics: StepReport, dt: number): void {
     const state = car.state
     const speed = physics.speed
 
@@ -878,8 +906,9 @@ export class Race {
         car.driver.noteExcursion(car.surface === 'gravel' ? 2.0 : 0.7)
         this.emit('off', car.number, null,
           car.surface === 'gravel'
-            ? `${car.entry.abbrev} into the gravel [${car.intent}/${car.lineId} c=${car.commitment.toFixed(2)} wake=${car.inWake.toFixed(2)} v=${(speed*3.6).toFixed(0)} tgt=${(car.targetSpeed*3.6).toFixed(0)}]`
-            : `${car.entry.abbrev} runs wide [${car.status} s=${car.s.toFixed(0)} lat=${car.lat.toFixed(1)} ${car.intent}/${car.lineId} v=${(speed*3.6).toFixed(0)} tgt=${(car.targetSpeed*3.6).toFixed(0)}]`,
+            ? `${car.entry.abbrev} into the gravel at ${this.cornerName(car.i)}`
+            : `${car.entry.abbrev} runs wide at ${this.cornerName(car.i)}` +
+              (car.lineId === 'dive' ? ' — the lunge did not stick' : ''),
           { x: state.x, y: state.y }, car.surface === 'gravel' ? 0.8 : 0.4)
         if (car.surface === 'gravel' && speed > 45) this.raiseCaution(car.i, 6)
       }
@@ -902,7 +931,7 @@ export class Race {
       car.smoking = Math.max(car.smoking, 1.4)
       this.spawn('smoke', state.x, state.y, 10, 6, 1.8, 1.7)
       this.emit('spin', car.number, null,
-        `${car.entry.abbrev} spins! [${car.intent}/${car.lineId} c=${car.commitment.toFixed(2)} wake=${car.inWake.toFixed(2)} v=${(speed*3.6).toFixed(0)} tgt=${(car.targetSpeed*3.6).toFixed(0)} surf=${car.surface}]`,
+        `${car.entry.abbrev} spins at ${this.cornerName(car.i)}!`,
         { x: state.x, y: state.y }, 0.85)
       // Only a spin that leaves a car where it should not be brings out flags.
       if (speed < 12 || car.surface === 'gravel') this.raiseCaution(car.i, 6)
@@ -1095,10 +1124,9 @@ export class Race {
       this.spawn('debris', (a.state.x + b.state.x) / 2, (a.state.y + b.state.y) / 2,
         Math.round(2 + severity * 9), 11, 1.0, 0.35)
       this.emit('contact', a.number, b.number,
-        (severity > 0.45
+        severity > 0.45
           ? `Big contact — ${a.entry.abbrev} and ${b.entry.abbrev} at ${this.cornerName(a.i)}`
-          : `Wheel to wheel — ${a.entry.abbrev} and ${b.entry.abbrev} at ${this.cornerName(a.i)}`) +
-        ` [${a.status}/${b.status} close=${(-closing).toFixed(1)} va=${(speedOf(a.state)*3.6).toFixed(0)} vb=${(speedOf(b.state)*3.6).toFixed(0)} lat=${a.lat.toFixed(1)}/${b.lat.toFixed(1)} s=${a.s.toFixed(0)}]`,
+          : `Wheel to wheel — ${a.entry.abbrev} and ${b.entry.abbrev} at ${this.cornerName(a.i)}`,
         { x: a.state.x, y: a.state.y }, severity)
       if (severity > 0.5) this.raiseCaution(a.i, 8)
     }

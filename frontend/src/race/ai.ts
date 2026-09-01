@@ -177,8 +177,6 @@ export class Driver {
 
   /** Set while the driver is recovering from a spin or an excursion. */
   recovering = 0
-  /** Time the driver has been alongside somebody. */
-  private alongsideFor = 0
   /** Corner index the current plan was made for. */
   private plannedCorner = -1
   private nextDecision = 0
@@ -753,7 +751,7 @@ export class Driver {
    * picks the path that gets it the place -- or keeps it.
    */
   private decide(
-    state: CarState, view: RaceView, at: { i: number; s: number; lat: number }, v: number,
+    _state: CarState, view: RaceView, at: { i: number; s: number; lat: number }, v: number,
   ): void {
     const circuit = this.circuit
     const t = this.traits
@@ -928,21 +926,30 @@ export class Driver {
   }
 }
 
-/** Turn a game driver's ratings into the traits the model uses. */
+/**
+ * Turn a game driver's ratings into the traits the model uses.
+ *
+ * The game stores skills as fractions, but the same shape of data turns up
+ * scaled to a hundred elsewhere, so the scale is detected rather than assumed:
+ * a driver silently rated at 0.009 instead of 0.9 is a driver who cannot drive,
+ * and it would look like a bug in the physics.
+ */
 export function traitsFrom(skills: Record<string, number>, form = 0): DriverTraits {
-  const get = (k: string, fallback: number) => {
-    const v = skills[k]
-    return typeof v === 'number' ? clamp(v / 100, 0, 1) : fallback
+  const values = Object.values(skills).filter((v) => typeof v === 'number')
+  const scale = values.some((v) => v > 1.5) ? 1 / 100 : 1
+  const get = (key: string, fallback: number) => {
+    const raw = skills[key]
+    return typeof raw === 'number' ? clamp(raw * scale, 0, 1) : fallback
   }
-  const pace = get('pace', 0.8)
+  const racecraft = get('racecraft', 0.7)
   return {
-    pace: clamp(pace + form * 0.05, 0.4, 1),
-    aggression: get('aggression', 0.55),
+    pace: clamp(get('pace', 0.8) + form * 0.05, 0.35, 1),
+    aggression: get('overtaking', 0.55),
     consistency: get('consistency', 0.8),
-    racecraft: get('racecraft', 0.7),
-    defence: get('racecraft', 0.65) * 0.6 + get('aggression', 0.55) * 0.4,
+    racecraft,
+    defence: get('defending', 0.6),
     tyreCare: get('tyre_management', 0.55),
-    reaction: clamp(0.34 - get('racecraft', 0.7) * 0.16, 0.12, 0.36),
+    reaction: clamp(0.34 - racecraft * 0.16, 0.12, 0.36),
   }
 }
 

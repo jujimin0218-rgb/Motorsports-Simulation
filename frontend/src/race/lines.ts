@@ -38,6 +38,8 @@
 
 import { Circuit, Line, clamp, lerp, smoothRing, smoothstep } from './geometry'
 
+export type { Line }
+
 export type LineId = 'racing' | 'defend' | 'dive' | 'switchback' | 'outside'
 
 export interface LineSet {
