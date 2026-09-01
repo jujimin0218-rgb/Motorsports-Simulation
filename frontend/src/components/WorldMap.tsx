@@ -21,6 +21,14 @@ import type { TrackWorld, WorldCar } from '../types/api'
 const PAD = 30
 const MAX_ZOOM = 40
 
+/** How close in "follow this car" goes, if the view is still wide open.
+ *
+ *  Following at one times is not following: the whole circuit already fits, so
+ *  centring on a car only slides it off to one side and leaves half the panel
+ *  empty.  Picking a driver means asking to watch them, so the view closes in
+ *  far enough that watching them is a thing you can do. */
+const FOLLOW_ZOOM = 9
+
 /** Flat colours, one per surface. Deliberately not textures: a race is read at
  *  a glance and a glance wants an edge, not a material. */
 const SURFACE: Record<string, string> = {
@@ -99,6 +107,13 @@ export default function WorldMap({
   }, [minX, minY, full.w, full.h])
 
   useEffect(() => reset(), [world.name, reset])
+
+  // Picking a car out of the tower closes the view in on it; letting it go
+  // opens the circuit back up.
+  useEffect(() => {
+    if (follow === null) reset()
+    else setZoom((current) => (current < 2 ? FOLLOW_ZOOM : current))
+  }, [follow, reset])
 
   const followed = follow === null ? undefined : cars.find((c) => c.car_number === follow)
   const view = {
@@ -193,8 +208,11 @@ export default function WorldMap({
     }
   }
 
-  // Line weights are metres and hold their apparent size as the view closes in,
-  // so zooming spreads the circuit out rather than fattening everything on it.
+  // Everything drawn in these units is metres, so a line weight or a font size
+  // has to shrink as the view closes in or it grows on screen instead of
+  // holding still. `px` is that conversion, and text uses it *without* a floor:
+  // a floor is what makes a corner number four metres tall, which at sixteen
+  // times is a number the size of a grandstand.
   const px = 1 / zoom
   const zoomed = zoom > 1.001
 
@@ -418,7 +436,7 @@ export default function WorldMap({
               x={mark.x}
               y={toScreenY(mark.y, minY, maxY)}
               fill="#8b94a3"
-              fontSize={Math.max(4, 9 * px)}
+              fontSize={9 * px}
               fontWeight={600}
               textAnchor="middle"
               style={{ pointerEvents: 'none' }}
@@ -433,7 +451,7 @@ export default function WorldMap({
             x={car.x}
             y={toScreenY(car.y, minY, maxY) - 3.4}
             fill="rgba(255,255,255,0.9)"
-            fontSize={Math.max(3, 7 * px)}
+            fontSize={7 * px}
             fontWeight={600}
             textAnchor="middle"
             style={{ pointerEvents: 'none' }}

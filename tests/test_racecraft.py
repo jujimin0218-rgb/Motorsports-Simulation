@@ -124,3 +124,74 @@ def test_the_better_racer_gets_away_with_more():
 def test_nobody_holds_a_line_far_beyond_them():
     for racecraft in (0.0, 0.5, 1.0):
         assert not holds_the_line(1.0, 0.5, racecraft=racecraft)
+
+
+# -- the mechanism, in a race ------------------------------------------------
+
+
+def test_a_race_prices_the_lines_its_cars_choose(street_track, small_field):
+    """The integration claim: cars in traffic leave the racing line, are
+    charged a radius for it, and sometimes ask for more than they have.
+
+    Run on a circuit with nowhere to overtake, so the field spends the race
+    close together and the racing logic is actually exercised.  Asserted as
+    "this happens at all" rather than as counts: how often is a property of
+    the circuit and the drivers, and pinning it would make the test a record
+    of one seed rather than of the mechanism.
+    """
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.race import RaceSession
+    from f1_race_engine.race.traffic import Traffic
+
+    seen: list[tuple[float, float, bool]] = []
+    original = Traffic.at
+
+    def watch(self, **kwargs):
+        state = original(self, **kwargs)
+        seen.append((state.bias, state.corner_scale, state.ran_wide))
+        return state
+
+    Traffic.at = watch
+    try:
+        RaceSession(street_track, small_field, laps=3, rng=RngHub(5)).run()
+    finally:
+        Traffic.at = original
+
+    assert seen, "no car ever asked the road what was going on"
+    assert any(abs(bias) > 0.1 for bias, _, _ in seen), "nobody left the racing line"
+    assert any(scale < 1.0 for _, scale, _ in seen), "leaving it never cost anything"
+    assert all(LEAST <= scale <= MOST for _, scale, _ in seen)
+
+
+def test_the_leader_in_clear_air_is_never_charged_for_a_line(fast_track, small_field):
+    """The safety property, from the other end: a car with nobody near it
+    drives the racing line, so its lap is the one the engine always gave."""
+    from f1_race_engine.core.rng import RngHub
+    from f1_race_engine.race import RaceSession
+    from f1_race_engine.race.traffic import Traffic
+
+    on_the_line: list[float] = []
+    original = Traffic.at
+
+    def watch(self, **kwargs):
+        state = original(self, **kwargs)
+        # Clean air and on the line: the two conditions under which a car is
+        # driving the lap the engine has always given it.
+        if state.wake.downforce_factor >= 1.0 and abs(state.bias) < 0.02:
+            on_the_line.append(state.corner_scale)
+        return state
+
+    Traffic.at = watch
+    try:
+        RaceSession(fast_track, small_field, laps=2, rng=RngHub(5)).run()
+    finally:
+        Traffic.at = original
+
+    assert on_the_line, "nobody ever ran on the racing line in clean air"
+    # Not exactly one: "on the line" here means within two per cent of it,
+    # because a car easing back on after a move is still essentially on it.
+    # What matters is that the number is a rounding error rather than a
+    # charge -- a hundredth of a per cent, against the eight per cent that
+    # holding the inside of a corner costs.
+    for scale in on_the_line:
+        assert scale == pytest.approx(1.0, abs=1e-3)

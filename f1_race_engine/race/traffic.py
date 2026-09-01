@@ -57,6 +57,17 @@ __all__ = ["OvertakeAttempt", "Traffic"]
 #: only its result.
 LINE_CHANGE_RATE = 0.01
 
+#: How quickly a car that has lost the corner travels towards the outside of
+#: it, as a fraction of the remaining distance per step.  Running wide is a car
+#: understeering off over a second or two, not a car teleporting into the
+#: gravel.
+WIDE_RATE = 0.08
+
+#: How far past the edge of the road a car that has run out of it is heading,
+#: as a multiple of the road's own half-width.  Beyond one is off the circuit,
+#: and what is out there -- kerb, tarmac, gravel -- is the world layer's to say.
+BEYOND = 1.6
+
 #: Car lengths behind at which a driver stops sitting directly behind.
 #:
 #: Not the same as being able to pass.  This close the car in front is taking
@@ -262,7 +273,9 @@ class Traffic:
             self._target = None
             # Nobody to race: back to the line, at the rate a car changes line.
             self.offset = self._hold_line(0.0, room, step)
-            bias, scale, wide, _ = self._line_state(distance, self.offset)
+            bias, scale, wide, _, self.offset = self._line_state(
+                distance, self.offset
+            )
             return TrafficState(
                 wake=CLEAN_AIR,
                 off_line=abs(self.offset) > OFF_LINE,
@@ -337,7 +350,7 @@ class Traffic:
             else (ahead_speed if road_gap - closing <= floor else float("inf"))
         )
 
-        bias, scale, wide, _ = self._line_state(distance, self.offset)
+        bias, scale, wide, _, self.offset = self._line_state(distance, self.offset)
         return TrafficState(
             wake=wake,
             drs_allowed=drs,
@@ -374,15 +387,17 @@ class Traffic:
 
     def _line_state(
         self, distance: float, offset: float
-    ) -> tuple[float, float, bool, str]:
-        """The line this car is on, its price, and whether it can hold it.
+    ) -> tuple[float, float, bool, str, float]:
+        """The line this car is on, its price, whether it holds it, and where
+        that leaves it.
 
         Called once per step of the driven lap.  The car's place across the
         road has already been decided by the racing logic above; this says what
-        the choice was in the language the physics understands.
+        the choice was in the language the physics understands, and moves the
+        car if the choice was beyond it.
         """
         if self.world is None or self.world.lines is None:
-            return 0.0, 1.0, False, "line"
+            return 0.0, 1.0, False, "line", offset
 
         index = self.world.sample_of(distance)
         # The race carries a car's place as metres from the *racing line*,
@@ -408,7 +423,20 @@ class Traffic:
             intent = "around"
         else:
             intent = "line"
-        return bias, scale, wide, intent
+
+        if wide:
+            # The car goes where its speed was taking it, which is off the
+            # outside of the corner -- and it keeps going that way until it is
+            # on a radius it can actually hold, which for a car that has run
+            # out of road means the run-off.  Nothing decides how far it goes:
+            # the drift stops when the geometry stops asking for grip the car
+            # has not got, which is why a small over-commitment is a wide exit
+            # and a large one is a trip through the gravel.
+            optimal = self.world.lines.optimal.offsets[index]
+            outside = self.world.lines.outside_edge[index] - optimal
+            offset += (outside * BEYOND - offset) * WIDE_RATE
+
+        return bias, scale, wide, intent, offset
 
     def _covered(self, distance: float) -> float:
         """How far this car has come since the start, m."""
