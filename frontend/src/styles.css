@@ -615,12 +615,17 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
    the tower sits beside it, because the picture is the point and the numbers
    are the commentary. */
 
+/* The shell is a scrolling page, and this one is not: the circuit has to fit
+   the window or half of it ends up below the fold with no way to see it. */
 .live {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
-  min-height: 0;
+  /* The shell's own padding is all that comes off the window: anything more
+     and the circuit gives back height it was never using. */
+  height: calc(100vh - 96px);
+  min-height: 420px;
+  min-width: 0;
 }
 
 .live-head {
@@ -807,16 +812,18 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
   border: 1px solid var(--line, #2a3039);
   border-radius: 10px;
   overflow-y: auto;
-  flex: 1 1 auto;
-  min-height: 200px;
+  /* The tower keeps the majority of the column even with a card open, because
+     a timing screen showing six of twenty cars is not a timing screen. */
+  flex: 1 1 55%;
+  min-height: 160px;
 }
 
 .liverow {
   display: grid;
-  grid-template-columns: 20px 4px minmax(0, 1fr) 42px 60px 60px 14px;
+  grid-template-columns: 20px 4px minmax(0, 1fr) 34px 38px 58px 58px;
   align-items: center;
   gap: 6px;
-  padding: 5px 8px;
+  padding: 4px 8px;
   background: transparent;
   border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -884,7 +891,8 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
   border: 1px solid var(--line, #2a3039);
   border-radius: 10px;
   padding: 6px 8px;
-  height: 190px;
+  height: 104px;
+  flex: 0 0 auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -913,3 +921,128 @@ hr.rule { border: none; border-top: 1px solid var(--line-soft); margin: 14px 0; 
 .feed-row.kind-pit-stop { border-color: #38bdf8; }
 .feed-row.kind-flag,
 .feed-row.kind-finish { border-color: #fbbf24; }
+
+
+/* -- tyre, DRS and the driver card ---------------------------------------- */
+
+.tyremark {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+}
+
+.tyremark > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 9px;
+}
+
+/* DRS has three states and shows two of them: armed, and open. */
+.drs {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+.drs.open {
+  background: #5abeff;
+  color: #06121c;
+}
+
+.drs.armed {
+  border: 1px solid #5abeff;
+  color: #5abeff;
+}
+
+.drivercard {
+  flex: 0 0 auto;
+  /* Tall enough for the card's own content, and never more than a third of the
+     column, so the tower stays a timing screen. */
+  max-height: min(300px, 38%);
+  overflow-y: auto;
+  border: 1px solid var(--line, #2a3039);
+  border-radius: 10px;
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.dc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 3px solid;
+  padding-left: 8px;
+}
+
+.dc-head .stack {
+  line-height: 1.25;
+}
+
+.dc-pos {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.dc-times,
+.dc-sectors {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.dc-times > div,
+.dc-sectors > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.dc-times b,
+.dc-sectors b {
+  font-size: 12px;
+}
+
+/* The two colours a timing screen uses, and they mean what they always mean. */
+.num.purple { color: #c084fc; }
+.num.green { color: #4ade80; }
+
+.dc-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 14px;
+}
+
+.dc-rows > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* Two things run long enough to want the full width: what the driver is doing
+   and what the pit wall plans to do about it. */
+.dc-rows > div.wide {
+  grid-column: 1 / -1;
+}
+
+.cap {
+  text-transform: capitalize;
+}

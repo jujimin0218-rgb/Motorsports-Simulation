@@ -133,6 +133,24 @@ because a picture that disagrees with the physics is worse than no picture —
 a car slides onto what looks like asphalt and behaves as though it were gravel,
 and nobody watching can tell which half is wrong.
 
+What a broadcast puts on the screen is on this one too:
+
+* **Position markers.**  Zoomed out to the whole circuit a car is a pixel and a
+  half, so below a pixel per metre it is drawn as a numbered disc in the team's
+  colour instead of a shape.  You can follow the race from the wide shot.
+* **Flags round the picture.**  A flag is a fact about the *track*, so yellow,
+  VSC, safety car and red draw a pulsing border round the whole view, with the
+  state named across the top and the reason underneath.  A driver under a
+  safety car cannot miss it and neither can anybody watching.
+* **DRS**, armed and open, in the tower and on the car.
+* **A driver card** under the tower when a row is clicked: the lap running now,
+  last and best, the three sector times coloured purple and green against the
+  session, tyre and age, wear, battery, fuel, damage, track-limits count, what
+  the driver is doing this second and what the pit wall plans to do about it.
+* **Scenery at every zoom.**  Grandstands, garages, the pit tower and the trees
+  are drawn from above as well as up close; only the things a couple of metres
+  across — marshal posts, braking boards, the crowd — drop out when zoomed out.
+
 ## Where it stands
 
 Verified against the engine's own reference:
@@ -144,9 +162,27 @@ Verified against the engine's own reference:
 * thirteen of the fourteen corners at Bahrain produce a genuine out-in-out line
   with a late apex, and none of them is tighter than the road.
 
-**Known rough edge.** Attrition around the pit window is still higher than it
-should be: a typical eight-lap race finishes ten to sixteen of twenty cars.
-Every retirement is physical — a car that ran wide, reached a barrier and
-stopped — and the trigger is traffic around cars rejoining at pit-lane speed.
-Nothing is scripted; it is a calibration problem, not a modelling one, and the
-tooling to chase it is in the commit history.
+**The pit window used to eat the race** — a typical race finished ten to
+sixteen of twenty cars, every retirement physical, every one of them traffic
+around cars rejoining at pit-lane speed.  Bisection put it entirely in the pit
+sequence: a solo car had no incidents, twenty cars without stops had none, and
+twenty cars *with* stops had a hundred and sixty.  What fixed it was making the
+pit sequence part of the race rather than a teleport — a strategy AI choosing
+the lap, a lane generated along the circuit's longest straight, cars pulling
+into their box so a stopped car does not block the lane, the car-following
+model able to see cars in the lane at all, and a release held when the exit is
+busy — plus graded race control, so an incident brings out a yellow, a VSC or a
+safety car instead of being ignored.
+
+Where it stands now, ten laps and twenty cars at Bahrain:
+
+* **twenty finishers, no retirements**;
+* twenty pit entries and twenty completed stops;
+* twenty-four offs, thirty-three contacts, twelve spins, two barrier scrapes —
+  and nobody's race ended because of them;
+* two yellows, three virtual safety cars, one safety car;
+* fastest lap 1:27.6.
+
+**Known rough edge.** The timing tower shows nine of twenty rows while a driver
+card is open; it scrolls, but a full field does not fit beside a card on a
+900-pixel window.

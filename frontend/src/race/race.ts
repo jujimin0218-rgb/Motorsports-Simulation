@@ -171,6 +171,8 @@ export class RaceCar {
 
   position = 0
   gapToLeader = 0
+  /** Whole laps behind the leader. */
+  lapsDown = 0
   interval = 0
   stops = 0
   compound: Compound = 'medium'
@@ -288,6 +290,8 @@ export class Race {
   pitPoints: { x: number; y: number }[] = []
   pitBoxes: { i: number; s: number; x: number; y: number; h: number }[] = []
   private rng: () => number
+  /** The seed the whole afternoon hangs off, drivers included. */
+  private seed = 0
   /** Pairs that are already tangled, so one touch is one event. */
   private touching = new Map<string, number>()
 
@@ -296,7 +300,8 @@ export class Race {
     this.surfaces = new TrackSurface(this.circuit)
     this.lines = buildLines(this.circuit)
     this.laps = options.laps
-    let a = options.seed >>> 0
+    this.seed = options.seed >>> 0
+    let a = this.seed
     this.rng = () => {
       a = (a + 0x6d2b79f5) | 0
       let t = Math.imul(a ^ (a >>> 15), 1 | a)
@@ -435,7 +440,11 @@ export class Race {
         tyreGripBonus: COMPOUNDS.medium.grip, tyreWearRate: COMPOUNDS.medium.wear,
         ers: spec.ersStore, deploying: false,
       }
-      const driver = new Driver(circuit, this.lines, spec, entry.traits, entry.car, entry.car * 7919 + index)
+      // The driver's own dice have to be mixed with the race seed, or every
+      // restart replays the same afternoon: the field's decisions, not the
+      // race's bookkeeping, are what most of the variation comes from.
+      const driverSeed = (Math.imul(entry.car * 7919 + index + 1, 0x9e3779b1) ^ this.seed) >>> 0
+      const driver = new Driver(circuit, this.lines, spec, entry.traits, entry.car, driverSeed)
       const car = new RaceCar(entry, spec, state, driver)
       car.s = s
       car.i = circuit.idxAt(s)
@@ -1314,6 +1323,12 @@ export class Race {
     running.forEach((car, index) => {
       car.position = index + 1
       car.gapToLeader = leader ? (leader.covered - car.covered) / Math.max(speedOf(car.state), 12) : 0
+      // Being a lap down is a lap of *distance*, not a difference in the lap
+      // counter: at any moment half the field has not yet crossed the line
+      // that the leader just did, and none of them is a lap behind.
+      car.lapsDown = leader
+        ? Math.floor((leader.covered - car.covered) / this.circuit.length + 0.02)
+        : 0
       const front = running[index - 1]
       car.interval = front ? (front.covered - car.covered) / Math.max(speedOf(car.state), 12) : 0
       const was = previous.get(car.number)
@@ -1363,7 +1378,8 @@ export class Race {
       e.y += e.vy * dt
       e.vx *= 1 - 1.6 * dt
       e.vy *= 1 - 1.6 * dt
-      if (e.kind === 'smoke' || e.kind === 'dust') e.size += dt * 2.4
+      // Smoke spreads, but a cloud the width of the circuit is not smoke.
+      if (e.kind === 'smoke' || e.kind === 'dust') e.size = Math.min(4.5, e.size + dt * 1.1)
     }
   }
 

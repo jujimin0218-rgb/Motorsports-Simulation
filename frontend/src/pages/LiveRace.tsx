@@ -20,6 +20,7 @@ import { useAsync } from '../hooks/useAsync'
 import { api } from '../services/api'
 import { AVERAGE_DRIVER, traitsFrom } from '../race/ai'
 import { Entry, Race, RaceCar, formatLap } from '../race/race'
+import { COMPOUNDS } from '../race/strategy'
 import { CameraMode, Renderer } from '../race/render'
 import { speedOf } from '../race/physics'
 import type { DriverRow, TeamRow, TrackWorld } from '../types/api'
@@ -63,16 +64,39 @@ function Bar({ value, colour }: { value: number; colour: string }) {
   )
 }
 
+/** The tyre a car is on, the way a broadcast shows it. */
+function Tyre({ car }: { car: RaceCar }) {
+  const spec = COMPOUNDS[car.compound]
+  return (
+    <span className="tyremark" title={`${car.compound}, ${car.tyreAge} laps`}>
+      <span style={{ borderColor: spec.colour, color: spec.colour }}>{spec.label}</span>
+      <span className="num dim">{car.tyreAge}</span>
+    </span>
+  )
+}
+
+/**
+ * DRS, in the three states it actually has.
+ *
+ * Open is the flap down the straight; armed is within a second at the
+ * detection point and about to be; nothing is nothing. Showing only the first
+ * of those hides the interesting half -- the lap where a driver *gets* into
+ * the window is the lap the pass is set up on.
+ */
+function Drs({ car }: { car: RaceCar }) {
+  if (car.drsOpen) return <span className="drs open">DRS</span>
+  if (car.drsArmed) return <span className="drs armed">DRS</span>
+  return null
+}
+
 function Tower({
   cars,
   follow,
   onFollow,
-  leader,
 }: {
   cars: RaceCar[]
   follow: number | null
   onFollow: (car: number) => void
-  leader: RaceCar | null
 }) {
   return (
     <div className="livetower">
@@ -82,8 +106,8 @@ function Tower({
             ? 'Leader'
             : car.status === 'retired'
               ? 'OUT'
-              : leader && car.lap < leader.lap
-                ? `+${leader.lap - car.lap}L`
+              : car.lapsDown > 0
+                ? `+${car.lapsDown}L`
                 : `+${car.interval.toFixed(3)}`
         return (
           <button
@@ -104,25 +128,130 @@ function Tower({
               <span className="abbrev">{car.entry.abbrev}</span>
               <span className="team dim">{car.entry.team}</span>
             </span>
+            <Tyre car={car} />
             <span className="state">
-              {car.status === 'pit' ? (
-                <Pill tone="warn">PIT</Pill>
-              ) : car.drsOpen ? (
-                <Pill tone="on">DRS</Pill>
-              ) : car.intent === 'attacking' || car.intent === 'switchback' ? (
-                <Pill tone="on">ATT</Pill>
-              ) : car.intent === 'defending' ? (
-                <Pill>DEF</Pill>
-              ) : car.inWake > 0.35 ? (
-                <Pill>AIR</Pill>
-              ) : null}
+              {car.status === 'pit' ? <Pill tone="warn">PIT</Pill> : <Drs car={car} />}
             </span>
             <span className="gap num">{gap}</span>
             <span className="last num dim">{car.lastLap ? formatLap(car.lastLap) : '—'}</span>
-            <span className="stops num dim">{car.stops}</span>
           </button>
         )
       })}
+    </div>
+  )
+}
+
+/** m:ss.mmm for a split, which is short enough not to need the minute. */
+function split(t: number): string {
+  return t > 0 ? t.toFixed(3) : '—'
+}
+
+/**
+ * Everything about one driver, for when watching is not enough.
+ *
+ * The three sector times are the point: a lap time says somebody was slow and
+ * the splits say where, which is the difference between watching a race and
+ * following one.
+ */
+function DriverCard({
+  car,
+  race,
+  best,
+}: {
+  car: RaceCar
+  race: Race
+  best: { sectors: number[]; lap: number }
+}) {
+  const running = race.started && car.status !== 'retired' && car.status !== 'finished'
+    ? race.time - car.lapStarted
+    : 0
+  const spec = COMPOUNDS[car.compound]
+  const tone = (index: number) => {
+    const t = car.lastSectors[index]
+    if (!t) return ''
+    if (best.sectors[index] > 0 && t <= best.sectors[index] + 1e-6) return 'purple'
+    if (car.bestSectors[index] > 0 && t <= car.bestSectors[index] + 1e-6) return 'green'
+    return ''
+  }
+  return (
+    <div className="drivercard">
+      <div className="dc-head" style={{ borderColor: car.entry.colour }}>
+        <div className="stack">
+          <strong>{car.entry.driver}</strong>
+          <span className="dim">{car.entry.team}</span>
+        </div>
+        <div className="dc-pos num">
+          {car.status === 'retired' ? 'OUT' : `P${car.position}`}
+        </div>
+      </div>
+
+      <div className="dc-times">
+        <div><span className="dim">This lap</span><b className="num">{formatLap(running)}</b></div>
+        <div><span className="dim">Last</span><b className="num">{formatLap(car.lastLap)}</b></div>
+        <div>
+          <span className="dim">Best</span>
+          <b className={`num ${best.lap > 0 && car.bestLap <= best.lap + 1e-6 ? 'purple' : ''}`}>
+            {formatLap(car.bestLap)}
+          </b>
+        </div>
+      </div>
+
+      <div className="dc-sectors">
+        {[0, 1, 2].map((i) => (
+          <div key={i}>
+            <span className="dim">S{i + 1}</span>
+            <b className={`num ${tone(i)}`}>{split(car.lastSectors[i])}</b>
+          </div>
+        ))}
+      </div>
+
+      <div className="dc-rows">
+        <div>
+          <span className="dim">Tyre</span>
+          <span>
+            <b style={{ color: spec.colour }}>{spec.label}</b>{' '}
+            <span className="num dim">{car.tyreAge}L</span>
+          </span>
+        </div>
+        <div>
+          <span className="dim">Stops</span>
+          <span className="num">{car.stops}</span>
+        </div>
+        <div>
+          <span className="dim">Wear</span>
+          <Bar value={1 - car.state.tyreWear} colour="#fbbf24" />
+        </div>
+        <div>
+          <span className="dim">Damage</span>
+          <Bar value={car.state.damage} colour="#f87171" />
+        </div>
+        <div>
+          <span className="dim">Battery</span>
+          <Bar value={car.state.ers / Math.max(1, car.spec.ersStore)} colour={car.state.deploying ? '#5abeff' : '#3d7ea6'} />
+        </div>
+        <div>
+          <span className="dim">Fuel</span>
+          <span className="num">{car.state.fuel.toFixed(1)} kg</span>
+        </div>
+        <div>
+          <span className="dim">DRS</span>
+          <span>{car.drsOpen ? <span className="drs open">OPEN</span>
+            : car.drsArmed ? <span className="drs armed">ARMED</span>
+            : <span className="dim">—</span>}</span>
+        </div>
+        <div>
+          <span className="dim">Off track</span>
+          <span className="num">{car.trackLimits}</span>
+        </div>
+        <div className="wide">
+          <span className="dim">Doing</span>
+          <span className="cap">{car.intent} · {car.lineId}</span>
+        </div>
+        <div className="wide">
+          <span className="dim">Plan</span>
+          <span className="cap dim">{car.strategyNote}</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -245,6 +374,16 @@ export default function LiveRace() {
   const leader = standings.find((c) => c.position === 1) ?? null
   const watched = follow !== null ? race?.cars.find((c) => c.number === follow) ?? null : null
   const recent = race ? race.events.slice(-14).reverse() : []
+  // Session bests, so a sector can be shown as purple when it is the best
+  // anybody has done rather than merely the best this driver has.
+  const best = { sectors: [0, 0, 0], lap: 0 }
+  for (const car of standings) {
+    for (let i = 0; i < 3; i++) {
+      const t = car.bestSectors[i]
+      if (t > 0 && (best.sectors[i] === 0 || t < best.sectors[i])) best.sectors[i] = t
+    }
+    if (car.bestLap > 0 && (best.lap === 0 || car.bestLap < best.lap)) best.lap = car.bestLap
+  }
 
   return (
     <div className="live">
@@ -325,11 +464,17 @@ export default function LiveRace() {
                 <Bar value={watched.controls.brake} colour="#f87171" />
                 <span className="dim">TYRE</span>
                 <Bar value={1 - watched.state.tyreWear} colour="#fbbf24" />
+                <span className="dim">ERS</span>
+                <Bar
+                  value={watched.state.ers / 4.0e6}
+                  colour={watched.state.deploying ? '#5abeff' : '#3d7ea6'}
+                />
               </div>
               <div className="hud-line">
                 <span>{watched.intent}</span>
                 <span className="dim">line: {watched.lineId}</span>
-                {watched.drsOpen ? <Pill tone="on">DRS</Pill> : null}
+                {watched.drsOpen ? <span className="drs open">DRS</span>
+                  : watched.drsArmed ? <span className="drs armed">DRS</span> : null}
                 {watched.surface !== 'track' && watched.surface !== 'kerb' ? (
                   <Pill tone="hot">{watched.surface}</Pill>
                 ) : null}
@@ -342,10 +487,15 @@ export default function LiveRace() {
         </div>
 
         <aside className="live-side">
-          <Tower cars={standings} follow={follow} onFollow={(n) => {
-            setFollow(n)
-            if (mode === 'tv') setMode('chase')
-          }} leader={leader} />
+          <Tower
+            cars={standings}
+            follow={follow}
+            onFollow={(n) => {
+              setFollow(n)
+              if (mode === 'tv') setMode('chase')
+            }}
+          />
+          {watched && race ? <DriverCard car={watched} race={race} best={best} /> : null}
           <div className="live-feed">
             {recent.map((e) => (
               <div key={e.id} className={`feed-row kind-${e.kind}`}>

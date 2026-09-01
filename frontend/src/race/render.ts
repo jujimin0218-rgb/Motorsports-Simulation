@@ -34,6 +34,27 @@ export interface Camera {
   zoomSpan: number
 }
 
+/** How each flag looks. The colours are the ones the sport uses. */
+const FLAG_LOOK: Record<string, { colour: string; wash: string; ink: string; label: string }> = {
+  yellow: { colour: '#f5d13b', wash: 'rgba(245,209,59,0.22)', ink: '#141005', label: 'YELLOW FLAG' },
+  vsc: { colour: '#ffb020', wash: 'rgba(255,176,32,0.26)', ink: '#150d00', label: 'VIRTUAL SAFETY CAR' },
+  'safety-car': { colour: '#ff8a3d', wash: 'rgba(255,138,61,0.3)', ink: '#160800', label: 'SAFETY CAR' },
+  red: { colour: '#ff3b30', wash: 'rgba(255,59,48,0.34)', ink: '#ffffff', label: 'RED FLAG' },
+}
+
+/** Below this many pixels per metre, cars are drawn as markers, not shapes. */
+const MARKER_BELOW = 0.85
+
+/** Black or white, whichever can be read on a given colour. */
+function readableOn(colour: string): string {
+  const hex = colour.replace('#', '')
+  if (hex.length < 6) return '#0b0f14'
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#0b0f14' : '#f4f7fb'
+}
+
 const PALETTE = {
   grass: '#1b2a1d',
   grassAlt: '#203121',
@@ -268,7 +289,7 @@ export class Renderer {
     this.camera.follow = car
     this.camera.mode = car === null ? 'tv' : mode
     if (car === null) this.resetCamera()
-    else this.camera.span = mode === 'onboard' ? 60 : 150
+    else this.camera.span = mode === 'onboard' ? 60 : 120
   }
 
   private followed(): RaceCar | null {
@@ -283,6 +304,17 @@ export class Renderer {
     let wantX = cam.x
     let wantY = cam.y
     let wantRot = cam.rotation
+    if (!car) {
+      // The whole-circuit view fits itself continuously rather than once when
+      // it is switched to. Doing it once means any later change -- a resized
+      // canvas, a camera left where a car was -- leaves the circuit half off
+      // the screen with no way back except reloading.
+      const b = this.statics.bounds
+      wantX = (b.minx + b.maxx) / 2
+      wantY = (b.miny + b.maxy) / 2
+      wantRot = 0
+      cam.span = Math.max(b.maxx - b.minx, b.maxy - b.miny) * 1.06
+    }
     if (car) {
       const v = speedOf(car.state)
       if (cam.mode === 'onboard') {
@@ -297,7 +329,7 @@ export class Renderer {
         wantX = car.state.x + Math.cos(car.state.yaw) * (v * 0.5)
         wantY = car.state.y + Math.sin(car.state.yaw) * (v * 0.5)
         wantRot = -car.state.yaw - Math.PI / 2
-        cam.span = 108 + v * 1.05
+        cam.span = 74 + v * 0.72
       }
     }
     // A camera that snaps is unwatchable and one that lags is worse; this is
@@ -357,11 +389,16 @@ export class Renderer {
     const detail = scale > 0.55
 
     this.drawGround(ctx, scale)
-    if (detail) this.drawFarScenery(ctx, scale)
+    // Scenery is drawn at every zoom, not only close up: a grandstand is a
+    // hundred metres of building, and a circuit seen from above with no
+    // grandstands, garages or trees round it reads as a diagram rather than a
+    // place. What gets dropped when zoomed out is the small stuff, inside the
+    // two calls, where the scale is known.
+    this.drawFarScenery(ctx, scale)
     this.drawSurfaces(ctx, scale)
     this.drawMarkings(ctx, scale, detail)
     this.drawPit(ctx, scale, detail)
-    if (detail) this.drawNearScenery(ctx, scale)
+    this.drawNearScenery(ctx, scale)
     this.drawWalls(ctx)
     this.drawMarks(ctx)
     this.drawEffects(ctx, false)
@@ -557,7 +594,9 @@ export class Renderer {
       ctx.stroke()
     }
 
-    // Marshal posts and braking boards.
+    // Marshal posts and braking boards. Both are a couple of metres across, so
+    // below this they are a speck of noise on the grass rather than a post.
+    if (scale < 0.5) return
     for (const m of this.scenery.marshals) {
       ctx.save()
       ctx.translate(m.x, m.y)
@@ -608,18 +647,21 @@ export class Renderer {
       if (high !== above) continue
       const life = clamp(1 - e.age / e.life, 0, 1)
       switch (e.kind) {
+        // Tyre smoke is thin and it thins as it spreads. Drawn any more solid
+        // than this, a handful of overlapping puffs turn into a white disc
+        // sitting on the circuit, which is what it used to do.
         case 'smoke':
-          ctx.globalAlpha = life * 0.5
-          ctx.fillStyle = '#d8dbe0'
+          ctx.globalAlpha = life * life * 0.22
+          ctx.fillStyle = '#b9bfc8'
           ctx.beginPath()
-          ctx.arc(e.x, e.y, e.size * (1 + (1 - life) * 2.5), 0, TAU)
+          ctx.arc(e.x, e.y, e.size * (1 + (1 - life) * 1.4), 0, TAU)
           ctx.fill()
           break
         case 'dust':
-          ctx.globalAlpha = life * 0.45
+          ctx.globalAlpha = life * life * 0.3
           ctx.fillStyle = '#8b7a5c'
           ctx.beginPath()
-          ctx.arc(e.x, e.y, e.size * (1 + (1 - life) * 2), 0, TAU)
+          ctx.arc(e.x, e.y, e.size * (1 + (1 - life) * 1.6), 0, TAU)
           ctx.fill()
           break
         case 'gravel':
@@ -769,17 +811,60 @@ export class Renderer {
    */
   private drawLabels(ctx: CanvasRenderingContext2D, width: number, height: number): void {
     const scale = Math.min(width, height) / this.camera.zoomSpan
-    if (scale < 0.75) return
     ctx.save()
-    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
+
+    // Far enough out that a car is two pixels long, which is not something
+    // anybody can follow. Draw a marker instead: a disc in the team's colour
+    // with the position in it, at a fixed size on the screen rather than on
+    // the road, so the field is legible from any distance.
+    if (scale < MARKER_BELOW) {
+      const r = 8
+      for (const car of this.race.cars) {
+        const p = this.toScreen(car.state.x, car.state.y, width, height)
+        if (p.x < -20 || p.y < -20 || p.x > width + 20 || p.y > height + 20) continue
+        const retired = car.status === 'retired'
+        ctx.globalAlpha = retired ? 0.35 : 1
+        // A ring for whoever is being watched, so it can be picked out.
+        if (car.number === this.camera.follow) {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, r + 4, 0, TAU)
+          ctx.strokeStyle = '#ffd166'
+          ctx.lineWidth = 2
+          ctx.stroke()
+        }
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, r, 0, TAU)
+        ctx.fillStyle = car.entry.colour
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(8,11,15,0.85)'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        // DRS is worth seeing from the top: it is the reason a gap is closing.
+        if (car.drsOpen) {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, r + 2.5, 0, TAU)
+          ctx.strokeStyle = '#5abeff'
+          ctx.lineWidth = 2
+          ctx.stroke()
+        }
+        ctx.font = '700 10px ui-sans-serif, system-ui, sans-serif'
+        ctx.fillStyle = readableOn(car.entry.colour)
+        ctx.fillText(retired ? '×' : String(car.position), p.x, p.y + 0.5)
+      }
+      ctx.restore()
+      return
+    }
+
+    // Close enough for names.
+    ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif'
     const placed: { x: number; y: number }[] = []
     for (const car of this.race.cars) {
       const p = this.toScreen(car.state.x, car.state.y, width, height)
       if (p.x < -60 || p.y < -40 || p.x > width + 60 || p.y > height + 40) continue
       const label = car.entry.abbrev || String(car.number)
-      const w = ctx.measureText(label).width + 10
+      const w = ctx.measureText(label).width + 10 + (car.drsOpen ? 26 : 0)
       let y = p.y - Math.max(14, CAR_LENGTH * scale * 0.6 + 10)
       // Nudge a label that would sit on top of one already drawn, so a pack of
       // cars reads as a pack rather than as one word.
@@ -798,7 +883,17 @@ export class Renderer {
       ctx.fillStyle = car.entry.colour
       ctx.fillRect(p.x - w / 2, y - 8, 2.5, 15)
       ctx.fillStyle = car.entry.isPlayer ? '#ffd166' : '#e8ecf3'
-      ctx.fillText(label, p.x + 1, y)
+      ctx.fillText(label, p.x + 1 - (car.drsOpen ? 13 : 0), y)
+      if (car.drsOpen) {
+        ctx.fillStyle = '#5abeff'
+        ctx.beginPath()
+        ctx.roundRect(p.x + w / 2 - 25, y - 6, 22, 11, 2)
+        ctx.fill()
+        ctx.fillStyle = '#06121c'
+        ctx.font = '700 8px ui-sans-serif, system-ui, sans-serif'
+        ctx.fillText('DRS', p.x + w / 2 - 14, y)
+        ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif'
+      }
       if (car.inWake > 0.35 && !retired) {
         ctx.fillStyle = 'rgba(120,190,255,0.85)'
         ctx.fillRect(p.x - w / 2, y + 7, w * clamp(car.inWake, 0, 1), 2)
@@ -836,14 +931,53 @@ export class Renderer {
       ctx.fillText('Lights out in ' + race.countdown.toFixed(1) + 's', width / 2, y + r * 3)
     }
 
-    // Flags.
-    if (race.cautionAt >= 0) {
-      ctx.fillStyle = 'rgba(245,209,59,0.16)'
-      ctx.fillRect(0, 0, width, height)
-      ctx.fillStyle = '#f5d13b'
-      ctx.font = '700 13px ui-sans-serif, system-ui, sans-serif'
-      ctx.textAlign = 'left'
-      ctx.fillText('YELLOW FLAG', 16, 22)
+    // Flags, as a border round the whole picture.
+    //
+    // A flag is a fact about the *track*, not about a corner of the screen, so
+    // it is drawn round the track: a driver under a safety car cannot miss it
+    // and neither can anybody watching. Pulsing, because a static frame reads
+    // as decoration and this is not decoration.
+    const flag = race.control.state
+    if (flag !== 'green') {
+      const spec = FLAG_LOOK[flag]
+      const pulse = 0.62 + 0.38 * Math.sin(race.time * 4.4)
+      const thickness = flag === 'yellow' ? 7 : 12
+      ctx.save()
+      ctx.globalAlpha = pulse
+      ctx.strokeStyle = spec.colour
+      ctx.lineWidth = thickness
+      ctx.strokeRect(thickness / 2, thickness / 2, width - thickness, height - thickness)
+      // A soft wash inside the border for the states that stop the racing.
+      if (flag !== 'yellow') {
+        const wash = ctx.createLinearGradient(0, 0, 0, height)
+        wash.addColorStop(0, spec.wash)
+        wash.addColorStop(0.35, 'rgba(0,0,0,0)')
+        wash.addColorStop(0.65, 'rgba(0,0,0,0)')
+        wash.addColorStop(1, spec.wash)
+        ctx.globalAlpha = pulse * 0.5
+        ctx.fillStyle = wash
+        ctx.fillRect(0, 0, width, height)
+      }
+      ctx.restore()
+
+      // And the name of it, where a broadcast puts it.
+      ctx.save()
+      ctx.font = '800 15px ui-sans-serif, system-ui, sans-serif'
+      ctx.textAlign = 'center'
+      const label = spec.label
+      const w = ctx.measureText(label).width + 26
+      ctx.fillStyle = spec.colour
+      ctx.beginPath()
+      ctx.roundRect(width / 2 - w / 2, 14, w, 28, 6)
+      ctx.fill()
+      ctx.fillStyle = spec.ink
+      ctx.fillText(label, width / 2, 29)
+      if (race.control.reason) {
+        ctx.font = '600 11px ui-sans-serif, system-ui, sans-serif'
+        ctx.fillStyle = 'rgba(232,236,243,0.9)'
+        ctx.fillText(race.control.reason, width / 2, 52)
+      }
+      ctx.restore()
     }
     if (race.finished) {
       ctx.fillStyle = '#e8ecf3'

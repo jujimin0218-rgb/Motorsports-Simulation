@@ -64,6 +64,8 @@ export interface CarSpec {
   ersStore: number
   /** How fast it recovers under braking, W. */
   ersHarvest: number
+  /** What the turbine puts back while the engine is pulling, W. */
+  ersHeat: number
   /** Peak brake force at the tyres, N, before grip is considered. */
   brakeForce: number
   /** Fraction of braking done by the front axle. */
@@ -114,7 +116,8 @@ export const BASE_CAR: CarSpec = {
   power: 735000,
   ersPower: 120000,
   ersStore: 4.0e6,
-  ersHarvest: 220000,
+  ersHarvest: 320000,
+  ersHeat: 65000,
   // Sized so a driver standing on the pedal is just at the front tyres' limit
   // in a normal stop: locking a wheel takes overdoing it, rather than being
   // what happens at every corner.
@@ -276,8 +279,23 @@ export function step(
   // and recovered under braking. It is what makes a modern car pull away down
   // a straight the way it does, and what runs out if a driver uses it all
   // defending in the first sector.
-  const wantsErs = controls.throttle > 0.75 && v > 32 && state.ers > 0
-  const deploy = wantsErs ? spec.ersPower : 0
+  // Deployed where it is worth having: hard on the throttle, above the speed
+  // the engine alone starts running out of torque at, and *below* the speed
+  // where drag has eaten it anyway. Deploying flat out everywhere empties the
+  // battery in half a lap, which is why a real one does not.
+  //
+  // The store is finite and the deployment window is longer than the store can
+  // fill, so full power everywhere would flatten the battery on lap one and
+  // leave it flat. A real car meters it: what comes out over a lap is what went
+  // back in over that lap. Scaling the deployed power by how full the store is
+  // does that on its own -- deployment falls as the charge does until the two
+  // balance -- and it gives the sawtooth a real one has, draining down the
+  // straight and coming back on the brakes.
+  const charge = state.ers / Math.max(1, spec.ersStore)
+  const gate = clamp((charge - 0.04) / 0.55, 0, 1)
+  const wantsErs =
+    controls.throttle > 0.85 && v > 32 && v < spec.vMax * 0.94 && gate > 0.02
+  const deploy = wantsErs ? spec.ersPower * gate : 0
   state.deploying = wantsErs
   const totalPower = (spec.power + deploy) * damageLoss
 
@@ -374,6 +392,10 @@ export function step(
   if (deploy > 0) state.ers = Math.max(0, state.ers - deploy * dt)
   if (controls.brake > 0.1 && v > 12) {
     state.ers = Math.min(spec.ersStore, state.ers + spec.ersHarvest * controls.brake * dt)
+  } else if (!wantsErs && controls.throttle > 0.2 && v > 20) {
+    // The turbine is still spinning on exhaust gas whenever the engine is
+    // working, so part throttle out of a corner puts charge back too.
+    state.ers = Math.min(spec.ersStore, state.ers + spec.ersHeat * controls.throttle * dt)
   }
 
   // Wear is the energy going through the contact patch, not the number of laps
