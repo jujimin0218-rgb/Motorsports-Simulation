@@ -1,0 +1,271 @@
+{
+  "name": "Autodromo Jose Carlos Pace",
+  "country": "Brazil",
+  "defaults": {
+    "transition_factor": 0.04,
+    "min_transition_length": 2.0,
+    "max_transition_fraction": 0.15,
+    "track_width": 11.949233178654275,
+    "geometry": "driven_line",
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 506.37804285429877,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 65.51613606710865,
+      "angle": 126.24569888125227,
+      "direction": "left",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "corner",
+      "radius": 62.448361535329944,
+      "angle": 74.50172794966754,
+      "direction": "right",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "corner",
+      "radius": 152.57975818679574,
+      "angle": 102.7704125112871,
+      "direction": "left",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 555.0719745946942,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 71.12776372269249,
+      "angle": 96.90461634219939,
+      "direction": "left",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 31.974030050123325,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 153.36323977850063,
+      "angle": 65.16739320278064,
+      "direction": "left",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 250.09844072541915,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 109.82816611996634,
+      "angle": 133.3609938957433,
+      "direction": "right",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 41.158233815122344,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 51.88378103016223,
+      "angle": 132.84707702430475,
+      "direction": "right",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "corner",
+      "radius": 59.013785202531366,
+      "angle": 169.3550500988569,
+      "direction": "left",
+      "name": "Turn 8",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 34.917110345991574,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 163.00003687961504,
+      "angle": 30.657301497665415,
+      "direction": "right",
+      "name": "Turn 9",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 40.176925009911706,
+      "angle": 154.40076083008188,
+      "direction": "right",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 52.13848888411519,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 115.18238463127368,
+      "angle": 106.21746026079894,
+      "direction": "left",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "straight",
+      "length": 133.2595376011324,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 57.89233384207917,
+      "angle": 104.17670480213376,
+      "direction": "left",
+      "name": "Turn 12",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 37.57330814056147,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 130.67187200784136,
+      "angle": 30.32978647682643,
+      "direction": "left",
+      "name": "Turn 13",
+      "corner_id": 13
+    },
+    {
+      "type": "straight",
+      "length": 45.995365857757456,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 229.5833937205794,
+      "angle": 12.00889758292354,
+      "direction": "left",
+      "name": "Turn 14",
+      "corner_id": 14
+    },
+    {
+      "type": "straight",
+      "length": 57.16355642912487,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 204.74533895501304,
+      "angle": 46.28841344450969,
+      "direction": "left",
+      "name": "Turn 15",
+      "corner_id": 15
+    },
+    {
+      "type": "straight",
+      "length": 219.14437746741905,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 235.83800123385703,
+      "angle": 26.303427593894295,
+      "direction": "left",
+      "name": "Turn 16",
+      "corner_id": 16
+    }
+  ],
+  "elevation": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        11.949233178654275
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 1,
+        "name": null,
+        "detection_distance": 4219.0,
+        "activation_start": 60.0,
+        "activation_end": 482.3,
+        "length": 422.3,
+        "lap_length": 4309.0
+      },
+      {
+        "index": 2,
+        "name": null,
+        "detection_distance": 926.8,
+        "activation_start": 1076.8,
+        "activation_end": 1545.5,
+        "length": 468.70000000000005,
+        "lap_length": 4309.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1436.3333333333333,
+      2872.6666666666665
+    ]
+  },
+  "metadata": {
+    "source": "TUM racetrack-database centreline, recovered",
+    "recovered_length_m": 4305.0,
+    "recovered_corners": 16,
+    "total_turn_deg": 359.11,
+    "built_length_m": 4309.0,
+    "closure_turns": 1,
+    "angle_moved_deg": 3.51,
+    "worst_angle_moved_deg": 0.42
+  }
+}

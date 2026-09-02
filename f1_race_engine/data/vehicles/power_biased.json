@@ -1,0 +1,43 @@
+{
+  "name": "Power-Biased Concept",
+  "team": "Concept A",
+  "mass": {
+    "chassis_mass": 718.0,
+    "driver_mass": 80.0,
+    "wheelbase": 3.6,
+    "cg_height": 0.3,
+    "weight_distribution_front": 0.45
+  },
+  "aero": {
+    "min_downforce_area": 3.35,
+    "max_downforce_area": 5.75,
+    "zero_lift_drag_area": 0.462,
+    "induced_drag_factor": 0.0335,
+    "aero_balance_front": 0.44
+  },
+  "power_unit": {
+    "max_power": 602000.0,
+    "wheel_radius": 0.36,
+    "gearbox": {
+      "ratios": [
+        15.6,
+        13.45,
+        11.61,
+        10.05,
+        8.71,
+        7.5,
+        6.5,
+        5.57
+      ]
+    }
+  },
+  "brakes": {
+    "max_brake_force": 60000.0,
+    "brake_bias_front": 0.57
+  },
+  "metadata": {
+    "generation": "2024 regulations",
+    "notes": "Stronger power unit, slipperier and less downforce-capable body. Should win on circuits dominated by straights and lose where corner speed decides -- an outcome the physics must produce on its own.",
+    "calibration": "published performance figures, not telemetry"
+  }
+}

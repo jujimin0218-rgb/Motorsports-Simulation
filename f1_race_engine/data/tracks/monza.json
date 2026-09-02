@@ -1,0 +1,227 @@
+{
+  "name": "Autodromo Nazionale Monza",
+  "country": "Italy",
+  "defaults": {
+    "transition_factor": 0.04,
+    "min_transition_length": 2.0,
+    "max_transition_fraction": 0.15,
+    "track_width": 9.368069887834352,
+    "geometry": "driven_line",
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 1052.796119292816,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 39.69636734636377,
+      "angle": 73.40535313476066,
+      "direction": "right",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "corner",
+      "radius": 38.957177911061095,
+      "angle": 87.9978545214737,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "straight",
+      "length": 70.99637301283683,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 242.05692091690014,
+      "angle": 16.995083940086786,
+      "direction": "right",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 142.14046027182079,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 267.09472869780694,
+      "angle": 17.327185463310027,
+      "direction": "right",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 24.016588023114412,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 287.6456409158701,
+      "angle": 47.671823754664565,
+      "direction": "right",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 536.8610405641689,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 58.40534416240156,
+      "angle": 58.69579442683248,
+      "direction": "left",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "corner",
+      "radius": 53.67047370035983,
+      "angle": 54.29290375738715,
+      "direction": "right",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 278.60532901364,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 93.59976785264577,
+      "angle": 95.22657158116371,
+      "direction": "right",
+      "name": "Turn 8",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 217.82560158644736,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 69.01577378922863,
+      "angle": 69.54073019301076,
+      "direction": "right",
+      "name": "Turn 9",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 877.7442412290728,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 69.36502989794302,
+      "angle": 51.892942068935824,
+      "direction": "left",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "corner",
+      "radius": 138.03023806176205,
+      "angle": 55.8814740572589,
+      "direction": "right",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "corner",
+      "radius": 81.95285272590829,
+      "angle": 39.739198360277605,
+      "direction": "left",
+      "name": "Turn 12",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 1038.527923087336,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 130.60804015957513,
+      "angle": 167.98466349587707,
+      "direction": "right",
+      "name": "Turn 13",
+      "corner_id": 13
+    }
+  ],
+  "elevation": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        9.368069887834352
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 1,
+        "name": null,
+        "detection_distance": 5703.0,
+        "activation_start": 60.0,
+        "activation_end": 1001.1,
+        "length": 941.1,
+        "lap_length": 5793.0
+      },
+      {
+        "index": 2,
+        "name": null,
+        "detection_distance": 4276.3,
+        "activation_start": 4426.3,
+        "activation_end": 5354.2,
+        "length": 927.8999999999996,
+        "lap_length": 5793.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1931.0,
+      3862.0
+    ]
+  },
+  "metadata": {
+    "source": "TUM racetrack-database centreline, recovered",
+    "recovered_length_m": 5793.0,
+    "recovered_corners": 13,
+    "total_turn_deg": -361.01,
+    "built_length_m": 5793.0,
+    "closure_turns": -1,
+    "angle_moved_deg": 2.34,
+    "worst_angle_moved_deg": 0.47
+  }
+}

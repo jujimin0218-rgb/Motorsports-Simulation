@@ -1,0 +1,327 @@
+{
+  "name": "Suzuka International Racing Course",
+  "country": "Japan",
+  "defaults": {
+    "transition_factor": 0.04,
+    "min_transition_length": 2.0,
+    "max_transition_fraction": 0.15,
+    "track_width": 9.832139534883721,
+    "geometry": "driven_line",
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 409.2114406587978,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 89.34785267307865,
+      "angle": 188.59329839557563,
+      "direction": "right",
+      "name": "Turn 1",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 122.71191513460418,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 108.63479648680617,
+      "angle": 53.779082778155164,
+      "direction": "left",
+      "name": "Turn 2",
+      "corner_id": 2
+    },
+    {
+      "type": "corner",
+      "radius": 99.61699617755916,
+      "angle": 69.04160029546249,
+      "direction": "right",
+      "name": "Turn 3",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 39.51259553111688,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 106.26107199755508,
+      "angle": 72.76821969096811,
+      "direction": "left",
+      "name": "Turn 4",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 96.12549388964376,
+      "angle": 105.53529472542233,
+      "direction": "right",
+      "name": "Turn 5",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 40.90982338827007,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 106.06491754722141,
+      "angle": 85.86329290025706,
+      "direction": "left",
+      "name": "Turn 6",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 194.67401009205793,
+      "angle": 48.546524468522016,
+      "direction": "left",
+      "name": "Turn 7",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 195.46507449211828,
+      "angle": 24.61457213157473,
+      "direction": "left",
+      "name": "Turn 8",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 87.69996781762104,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 82.63572921997888,
+      "angle": 41.61466775719348,
+      "direction": "right",
+      "name": "Turn 9",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 70.79714947157564,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 52.16930422754485,
+      "angle": 82.39659478118806,
+      "direction": "right",
+      "name": "Turn 10",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 257.59859807251814,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 142.2451532131365,
+      "angle": 33.84580545738653,
+      "direction": "right",
+      "name": "Turn 11",
+      "corner_id": 11
+    },
+    {
+      "type": "straight",
+      "length": 50.83680603218017,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 36.99953768923077,
+      "angle": 176.47806285411863,
+      "direction": "left",
+      "name": "Turn 12",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 77.12982735382556,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 167.5118334870772,
+      "angle": 54.401976347924794,
+      "direction": "right",
+      "name": "Turn 13",
+      "corner_id": 13
+    },
+    {
+      "type": "straight",
+      "length": 20.0,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 308.95813843470575,
+      "angle": 21.70447409439156,
+      "direction": "right",
+      "name": "Turn 14",
+      "corner_id": 14
+    },
+    {
+      "type": "straight",
+      "length": 48.05794466514582,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 246.76326975675994,
+      "angle": 46.685131487239424,
+      "direction": "right",
+      "name": "Turn 15",
+      "corner_id": 15
+    },
+    {
+      "type": "straight",
+      "length": 121.42155451400497,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 93.5495353821978,
+      "angle": 205.72156368851176,
+      "direction": "left",
+      "name": "Turn 16",
+      "corner_id": 16
+    },
+    {
+      "type": "straight",
+      "length": 1016.5928525881541,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 133.28998610402957,
+      "angle": 34.8072466254782,
+      "direction": "left",
+      "name": "Turn 17",
+      "corner_id": 17
+    },
+    {
+      "type": "straight",
+      "length": 37.6267018775255,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 211.0525175339447,
+      "angle": 17.097483240810124,
+      "direction": "left",
+      "name": "Turn 18",
+      "corner_id": 18
+    },
+    {
+      "type": "straight",
+      "length": 329.17310208824944,
+      "name": null
+    },
+    {
+      "type": "corner",
+      "radius": 58.33585945587495,
+      "angle": 67.79170163437058,
+      "direction": "right",
+      "name": "Turn 19",
+      "corner_id": 19
+    },
+    {
+      "type": "corner",
+      "radius": 45.5056824284294,
+      "angle": 75.52101060372263,
+      "direction": "left",
+      "name": "Turn 20",
+      "corner_id": 20
+    },
+    {
+      "type": "corner",
+      "radius": 172.79348852487632,
+      "angle": 83.58651400596354,
+      "direction": "right",
+      "name": "Turn 21",
+      "corner_id": 21
+    }
+  ],
+  "elevation": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        9.832139534883721
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 1,
+        "name": null,
+        "detection_distance": 3783.6,
+        "activation_start": 3933.6,
+        "activation_end": 4840.6,
+        "length": 907.0000000000005,
+        "lap_length": 5807.0
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      1935.6666666666667,
+      3871.3333333333335
+    ]
+  },
+  "metadata": {
+    "source": "TUM racetrack-database centreline, recovered",
+    "recovered_length_m": 5805.0,
+    "recovered_corners": 21,
+    "total_turn_deg": 0.51,
+    "built_length_m": 5807.0,
+    "closure_turns": 0,
+    "angle_moved_deg": 0.51,
+    "worst_angle_moved_deg": 0.07
+  }
+}

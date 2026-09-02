@@ -1,0 +1,533 @@
+{
+  "_comment": "Length, corner count, race distance and DRS-zone count are published facts about these circuits.  The five characteristics are game-balance weights describing what each circuit asks of a car -- they are not measurements and are not claimed to be. climate is the venue at the time of year the round is actually held -- air temperature in degrees, rain probability, humidity and wind in m/s. The engine's weather model takes it from there and moves the sky on its own during a session.  physics_track names the engine circuit a round is currently run on: the engine ships three synthetic circuits and no surveyed geometry for these twenty-two, so each round borrows the synthetic circuit closest to its character.  Replace it with a real track file per circuit and nothing else in the game has to change.",
+  "tracks": [
+    {
+      "id": "bahrain_international_circuit",
+      "name": "Bahrain International Circuit",
+      "country": "Bahrain",
+      "city": "Sakhir",
+      "length_km": 5.412,
+      "corner_count": 15,
+      "race_laps": 57,
+      "drs_zones": 3,
+      "physics_track": "bahrain",
+      "characteristics": {
+        "power_sensitivity": 0.62,
+        "downforce_requirement": 0.55,
+        "tyre_stress": 0.85,
+        "brake_stress": 0.9,
+        "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 26,
+        "rain_probability": 0.02,
+        "relative_humidity": 0.45,
+        "wind_speed": 3.5
+      }
+    },
+    {
+      "id": "jeddah_corniche_circuit",
+      "name": "Jeddah Corniche Circuit",
+      "country": "Saudi Arabia",
+      "city": "Jeddah",
+      "length_km": 6.174,
+      "corner_count": 27,
+      "race_laps": 50,
+      "drs_zones": 3,
+      "physics_track": "synthetic_power_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.8,
+        "downforce_requirement": 0.45,
+        "tyre_stress": 0.6,
+        "brake_stress": 0.55,
+        "overtaking_ease": 0.55
+      },
+      "climate": {
+        "air_temperature": 28,
+        "rain_probability": 0.03,
+        "relative_humidity": 0.55,
+        "wind_speed": 4.0
+      }
+    },
+    {
+      "id": "albert_park_circuit",
+      "name": "Albert Park Circuit",
+      "country": "Australia",
+      "city": "Melbourne",
+      "length_km": 5.278,
+      "corner_count": 14,
+      "race_laps": 58,
+      "drs_zones": 4,
+      "physics_track": "synthetic_street_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.58,
+        "downforce_requirement": 0.6,
+        "tyre_stress": 0.55,
+        "brake_stress": 0.65,
+        "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 20,
+        "rain_probability": 0.28,
+        "relative_humidity": 0.62,
+        "wind_speed": 5.0
+      }
+    },
+    {
+      "id": "suzuka_international_racing_course",
+      "name": "Suzuka International Racing Course",
+      "country": "Japan",
+      "city": "Suzuka",
+      "length_km": 5.807,
+      "corner_count": 18,
+      "race_laps": 53,
+      "drs_zones": 1,
+      "physics_track": "suzuka",
+      "characteristics": {
+        "power_sensitivity": 0.55,
+        "downforce_requirement": 0.88,
+        "tyre_stress": 0.8,
+        "brake_stress": 0.6,
+        "overtaking_ease": 0.3
+      },
+      "climate": {
+        "air_temperature": 17,
+        "rain_probability": 0.35,
+        "relative_humidity": 0.68,
+        "wind_speed": 4.5
+      }
+    },
+    {
+      "id": "miami_international_autodrome",
+      "name": "Miami International Autodrome",
+      "country": "United States",
+      "city": "Miami",
+      "length_km": 5.412,
+      "corner_count": 19,
+      "race_laps": 57,
+      "drs_zones": 3,
+      "physics_track": "synthetic_street_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.66,
+        "downforce_requirement": 0.55,
+        "tyre_stress": 0.7,
+        "brake_stress": 0.7,
+        "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 28,
+        "rain_probability": 0.3,
+        "relative_humidity": 0.72,
+        "wind_speed": 4.5
+      }
+    },
+    {
+      "id": "autodromo_enzo_e_dino_ferrari",
+      "name": "Autodromo Enzo e Dino Ferrari",
+      "country": "Italy",
+      "city": "Imola",
+      "length_km": 4.909,
+      "corner_count": 19,
+      "race_laps": 63,
+      "drs_zones": 1,
+      "physics_track": "synthetic_street_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.55,
+        "downforce_requirement": 0.72,
+        "tyre_stress": 0.62,
+        "brake_stress": 0.7,
+        "overtaking_ease": 0.18
+      },
+      "climate": {
+        "air_temperature": 20,
+        "rain_probability": 0.3,
+        "relative_humidity": 0.65,
+        "wind_speed": 3.0
+      }
+    },
+    {
+      "id": "circuit_de_monaco",
+      "name": "Circuit de Monaco",
+      "country": "Monaco",
+      "city": "Monte Carlo",
+      "length_km": 3.337,
+      "corner_count": 19,
+      "race_laps": 78,
+      "drs_zones": 1,
+      "physics_track": "synthetic_street_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.2,
+        "downforce_requirement": 0.95,
+        "tyre_stress": 0.35,
+        "brake_stress": 0.8,
+        "overtaking_ease": 0.05
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.22,
+        "relative_humidity": 0.68,
+        "wind_speed": 2.5
+      }
+    },
+    {
+      "id": "circuit_de_barcelona_catalunya",
+      "name": "Circuit de Barcelona-Catalunya",
+      "country": "Spain",
+      "city": "Barcelona",
+      "length_km": 4.657,
+      "corner_count": 14,
+      "race_laps": 66,
+      "drs_zones": 2,
+      "physics_track": "synthetic_proving_ground",
+      "characteristics": {
+        "power_sensitivity": 0.55,
+        "downforce_requirement": 0.82,
+        "tyre_stress": 0.88,
+        "brake_stress": 0.6,
+        "overtaking_ease": 0.35
+      },
+      "climate": {
+        "air_temperature": 23,
+        "rain_probability": 0.15,
+        "relative_humidity": 0.6,
+        "wind_speed": 4.0
+      }
+    },
+    {
+      "id": "circuit_gilles_villeneuve",
+      "name": "Circuit Gilles-Villeneuve",
+      "country": "Canada",
+      "city": "Montreal",
+      "length_km": 4.361,
+      "corner_count": 14,
+      "race_laps": 70,
+      "drs_zones": 3,
+      "physics_track": "montreal",
+      "characteristics": {
+        "power_sensitivity": 0.75,
+        "downforce_requirement": 0.4,
+        "tyre_stress": 0.55,
+        "brake_stress": 0.95,
+        "overtaking_ease": 0.65
+      },
+      "climate": {
+        "air_temperature": 22,
+        "rain_probability": 0.32,
+        "relative_humidity": 0.66,
+        "wind_speed": 4.0
+      }
+    },
+    {
+      "id": "red_bull_ring",
+      "name": "Red Bull Ring",
+      "country": "Austria",
+      "city": "Spielberg",
+      "length_km": 4.318,
+      "corner_count": 10,
+      "race_laps": 71,
+      "drs_zones": 3,
+      "physics_track": "red_bull_ring",
+      "characteristics": {
+        "power_sensitivity": 0.72,
+        "downforce_requirement": 0.5,
+        "tyre_stress": 0.6,
+        "brake_stress": 0.75,
+        "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.38,
+        "relative_humidity": 0.63,
+        "wind_speed": 4.5
+      }
+    },
+    {
+      "id": "silverstone_circuit",
+      "name": "Silverstone Circuit",
+      "country": "United Kingdom",
+      "city": "Silverstone",
+      "length_km": 5.891,
+      "corner_count": 18,
+      "race_laps": 52,
+      "drs_zones": 2,
+      "physics_track": "silverstone",
+      "characteristics": {
+        "power_sensitivity": 0.62,
+        "downforce_requirement": 0.9,
+        "tyre_stress": 0.85,
+        "brake_stress": 0.55,
+        "overtaking_ease": 0.55
+      },
+      "climate": {
+        "air_temperature": 19,
+        "rain_probability": 0.42,
+        "relative_humidity": 0.7,
+        "wind_speed": 6.0
+      }
+    },
+    {
+      "id": "circuit_de_spa_francorchamps",
+      "name": "Circuit de Spa-Francorchamps",
+      "country": "Belgium",
+      "city": "Spa",
+      "length_km": 7.004,
+      "corner_count": 19,
+      "race_laps": 44,
+      "drs_zones": 2,
+      "physics_track": "synthetic_power_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.85,
+        "downforce_requirement": 0.75,
+        "tyre_stress": 0.7,
+        "brake_stress": 0.6,
+        "overtaking_ease": 0.75
+      },
+      "climate": {
+        "air_temperature": 18,
+        "rain_probability": 0.48,
+        "relative_humidity": 0.74,
+        "wind_speed": 5.0
+      }
+    },
+    {
+      "id": "hungaroring",
+      "name": "Hungaroring",
+      "country": "Hungary",
+      "city": "Budapest",
+      "length_km": 4.381,
+      "corner_count": 14,
+      "race_laps": 70,
+      "drs_zones": 2,
+      "physics_track": "hungaroring",
+      "characteristics": {
+        "power_sensitivity": 0.3,
+        "downforce_requirement": 0.92,
+        "tyre_stress": 0.75,
+        "brake_stress": 0.55,
+        "overtaking_ease": 0.12
+      },
+      "climate": {
+        "air_temperature": 27,
+        "rain_probability": 0.24,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.5
+      }
+    },
+    {
+      "id": "circuit_zandvoort",
+      "name": "Circuit Zandvoort",
+      "country": "Netherlands",
+      "city": "Zandvoort",
+      "length_km": 4.259,
+      "corner_count": 14,
+      "race_laps": 72,
+      "drs_zones": 2,
+      "physics_track": "zandvoort",
+      "characteristics": {
+        "power_sensitivity": 0.42,
+        "downforce_requirement": 0.85,
+        "tyre_stress": 0.72,
+        "brake_stress": 0.55,
+        "overtaking_ease": 0.15
+      },
+      "climate": {
+        "air_temperature": 19,
+        "rain_probability": 0.4,
+        "relative_humidity": 0.75,
+        "wind_speed": 7.0
+      }
+    },
+    {
+      "id": "autodromo_nazionale_monza",
+      "name": "Autodromo Nazionale Monza",
+      "country": "Italy",
+      "city": "Monza",
+      "length_km": 5.793,
+      "corner_count": 11,
+      "race_laps": 53,
+      "drs_zones": 2,
+      "physics_track": "monza",
+      "characteristics": {
+        "power_sensitivity": 0.95,
+        "downforce_requirement": 0.2,
+        "tyre_stress": 0.5,
+        "brake_stress": 0.85,
+        "overtaking_ease": 0.8
+      },
+      "climate": {
+        "air_temperature": 25,
+        "rain_probability": 0.2,
+        "relative_humidity": 0.6,
+        "wind_speed": 3.0
+      }
+    },
+    {
+      "id": "baku_city_circuit",
+      "name": "Baku City Circuit",
+      "country": "Azerbaijan",
+      "city": "Baku",
+      "length_km": 6.003,
+      "corner_count": 20,
+      "race_laps": 51,
+      "drs_zones": 2,
+      "physics_track": "synthetic_power_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.88,
+        "downforce_requirement": 0.35,
+        "tyre_stress": 0.55,
+        "brake_stress": 0.8,
+        "overtaking_ease": 0.85
+      },
+      "climate": {
+        "air_temperature": 22,
+        "rain_probability": 0.15,
+        "relative_humidity": 0.62,
+        "wind_speed": 5.5
+      }
+    },
+    {
+      "id": "marina_bay_street_circuit",
+      "name": "Marina Bay Street Circuit",
+      "country": "Singapore",
+      "city": "Singapore",
+      "length_km": 4.94,
+      "corner_count": 19,
+      "race_laps": 62,
+      "drs_zones": 3,
+      "physics_track": "synthetic_street_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.32,
+        "downforce_requirement": 0.88,
+        "tyre_stress": 0.9,
+        "brake_stress": 0.85,
+        "overtaking_ease": 0.2
+      },
+      "climate": {
+        "air_temperature": 29,
+        "rain_probability": 0.45,
+        "relative_humidity": 0.82,
+        "wind_speed": 2.5
+      }
+    },
+    {
+      "id": "circuit_of_the_americas",
+      "name": "Circuit of the Americas",
+      "country": "United States",
+      "city": "Austin",
+      "length_km": 5.513,
+      "corner_count": 20,
+      "race_laps": 56,
+      "drs_zones": 2,
+      "physics_track": "austin",
+      "characteristics": {
+        "power_sensitivity": 0.6,
+        "downforce_requirement": 0.85,
+        "tyre_stress": 0.78,
+        "brake_stress": 0.65,
+        "overtaking_ease": 0.6
+      },
+      "climate": {
+        "air_temperature": 24,
+        "rain_probability": 0.28,
+        "relative_humidity": 0.64,
+        "wind_speed": 4.5
+      }
+    },
+    {
+      "id": "autodromo_hermanos_rodriguez",
+      "name": "Autodromo Hermanos Rodriguez",
+      "country": "Mexico",
+      "city": "Mexico City",
+      "length_km": 4.304,
+      "corner_count": 17,
+      "race_laps": 71,
+      "drs_zones": 3,
+      "physics_track": "mexico_city",
+      "characteristics": {
+        "power_sensitivity": 0.78,
+        "downforce_requirement": 0.62,
+        "tyre_stress": 0.6,
+        "brake_stress": 0.9,
+        "overtaking_ease": 0.65
+      },
+      "climate": {
+        "air_temperature": 21,
+        "rain_probability": 0.25,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.0
+      }
+    },
+    {
+      "id": "autodromo_jose_carlos_pace",
+      "name": "Autodromo Jose Carlos Pace",
+      "country": "Brazil",
+      "city": "Sao Paulo",
+      "length_km": 4.309,
+      "corner_count": 15,
+      "race_laps": 71,
+      "drs_zones": 2,
+      "physics_track": "interlagos",
+      "characteristics": {
+        "power_sensitivity": 0.68,
+        "downforce_requirement": 0.7,
+        "tyre_stress": 0.7,
+        "brake_stress": 0.7,
+        "overtaking_ease": 0.7
+      },
+      "climate": {
+        "air_temperature": 23,
+        "rain_probability": 0.4,
+        "relative_humidity": 0.7,
+        "wind_speed": 4.5
+      }
+    },
+    {
+      "id": "las_vegas_strip_circuit",
+      "name": "Las Vegas Strip Circuit",
+      "country": "United States",
+      "city": "Las Vegas",
+      "length_km": 6.201,
+      "corner_count": 17,
+      "race_laps": 50,
+      "drs_zones": 2,
+      "physics_track": "synthetic_power_circuit",
+      "characteristics": {
+        "power_sensitivity": 0.9,
+        "downforce_requirement": 0.3,
+        "tyre_stress": 0.65,
+        "brake_stress": 0.8,
+        "overtaking_ease": 0.75
+      },
+      "climate": {
+        "air_temperature": 13,
+        "rain_probability": 0.08,
+        "relative_humidity": 0.35,
+        "wind_speed": 4.0
+      }
+    },
+    {
+      "id": "yas_marina_circuit",
+      "name": "Yas Marina Circuit",
+      "country": "United Arab Emirates",
+      "city": "Abu Dhabi",
+      "length_km": 5.281,
+      "corner_count": 16,
+      "race_laps": 58,
+      "drs_zones": 2,
+      "physics_track": "synthetic_proving_ground",
+      "characteristics": {
+        "power_sensitivity": 0.62,
+        "downforce_requirement": 0.68,
+        "tyre_stress": 0.65,
+        "brake_stress": 0.7,
+        "overtaking_ease": 0.5
+      },
+      "climate": {
+        "air_temperature": 26,
+        "rain_probability": 0.02,
+        "relative_humidity": 0.55,
+        "wind_speed": 3.5
+      }
+    }
+  ]
+}

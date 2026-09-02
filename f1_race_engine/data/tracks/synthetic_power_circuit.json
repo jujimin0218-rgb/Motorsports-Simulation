@@ -1,0 +1,281 @@
+{
+  "name": "Synthetic Power Circuit",
+  "country": "Testing",
+  "defaults": {
+    "transition_factor": 0.55,
+    "min_transition_length": 4.0,
+    "max_transition_fraction": 0.45,
+    "track_width": 13.0,
+    "surface_type": "asphalt",
+    "surface_grip": 1.0,
+    "roughness": 0.5,
+    "kerb": "none"
+  },
+  "layout": [
+    {
+      "type": "straight",
+      "length": 1217.5798878258709,
+      "name": "Main straight"
+    },
+    {
+      "type": "corner",
+      "radius": 30.0,
+      "angle": 36.40449438202247,
+      "direction": "right",
+      "name": "Chicane 1 (entry)",
+      "corner_id": 1
+    },
+    {
+      "type": "straight",
+      "length": 25.694162507315323,
+      "name": "Chicane 1 link"
+    },
+    {
+      "type": "corner",
+      "radius": 32.0,
+      "angle": 32.359550561797754,
+      "direction": "left",
+      "name": "Chicane 1 (exit)",
+      "corner_id": 2
+    },
+    {
+      "type": "straight",
+      "length": 592.4760840466829,
+      "name": "Long curve approach"
+    },
+    {
+      "type": "corner",
+      "radius": 200.0,
+      "angle": 72.80898876404494,
+      "direction": "right",
+      "name": "Long Curve",
+      "corner_id": 3
+    },
+    {
+      "type": "straight",
+      "length": 283.0926828898455,
+      "name": "Back straight"
+    },
+    {
+      "type": "corner",
+      "radius": 34.0,
+      "angle": 36.40449438202247,
+      "direction": "left",
+      "name": "Chicane 2 (entry)",
+      "corner_id": 4
+    },
+    {
+      "type": "straight",
+      "length": 25.666594012129867,
+      "name": "Chicane 2 link"
+    },
+    {
+      "type": "corner",
+      "radius": 30.0,
+      "angle": 36.40449438202247,
+      "direction": "right",
+      "name": "Chicane 2 (exit)",
+      "corner_id": 5
+    },
+    {
+      "type": "straight",
+      "length": 328.2635627193967,
+      "name": "Double right approach"
+    },
+    {
+      "type": "corner",
+      "radius": 95.0,
+      "angle": 64.71910112359551,
+      "direction": "right",
+      "name": "Double Right 1",
+      "corner_id": 6
+    },
+    {
+      "type": "straight",
+      "length": 112.69330776821499,
+      "name": "Double right link"
+    },
+    {
+      "type": "corner",
+      "radius": 80.0,
+      "angle": 56.62921348314607,
+      "direction": "right",
+      "name": "Double Right 2",
+      "corner_id": 7
+    },
+    {
+      "type": "straight",
+      "length": 1268.355187995885,
+      "name": "Woods straight"
+    },
+    {
+      "type": "corner",
+      "radius": 60.0,
+      "angle": 44.49438202247191,
+      "direction": "left",
+      "name": "Esses 1",
+      "corner_id": 8
+    },
+    {
+      "type": "straight",
+      "length": 44.22788451951955,
+      "name": "Esses link 1"
+    },
+    {
+      "type": "corner",
+      "radius": 55.0,
+      "angle": 48.53932584269663,
+      "direction": "right",
+      "name": "Esses 2",
+      "corner_id": 9
+    },
+    {
+      "type": "straight",
+      "length": 45.42467350399075,
+      "name": "Esses link 2"
+    },
+    {
+      "type": "corner",
+      "radius": 70.0,
+      "angle": 36.40449438202247,
+      "direction": "left",
+      "name": "Esses 3",
+      "corner_id": 10
+    },
+    {
+      "type": "straight",
+      "length": 646.3738168616344,
+      "name": "Stadium approach"
+    },
+    {
+      "type": "corner",
+      "radius": 45.0,
+      "angle": 56.62921348314607,
+      "direction": "right",
+      "name": "Stadium",
+      "corner_id": 11
+    },
+    {
+      "type": "straight",
+      "length": 264.6210539142575,
+      "name": "Stadium exit"
+    },
+    {
+      "type": "corner",
+      "radius": 38.0,
+      "angle": 32.359550561797754,
+      "direction": "right",
+      "name": "Stadium exit corner",
+      "corner_id": 12
+    },
+    {
+      "type": "straight",
+      "length": 503.46748035128434,
+      "name": "Final approach"
+    },
+    {
+      "type": "corner",
+      "radius": 130.0,
+      "angle": 105.16853932584269,
+      "direction": "right",
+      "name": "Final Corner",
+      "corner_id": 13,
+      "radius_end": 240.0
+    },
+    {
+      "type": "straight",
+      "length": 179.32773655395727,
+      "name": "Pit straight"
+    }
+  ],
+  "elevation": {
+    "control_points": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        1820.0,
+        5.0
+      ],
+      [
+        3570.0,
+        -8.0
+      ],
+      [
+        5180.0,
+        4.0
+      ],
+      [
+        7000.0,
+        0.0
+      ]
+    ],
+    "method": "monotone_cubic"
+  },
+  "banking": {
+    "control_points": [],
+    "method": "monotone_cubic"
+  },
+  "surface": {
+    "regions": []
+  },
+  "width": {
+    "control_points": [
+      [
+        0.0,
+        15.0
+      ],
+      [
+        1190.0,
+        14.0
+      ],
+      [
+        4480.0,
+        14.0
+      ],
+      [
+        7000.0,
+        15.0
+      ]
+    ],
+    "method": "linear"
+  },
+  "kerbs": {
+    "regions": []
+  },
+  "drs": {
+    "zones": [
+      {
+        "index": 0,
+        "name": "Main straight",
+        "detection_distance": 6615.0,
+        "activation_start": 91.0,
+        "activation_end": 1155.0,
+        "length": 1064.0,
+        "lap_length": 7000.000000000001
+      },
+      {
+        "index": 1,
+        "name": "Back straight",
+        "detection_distance": 2275.0,
+        "activation_start": 2520.0,
+        "activation_end": 3325.0,
+        "length": 805.0,
+        "lap_length": 7000.000000000001
+      }
+    ]
+  },
+  "sectors": {
+    "boundaries": [
+      2380.0,
+      4760.0
+    ]
+  },
+  "metadata": {
+    "purpose": "Power-sensitive reference circuit",
+    "geometry_confidence": "synthetic",
+    "character": "long straights, few corners, high average speed",
+    "notes": "Not a real circuit. Sits at the power-sensitive end of the character range so later phases can show track character emerging from geometry rather than per-track corrections. Corner density and full-throttle share are held inside the range the Formula 1 calendar spans; generated by tools/design_circuits.py."
+  }
+}

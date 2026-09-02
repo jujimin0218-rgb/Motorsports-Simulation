@@ -1,0 +1,265 @@
+{
+  "_comment": "Fictional teams -- see data/engines/engines.json for why.  Budgets are in millions.  Each car is shaped rather than flat: the offsets from a team's level sum to about zero, so a team is not better for having a character, it is better in some places and worse in others.  That is what makes a circuit a question rather than a formality.",
+  "teams": [
+    {
+      "id": "argent",
+      "name": "Argent Grand Prix",
+      "nationality": "Germany",
+      "engine": "helios",
+      "reputation": 0.95,
+      "budget": 152.0,
+      "note": "an all-rounder with the best engine in the field",
+      "facilities": {
+        "aerodynamics": 5,
+        "power_unit": 5,
+        "chassis": 5,
+        "reliability": 4,
+        "simulator": 5,
+        "driver_development": 4
+      },
+      "car": {
+        "aero": 0.96,
+        "chassis": 0.95,
+        "power_unit": 0.95,
+        "mechanical_grip": 0.92,
+        "tyre_management": 0.9,
+        "reliability": 0.9
+      },
+      "staff": 1050
+    },
+    {
+      "id": "apex_gp",
+      "name": "Apex GP",
+      "nationality": "Austria",
+      "engine": "kagami",
+      "reputation": 0.92,
+      "budget": 148.0,
+      "note": "aerodynamically the class of the field, gentle on nothing",
+      "facilities": {
+        "aerodynamics": 5,
+        "power_unit": 4,
+        "chassis": 5,
+        "reliability": 5,
+        "simulator": 4,
+        "driver_development": 5
+      },
+      "car": {
+        "aero": 0.965,
+        "chassis": 0.955,
+        "power_unit": 0.905,
+        "mechanical_grip": 0.955,
+        "tyre_management": 0.885,
+        "reliability": 0.885
+      },
+      "staff": 1000
+    },
+    {
+      "id": "scuderia_lucente",
+      "name": "Scuderia Lucente",
+      "nationality": "Italy",
+      "engine": "corsario",
+      "reputation": 0.94,
+      "budget": 150.0,
+      "note": "quick in a straight line and hard on itself",
+      "facilities": {
+        "aerodynamics": 4,
+        "power_unit": 5,
+        "chassis": 4,
+        "reliability": 4,
+        "simulator": 5,
+        "driver_development": 4
+      },
+      "car": {
+        "aero": 0.885,
+        "chassis": 0.895,
+        "power_unit": 0.955,
+        "mechanical_grip": 0.905,
+        "tyre_management": 0.925,
+        "reliability": 0.865
+      },
+      "staff": 980
+    },
+    {
+      "id": "brackley_united",
+      "name": "Brackley United Racing",
+      "nationality": "United Kingdom",
+      "engine": "nordwerk",
+      "reputation": 0.86,
+      "budget": 138.0,
+      "note": "kind to its tyres, short of power",
+      "facilities": {
+        "aerodynamics": 4,
+        "power_unit": 4,
+        "chassis": 4,
+        "reliability": 4,
+        "simulator": 4,
+        "driver_development": 3
+      },
+      "car": {
+        "aero": 0.86,
+        "chassis": 0.89,
+        "power_unit": 0.85,
+        "mechanical_grip": 0.88,
+        "tyre_management": 0.92,
+        "reliability": 0.82
+      },
+      "staff": 850
+    },
+    {
+      "id": "meridian",
+      "name": "Meridian Racing",
+      "nationality": "United Kingdom",
+      "engine": "vanguard",
+      "reputation": 0.82,
+      "budget": 132.0,
+      "note": "a fast-corner car that struggles when it rains points",
+      "facilities": {
+        "aerodynamics": 4,
+        "power_unit": 3,
+        "chassis": 4,
+        "reliability": 3,
+        "simulator": 4,
+        "driver_development": 4
+      },
+      "car": {
+        "aero": 0.9,
+        "chassis": 0.86,
+        "power_unit": 0.84,
+        "mechanical_grip": 0.87,
+        "tyre_management": 0.82,
+        "reliability": 0.81
+      },
+      "staff": 780
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora Motorsport",
+      "nationality": "France",
+      "engine": "helios",
+      "reputation": 0.74,
+      "budget": 124.0,
+      "note": "an engine customer making the most of it",
+      "facilities": {
+        "aerodynamics": 3,
+        "power_unit": 3,
+        "chassis": 3,
+        "reliability": 3,
+        "simulator": 3,
+        "driver_development": 3
+      },
+      "car": {
+        "aero": 0.798,
+        "chassis": 0.818,
+        "power_unit": 0.868,
+        "mechanical_grip": 0.808,
+        "tyre_management": 0.838,
+        "reliability": 0.838
+      },
+      "staff": 700
+    },
+    {
+      "id": "northgate",
+      "name": "Northgate Racing",
+      "nationality": "United Kingdom",
+      "engine": "kagami",
+      "reputation": 0.7,
+      "budget": 118.0,
+      "note": "good in the slow stuff, nowhere on the straights",
+      "facilities": {
+        "aerodynamics": 3,
+        "power_unit": 3,
+        "chassis": 3,
+        "reliability": 2,
+        "simulator": 3,
+        "driver_development": 3
+      },
+      "car": {
+        "aero": 0.828,
+        "chassis": 0.788,
+        "power_unit": 0.778,
+        "mechanical_grip": 0.848,
+        "tyre_management": 0.818,
+        "reliability": 0.788
+      },
+      "staff": 640
+    },
+    {
+      "id": "veloce",
+      "name": "Veloce Squadra",
+      "nationality": "Italy",
+      "engine": "corsario",
+      "reputation": 0.66,
+      "budget": 112.0,
+      "note": "a power-circuit specialist and not much else",
+      "facilities": {
+        "aerodynamics": 3,
+        "power_unit": 2,
+        "chassis": 3,
+        "reliability": 3,
+        "simulator": 2,
+        "driver_development": 2
+      },
+      "car": {
+        "aero": 0.768,
+        "chassis": 0.788,
+        "power_unit": 0.838,
+        "mechanical_grip": 0.758,
+        "tyre_management": 0.768,
+        "reliability": 0.808
+      },
+      "staff": 580
+    },
+    {
+      "id": "cobalt",
+      "name": "Cobalt Racing",
+      "nationality": "Switzerland",
+      "engine": "nordwerk",
+      "reputation": 0.6,
+      "budget": 104.0,
+      "note": "consistent, slow, and cheap to run",
+      "facilities": {
+        "aerodynamics": 2,
+        "power_unit": 2,
+        "chassis": 2,
+        "reliability": 2,
+        "simulator": 2,
+        "driver_development": 2
+      },
+      "car": {
+        "aero": 0.778,
+        "chassis": 0.788,
+        "power_unit": 0.738,
+        "mechanical_grip": 0.778,
+        "tyre_management": 0.798,
+        "reliability": 0.728
+      },
+      "staff": 500
+    },
+    {
+      "id": "harrow",
+      "name": "Harrow Motorsport",
+      "nationality": "United Kingdom",
+      "engine": "vanguard",
+      "reputation": 0.55,
+      "budget": 96.0,
+      "note": "a good aero department attached to nothing else",
+      "facilities": {
+        "aerodynamics": 2,
+        "power_unit": 2,
+        "chassis": 2,
+        "reliability": 2,
+        "simulator": 2,
+        "driver_development": 1
+      },
+      "car": {
+        "aero": 0.778,
+        "chassis": 0.708,
+        "power_unit": 0.698,
+        "mechanical_grip": 0.768,
+        "tyre_management": 0.758,
+        "reliability": 0.718
+      },
+      "staff": 430
+    }
+  ]
+}
